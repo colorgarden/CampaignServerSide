@@ -1,0 +1,20 @@
+# build output
+build/
+out/
+
+# reference material (Mindustry sources, jars, probes) - not part of the mod
+.ref/
+
+# local test server
+testserver/
+run.log
+*.log
+
+# ide
+.gradle/
+.idea/
+*.iml
+.vscode/
+
+# java
+*.class

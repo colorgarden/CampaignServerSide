@@ -1,0 +1,55 @@
+plugins{
+    id 'java'
+}
+
+group = 'top.colorgarden'
+version = '1.0.0'
+
+ext{
+    //must match the version of the server you run the plugin on
+    mindustryVersion = 'v160.7'
+    arcVersion = '7445105cd2'
+}
+
+repositories{
+    mavenCentral()
+    maven{ url 'https://jitpack.io' }
+}
+
+dependencies{
+    //compile-only: the server already provides these at runtime
+    compileOnly "com.github.Anuken.Arc:arc-core:$arcVersion"
+    compileOnly "com.github.Anuken.Mindustry:core:$mindustryVersion"
+}
+
+java{
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+compileJava.options.encoding = 'UTF-8'
+
+jar{
+    archiveFileName = 'CampaignServerSide.jar'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    //mod.hjson has to be at the jar root
+    from(rootDir){
+        include 'mod.hjson'
+        include 'bundles/**'
+    }
+}
+
+tasks.register('installToServer'){
+    dependsOn 'jar'
+    doLast{
+        def target = project.hasProperty('serverDir') ? file(project.property('serverDir')) : file('testserver')
+        def mods = new File(target, 'config/mods')
+        mods.mkdirs()
+        copy{
+            from tasks.jar.archiveFile
+            into mods
+        }
+        println "Installed into ${mods}"
+    }
+}
