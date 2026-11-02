@@ -105,6 +105,9 @@ public class CampaignVote{
         if(kind == Kind.sector){
             Sector sector = SectorService.resolve(target);
             if(sector == null) return I18n.get("campaign.vote.no-such-sector", target);
+            if(CampaignConfig.data().enforceSectorUnlock && !SectorService.canEnter(sector)){
+                return I18n.get("campaign.vote.sector-locked", sector.name());
+            }
             resolved = sector.planet.name + ":" + sector.id;
             label = sector.name();
         }else{

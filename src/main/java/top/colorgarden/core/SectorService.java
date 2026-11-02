@@ -204,21 +204,62 @@ public class SectorService{
         if(sector == current() && playing()) return "playing";
         if(sector.hasBase()) return sector.info.wasCaptured ? "captured" : "base";
         if(sector.info != null && sector.info.wasCaptured) return "cleared";
-        if(sector.unlocked()) return "available";
+        if(sector.isShielded()) return "shielded";
+        if(canEnter(sector)) return "available";
         return "locked";
+    }
+
+    /**
+     * Mirrors the vanilla "may this sector be launched at" rule
+     * ({@code PlanetDialog#canSelect}, sector-launch mode): shielded sectors are closed, sectors with a
+     * base or the planet start sector are always open, preset sectors need their tech node unlocked, and
+     * numbered sectors follow {@code PlanetGenerator#allowLanding}.
+     */
+    public static boolean canEnter(@Nullable Sector sector){
+        if(sector == null) return false;
+
+        Planet planet = sector.planet;
+        if(planet == null || planet.generator == null) return false;
+        if(sector.isShielded()) return false;
+        if(sector.hasBase() || sector.id == planet.startSector) return true;
+
+        SectorPreset preset = sector.preset;
+        if(preset != null && preset.requireUnlock){
+            mindustry.content.TechTree.TechNode node = preset.techNode;
+            return preset.unlocked() || node == null || node.parent == null
+                || (node.parent.content.unlocked()
+                    && (!(node.parent.content instanceof SectorPreset parent) || parent.sector.hasBase()));
+        }
+
+        return planet.generator.allowLanding(sector);
+    }
+
+    /** @return the reason entering is blocked ("shielded"/"locked"), or an empty string when it is allowed. */
+    public static String lockReason(@Nullable Sector sector){
+        if(sector == null) return "locked";
+        if(canEnter(sector)) return "";
+        return sector.isShielded() ? "shielded" : "locked";
     }
 
     // ---------------------------------------------------------------- life cycle
 
     /** Saves the current sector (if any), then loads or generates the given one and hosts it. */
     public static void enter(@Nullable Sector sector) throws CampaignException{
-        enter(sector, false);
+        enter(sector, false, false);
     }
 
     /**
      * @param fresh if true, the sector save data is discarded and the sector is generated again.
      */
     public static void enter(@Nullable Sector sector, boolean fresh) throws CampaignException{
+        enter(sector, fresh, false);
+    }
+
+    /**
+     * @param force skip the vanilla sector-unlock check; used by console commands and by admins when
+     *              {@code adminBypassLock} is enabled.
+     */
+    public static void enter(@Nullable Sector sector, boolean fresh, boolean force) throws CampaignException{
         if(net.client()){
             throw new CampaignException(I18n.get("campaign.msg.server-only"));
         }
@@ -227,23 +268,43 @@ public class SectorService{
         }
 
         Sector previous = current();
+
+        if(!force && sector != previous && CampaignConfig.data().enforceSectorUnlock){
+            String reason = lockReason(sector);
+            if(!reason.isEmpty()){
+                throw new CampaignException(I18n.get("campaign.error.sector-" + reason, sector.name()));
+            }
+        }
+
         if(previous != null && !(fresh && previous == sector)){
             saveCurrent();
         }
 
         try{
-            startSector(sector, fresh);
+            startSector(sector, fresh, previous);
         }catch(CampaignException e){
             //don't leave the server with an empty world if the new sector cannot be opened
             if(previous != null && previous != sector){
                 Log.warn("[CampaignServer] " + I18n.get("campaign.log.switch-failed-recover", sector.name(), previous.name()));
                 try{
-                    startSector(previous, false);
+                    startSector(previous, false, null);
                 }catch(Throwable ignored){
                     Log.err("[CampaignServer] " + I18n.get("campaign.log.recover-failed"), ignored);
                 }
             }
             throw e;
+        }
+
+        //launch/landing pads of both ends need fresh import statistics
+        sector.info.refreshImportRates(sector.planet);
+        if(sector.info.destination != null){
+            sector.info.destination.info.refreshImportRates(sector.planet);
+        }
+
+        //vanilla runs this from the client on every capture/unlock; a server has to do it itself
+        int autoUnlocked = ResearchService.checkAutoUnlocks();
+        if(autoUnlocked > 0){
+            Log.info("[CampaignServer] " + I18n.get("campaign.log.auto-unlocked", autoUnlocked));
         }
 
         //the API tag has to be in the rules before the world is sent to any client
@@ -260,7 +321,7 @@ public class SectorService{
     }
 
     /** Loads the sector save or generates the sector, then makes it the active one. */
-    private static void startSector(Sector sector, boolean fresh) throws CampaignException{
+    private static void startSector(Sector sector, boolean fresh, @Nullable Sector origin) throws CampaignException{
         logic.reset();
 
         boolean loaded = !fresh && loadSectorSave(sector);
@@ -276,7 +337,7 @@ public class SectorService{
             if(fresh){
                 deleteSaveData(sector);
             }
-            createSector(sector);
+            createSector(sector, origin);
         }
 
         sector.planet.setLastSector(sector);
@@ -287,8 +348,50 @@ public class SectorService{
         state.set(State.playing);
     }
 
+    /**
+     * Points a sector's launch pads at another sector (or clears the link). This is the server-side
+     * replacement for the launch-pad config dialog, which only exists on a client.
+     */
+    public static void setDestination(Sector sector, @Nullable Sector destination) throws CampaignException{
+        //vanilla only allows pad targets on the same planet (LaunchPad#buildConfiguration)
+        if(destination != null && destination.planet != sector.planet){
+            throw new CampaignException(I18n.get("campaign.destination.other-planet", destination.name(), sector.planet.localizedName));
+        }
+
+        sector.info.destination = destination;
+        sector.saveInfo();
+
+        sector.info.refreshImportRates(sector.planet);
+        if(destination != null){
+            destination.info.refreshImportRates(sector.planet);
+        }
+    }
+
+    /**
+     * One-click version of the vanilla landing-pad "redirect exports" button: every other sector that
+     * has a base and ships items is pointed at {@code target}.
+     *
+     * @return how many sectors were redirected.
+     */
+    public static int redirectAllExports(Sector target){
+        int count = 0;
+
+        for(Sector sector : target.planet.sectors){
+            if(sector == null || sector == target || !sector.hasBase()) continue;
+            if(!sector.info.anyExports()) continue;
+            if(sector.info.destination == target) continue;
+
+            sector.info.destination = target;
+            sector.saveInfo();
+            count ++;
+        }
+
+        target.info.refreshImportRates(target.planet);
+        return count;
+    }
+
     /** Generates a brand new sector and starts playing it. */
-    private static void createSector(Sector sector) throws CampaignException{
+    private static void createSector(Sector sector, @Nullable Sector origin) throws CampaignException{
         SectorPreset preset = sector.preset;
         if(preset != null){
             try{
@@ -314,9 +417,11 @@ public class SectorService{
         }
 
         state.rules.sector = sector;
-        //a freshly generated sector has no launch link yet
-        sector.info.origin = null;
-        sector.info.destination = null;
+        //vanilla Control#playNewSector: a sector you launch into exports its production back to the origin
+        boolean link = CampaignConfig.data().launchPadLinking && origin != null
+            && origin != sector && origin.planet == sector.planet;
+        sector.info.origin = link ? origin : null;
+        sector.info.destination = link ? origin : null;
         sector.info.attempts ++;
 
         logic.play();

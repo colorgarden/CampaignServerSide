@@ -16,11 +16,14 @@ import top.colorgarden.vote.CampaignVote;
 import arc.ApplicationListener;
 import arc.Core;
 import arc.Events;
+import arc.struct.ObjectMap;
+import arc.struct.Seq;
 import arc.util.Log;
 import arc.util.Time;
 import mindustry.core.GameState.State;
 import mindustry.game.EventType.*;
 import mindustry.gen.Call;
+import mindustry.gen.Player;
 import mindustry.type.Sector;
 
 import static mindustry.Vars.*;
@@ -30,6 +33,10 @@ public class CampaignHooks{
     /** False when the plugin runs on a graphical client; all campaign handling stays off then. */
     public static boolean enabled;
     private static float autosaveTime;
+    /** Players that still need the join notice, mapped to the earliest time it may be sent. */
+    private static final ObjectMap<Player, Long> pendingJoinInfo = new ObjectMap<>();
+    /** Delay before the notice is sent, so the client finished loading its chat. */
+    private static final long joinInfoDelay = 3000L;
 
     public static void install(){
         if(!headless){
@@ -43,6 +50,10 @@ public class CampaignHooks{
         CampaignVote.init();
 
         Events.on(ServerLoadEvent.class, event -> onServerLoad());
+        Events.on(PlayerJoin.class, event -> scheduleJoinInfo(event.player));
+        Events.on(PlayerLeave.class, event -> {
+            if(event.player != null) pendingJoinInfo.remove(event.player);
+        });
         Events.on(SectorCaptureEvent.class, event -> onSectorCapture(event.sector));
         Events.on(SaveWriteEvent.class, event -> onSaveWrite());
         Events.run(Trigger.update, CampaignHooks::update);
@@ -96,6 +107,12 @@ public class CampaignHooks{
         }
 
         Log.info("[CampaignServer] " + I18n.get("campaign.log.sector-captured", sector.name(), saved));
+
+        //vanilla unlocks new tech-tree entries on capture from the client; do it here instead
+        int unlocked = ResearchService.checkAutoUnlocks();
+        if(unlocked > 0){
+            Log.info("[CampaignServer] " + I18n.get("campaign.log.auto-unlocked", unlocked));
+        }
         CampaignNetwork.pushInfoToAll();
     }
 
@@ -142,7 +159,57 @@ public class CampaignHooks{
         CampaignNetwork.pushInfoToAll();
     }
 
+    /** @return the lines shown to a player after joining (also used by 'campaign-joininfo'). */
+    public static Seq<String> joinInfoLines(boolean admin){
+        Seq<String> lines = new Seq<>();
+        lines.add(I18n.get("campaign.join.title"));
+
+        Sector sector = SectorService.current();
+        if(sector == null){
+            lines.add(I18n.get("campaign.join.no-campaign"));
+            if(admin) lines.add(I18n.get("campaign.join.admin-start"));
+            return lines;
+        }
+
+        lines.add(I18n.get("campaign.join.current", sector.planet.localizedName, sector.name(), sector.id,
+            state.wave, ResearchService.lockedCount(sector.planet)));
+        lines.add(I18n.get("campaign.join.commands"));
+
+        boolean voting = CampaignVote.votingEnabled(CampaignVote.Kind.sector) || CampaignVote.votingEnabled(CampaignVote.Kind.research);
+        lines.add(I18n.get(voting ? "campaign.join.vote" : "campaign.join.vote-disabled"));
+
+        if(admin) lines.add(I18n.get("campaign.join.admin"));
+        return lines;
+    }
+
+    private static void scheduleJoinInfo(Player player){
+        if(player == null || !CampaignConfig.data().joinInfo) return;
+        pendingJoinInfo.put(player, Time.millis() + joinInfoDelay);
+    }
+
+    /** Sends the queued join notices; called every tick. */
+    private static void flushJoinInfo(){
+        if(pendingJoinInfo.isEmpty()) return;
+
+        long now = Time.millis();
+        Seq<Player> ready = new Seq<>();
+
+        for(ObjectMap.Entry<Player, Long> entry : pendingJoinInfo){
+            if(entry.value <= now) ready.add(entry.key);
+        }
+
+        for(Player player : ready){
+            pendingJoinInfo.remove(player);
+            if(player == null || !player.isAdded()) continue;
+            for(String line : joinInfoLines(player.admin)){
+                player.sendMessage(line);
+            }
+        }
+    }
+
     private static void update(){
+        flushJoinInfo();
+
         CampaignConfig config = CampaignConfig.data();
         if(!config.autosave || !state.isCampaign() || state.isPaused()){
             autosaveTime = 0f;

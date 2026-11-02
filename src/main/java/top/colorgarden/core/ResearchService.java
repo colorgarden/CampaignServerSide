@@ -21,6 +21,7 @@ import mindustry.type.SectorPreset;
 import java.util.Locale;
 
 import static mindustry.Vars.content;
+import static mindustry.Vars.net;
 import static mindustry.Vars.state;
 
 /**
@@ -104,6 +105,30 @@ public class ResearchService{
         }
 
         return changed;
+    }
+
+    /**
+     * Mirrors {@code Control#checkAutoUnlocks}, which never runs on a headless server: content whose
+     * parent is unlocked, that costs nothing to research and whose objectives (sector completions,
+     * previous research) are all done gets unlocked automatically.
+     *
+     * @return how many entries were unlocked.
+     */
+    public static int checkAutoUnlocks(){
+        if(net.client()) return 0;
+
+        int count = 0;
+        for(TechNode node : mindustry.content.TechTree.all){
+            UnlockableContent content = node.content;
+            if(content == null || content.unlocked()) continue;
+            if(node.parent != null && !node.parent.content.unlocked()) continue;
+            if(node.requirements != null && node.requirements.length > 0) continue;
+            if(node.objectives.contains(o -> !o.complete())) continue;
+
+            unlock(content, false);
+            count ++;
+        }
+        return count;
     }
 
     /** Unlocks a single piece of content without touching its parents. */

@@ -41,8 +41,13 @@ state.rules.tags["campaign-api"] = "1"
 | 6 | `actionVoteResearch` | 内容内部名 | 所有人（投票可用时） |
 | 7 | `actionVoteCast` | `yes` / `no` / `cancel` | 所有人（cancel 需管理员） |
 | 8 | `actionVoteCancel` | 空 | 管理员 |
+| 9 | `actionSetDestination` | 区块查询串 / `clear` | 管理员（仅同星球，原版发射台限制） |
+| 10 | `actionRedirect` | 空 | 管理员（一键重定向所有对外运送到当前区块） |
 
 区块查询串与命令一致：`groundZero`、`170`、`id:170`、`erekir:onset`。
+
+切换区块会按原版规则校验解锁（`enforceSectorUnlock`）：未解锁返回 `campaign.error.sector-locked`，
+护盾区块返回 `campaign.error.sector-shielded`；管理员在 `adminBypassLock` 开启时可无视。
 
 ## 3. 回复里的 JSON
 
@@ -58,6 +63,8 @@ state.rules.tags["campaign-api"] = "1"
   "waves": true, "wave": 1, "winWave": 10,
   "worldWidth": 256, "worldHeight": 256, "cores": 1, "players": 0,
   "lockedResearch": 217, "saveFile": "sector-serpulo-170.msav",
+  "originId": 65, "originName": "facility32m",
+  "destinationId": 65, "destinationName": "facility32m", "destinationHasBase": true,
   "admin": true, "allowSwitch": true, "allowResearch": true,
   "voteKind": "", "voteTarget": "", "voteStarter": "",
   "voteYes": 0, "voteNo": 0, "voteRequired": 0, "voteSecondsLeft": 0,
@@ -103,7 +110,12 @@ CampaignClientApi.startResearchVote("conveyor", result -> {});
 CampaignClientApi.castVote("yes", result -> {});    // yes / no / cancel
 CampaignClientApi.cancelVote(result -> {});
 
-// 6) 服务端主动推送（换区块、区块失守、投票变化时）
+// 6) 发射台/接收台：设置本区块的发射目标、一键重定向所有对外运送
+CampaignClientApi.setDestination("facility32m", result -> {});
+CampaignClientApi.clearDestination(result -> {});
+CampaignClientApi.redirectExports(result -> {});    // 对应原版接收台的 ↓ 按钮
+
+// 7) 服务端主动推送（换区块、区块失守、投票变化时）
 CampaignClientApi.setPushListener(info -> { /* 刷新界面 */ });
 ```
 

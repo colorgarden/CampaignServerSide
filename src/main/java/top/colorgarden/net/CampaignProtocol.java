@@ -31,6 +31,8 @@ public class CampaignProtocol{
     public static final byte actionVoteResearch = 6;
     public static final byte actionVoteCast = 7;
     public static final byte actionVoteCancel = 8;
+    public static final byte actionSetDestination = 9;
+    public static final byte actionRedirect = 10;
 
     public static String actionName(byte action){
         return switch(action){
@@ -43,6 +45,8 @@ public class CampaignProtocol{
             case actionVoteResearch -> "voteResearch";
             case actionVoteCast -> "voteCast";
             case actionVoteCancel -> "voteCancel";
+            case actionSetDestination -> "setDestination";
+            case actionRedirect -> "redirect";
             default -> "unknown(" + action + ")";
         };
     }

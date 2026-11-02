@@ -64,6 +64,11 @@ public class CampaignConfig{
     public boolean allowResearch = true;
     /** Only admins may switch the sector; when false every player may use /sector. */
     public boolean sectorSwitchAdminOnly = true;
+    /** Only sectors that are unlocked in the campaign may be entered (same rules as the vanilla planet view). */
+    public boolean enforceSectorUnlock = true;
+    /** Server admins may enter locked sectors anyway (console commands always may). */
+    public boolean adminBypassLock = true;
+
     /** Only admins may unlock research; when false every player may use /research. */
     public boolean researchAdminOnly = true;
 
@@ -86,8 +91,14 @@ public class CampaignConfig{
 
     // --- misc ---
 
+    /** Send a short notice with the command hints to every player that joins. */
+    public boolean joinInfo = true;
+
     /** Announce sector changes to every player. */
     public boolean announce = true;
+    /** Link launch pads to the sector a new sector was started from, like a vanilla sector launch does. */
+    public boolean launchPadLinking = true;
+
     /** Re-sync connected clients (send the new world) after a sector change instead of kicking them. */
     public boolean resyncClients = true;
 

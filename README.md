@@ -50,6 +50,10 @@
 | `campaign-research-all` | 解锁全部科技 |
 | `campaign-relock <name>` | 重新锁上某项科技 |
 | `campaign-vote [info\|cancel]` | 查看/取消进行中的玩家投票 |
+| `campaign-destination [sector\|clear]` | 查看/设置当前区块的发射台目标（仅同星球） |
+| `campaign-redirect` | 一键把所有向外运送的区块重定向到当前区块（原版接收台的 ↓ 按钮） |
+| `campaign-why <sector>` | 解释某区块现在能不能进入、原因是什么 |
+| `campaign-joininfo` | 预览玩家进服时看到的提示 |
 | `campaign-config` | 打印当前配置与文件路径 |
 | `campaign-reload` | 重新读取 `config.json` |
 | `campaign-diag` | 诊断（存档管理器、地图可用性、API 状态、快照往返） |
@@ -73,6 +77,8 @@
 | `/cvote yes` / `/cvote no` | 所有人 | 投票 |
 | `/cvote cancel` | 管理员 | 取消投票 |
 | `/cvote info` | 所有人 | 当前投票状态 |
+| `/destination <name\|clear>` | 管理员 | 设置本区块的发射台目标 |
+| `/redirect` | 管理员 | 一键重定向所有对外运送 |
 
 “见配置”指 `sectorSwitchAdminOnly` / `researchAdminOnly`：为 `true` 时只有管理员能用。
 
@@ -114,6 +120,10 @@
 | `voteCooldown` | `30` | 同一玩家再次发起的冷却（秒） |
 | `announce` | `true` | 区块攻陷/丢失时公告 |
 | `resyncClients` | `true` | 切区块后给在线玩家重发世界数据（否则踢出） |
+| `enforceSectorUnlock` | `true` | 按原版规则限制只能进入已解锁区块 |
+| `adminBypassLock` | `true` | 管理员可无视解锁限制切区块（控制台始终可） |
+| `launchPadLinking` | `true` | 新区块自动把发射台/接收台链路指向来源区块 |
+| `joinInfo` | `true` | 玩家进服时发送一条带指令提示的说明 |
 
 存档：`config/saves/sector-<planet>-<id>.msav`；区块经济信息在 `config/settings.bin`
 （键 `<planet>-s-<id>-info`）。彻底重开某区块用 `campaign-reset <sector>`。
@@ -124,7 +134,33 @@
 握手后即可调用切换区块、解锁科技、保存、投票、获取区块信息。
 完整包格式、JSON 字段和 Java 示例见 [`PROTOCOL.md`](PROTOCOL.md)。
 
-## 7. 工作原理（为什么原版不行）
+## 7. 原版战役还原程度
+
+**区块解锁**（`enforceSectorUnlock`，默认开）按原版 `PlanetDialog#canSelect` 的规则判定能否进入：
+
+1. 被护盾保护的区块不能进（`Sector#isShielded`）；
+2. 有基地的区块、星球起始区块随时可进；
+3. 预设区块看科技树节点：`preset.unlocked()`，或父节点已解锁且（父节点是区块时）其区块已有基地；
+4. 编号区块按 `PlanetGenerator#allowLanding`（Serpulo：相邻区块有基地且核心 ≥4 级）。
+
+控制台命令永远可以强制切换（会打警告）；游戏内管理员在 `adminBypassLock` 开启时可无视限制；
+投票不允许指向未解锁区块。`campaign-why <sector>` 可随时查询判定结果。
+
+**科技自动解锁**：原版 `Control#checkAutoUnlocks` 只在客户端跑，服务端没有这一步。插件在区块攻陷、
+进入区块、手动研究之后各跑一遍同样的判定：父节点已解锁 + 无物品需求 + 目标全部完成的内容自动解锁。
+这就是“打下区块 → 解锁后续区块/科技”的链路。
+
+**发射台 / 接收台**：原版的发射台目标靠客户端 UI 设置（`LaunchPad#buildConfiguration` 在联机时被禁用），
+服务端由插件接管：新区块生成时把 `origin`/`destination` 指向来源区块（`launchPadLinking`，等同原版
+发射进入新区块的语义），并可用 `campaign-destination` / `/destination` 手动指定、
+`campaign-redirect` / `/redirect` 一键重定向，目标只允许同星球（与原版一致）。
+Serpulo 的发射台通过 `Universe#runTurn` 每回合结算运送，Erekir 的接收台按 import 速率拉取，
+两者都依赖这里的 `destination` 与 `export` 统计，链路一通即可正常工作。
+
+**尚未还原**：跨区块“携带物品/发射载具”的开局对话框（原版 `LaunchLoadoutDialog`）没有实现，
+新区块按地图默认核心开局；区块入侵沿用原版 `Universe#runTurn` 的服务端逻辑。
+
+## 8. 工作原理（为什么原版不行）
 
 1. `Vars.control` 在 headless 下为 `null`，而区块存档管理 `Saves#saveSector` / `Saves$SaveSlot`
    挂在它上面 → 插件自建 `Saves` 实例；headless 下 `Core.assets` 为空，构造时临时补一个
@@ -140,7 +176,7 @@
 6. 科技解锁走原版通道：`unlock()` → `UnlockEvent` → `Logic` 发 `Call.researched`；
    新连入的玩家由 `NetworkIO#writeWorld` 自动带上 `rules.researched`。
 
-## 8. 代码结构
+## 9. 代码结构
 
 ```
 src/main/java/top/colorgarden/
@@ -156,7 +192,7 @@ bundles/                       bundle.properties（英文兜底）+ bundle_zh_CN
 deploy/                        测试服启停脚本与部署说明
 ```
 
-## 9. 构建
+## 10. 构建
 
 **Gradle**（需要联网拉 JitPack）
 
@@ -174,7 +210,7 @@ gradle installToServer -PserverDir=/path/to/server
 `build.ps1` 用 `javac --release 17` 编译，并把 `mod.hjson`、`bundles/` 打到 jar 根目录。
 注意 `mod.hjson` 不能带 UTF-8 BOM，否则游戏会静默跳过该 mod（脚本已做防护）。
 
-## 10. 已知限制
+## 11. 已知限制
 
 - 客户端没有“星球地图”界面：跨区块移动要靠 `/sector` 或投票，或自己写客户端模组调用 API。
 - 客户端上的 `LaunchPad`/`Accelerator` 发射流程依赖单机存档，不要依赖它们换区块。
@@ -184,7 +220,7 @@ gradle installToServer -PserverDir=/path/to/server
 - 服务端日志默认按 UTF-8 输出；如果机器 `LANG` 为空，请用 `-Dfile.encoding=UTF-8`
   `-Dstdout.encoding=UTF-8` 启动（`deploy/start.sh` 已带）。
 
-## 11. 自测清单
+## 12. 自测清单
 
 ```text
 campaign-diag                      # 存档管理器 ok、78/78 地图、API advertised: true、快照往返 ok
@@ -203,7 +239,7 @@ campaign-vote info                 # 无投票时提示
 campaign-goto erekir:onset         # 跨星球
 ```
 
-## 12. 测试服
+## 13. 测试服
 
 `deploy/` 下是本项目固定测试服的启停脚本与说明（Arch Linux ARM，JRE 21，**不使用 systemd**，
 `server.sh start|stop|restart|status|console`）。详见 [`deploy/README.md`](deploy/README.md)。

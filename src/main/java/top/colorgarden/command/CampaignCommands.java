@@ -50,6 +50,10 @@ public class CampaignCommands{
             infoHelp("campaign.help.config");
             infoHelp("campaign.help.reload");
             infoHelp("campaign.help.vote");
+            infoHelp("campaign.help.destination");
+            infoHelp("campaign.help.redirect");
+            infoHelp("campaign.help.why");
+            infoHelp("campaign.help.joininfo");
             infoHelp("campaign.help.sectorarg");
         });
 
@@ -61,7 +65,8 @@ public class CampaignCommands{
 
             try{
                 Sector sector = SectorService.resolve(args.length > 0 ? args[0] : null);
-                SectorService.enter(sector);
+                warnIfLocked(sector);
+                SectorService.enter(sector, false, true);
                 info("campaign.msg.hosting", sector.name(), sector.id);
             }catch(CampaignException e){
                 err(e.getMessage());
@@ -74,7 +79,8 @@ public class CampaignCommands{
         handler.register("campaign-goto", "<sector>", "Switch the campaign to another sector.", args -> {
             try{
                 Sector sector = requireSector(args[0]);
-                SectorService.enter(sector);
+                warnIfLocked(sector);
+                SectorService.enter(sector, false, true);
                 info("campaign.msg.switched", sector.name());
             }catch(CampaignException e){
                 err(e.getMessage());
@@ -88,7 +94,8 @@ public class CampaignCommands{
             try{
                 Sector sector = requireSector(args[0]);
                 Sector previous = SectorService.current();
-                SectorService.enter(sector, true);
+                warnIfLocked(sector);
+                SectorService.enter(sector, true, true);
                 info("campaign.msg.regenerated", sector.name(), previous == null ? "-" : previous.name());
             }catch(CampaignException e){
                 err(e.getMessage());
@@ -132,6 +139,8 @@ public class CampaignCommands{
             info("campaign.status.entities", state.enemies, mindustry.gen.Groups.unit.size(), mindustry.gen.Groups.player.size());
             info("campaign.status.world", world.width(), world.height(), state.teams.playerCores().size, sector.hasBase());
             info("campaign.status.save-file", SectorService.sectorFile(sector).name(), SectorService.sectorFile(sector).exists());
+            info("campaign.status.destination", sector.info.destination == null ? "-" : sector.info.destination.name(),
+                sector.info.origin == null ? "-" : sector.info.origin.name());
             info("campaign.status.research-locked", ResearchService.lockedCount(sector.planet));
         });
 
@@ -241,12 +250,75 @@ public class CampaignCommands{
             info("campaign.vote.info", vote.starterName, CampaignVote.describe(vote), vote.yes.size, CampaignVote.requiredVotes(), vote.secondsLeft());
         });
 
+        handler.register("campaign-joininfo", "Preview the notice a player gets after joining.", args -> {
+            info("campaign.join.preview-player");
+            for(String line : CampaignHooks.joinInfoLines(false)) infoRaw("  " + line);
+            info("campaign.join.preview-admin");
+            for(String line : CampaignHooks.joinInfoLines(true)) infoRaw("  " + line);
+        });
+
+        handler.register("campaign-destination", "[sector]", "Show or set the launch/landing pad link of the current sector.", args -> {
+            Sector sector = SectorService.current();
+            if(sector == null){
+                err("campaign.msg.not-playing");
+                return;
+            }
+
+            if(args.length == 0){
+                info("campaign.destination.header", sector.name(),
+                    sector.info.destination == null ? "-" : sector.info.destination.name());
+                return;
+            }
+
+            if("clear".equalsIgnoreCase(args[0])){
+                SectorService.setDestination(sector, null);
+                info("campaign.destination.cleared", sector.name());
+                CampaignNetwork.pushInfoToAll();
+                return;
+            }
+
+            Sector destination = SectorService.resolve(args[0]);
+            if(destination == null){
+                err("campaign.destination.invalid", args[0]);
+                return;
+            }
+            try{
+                SectorService.setDestination(sector, destination);
+                info("campaign.destination.set", sector.name(), destination.name());
+                CampaignNetwork.pushInfoToAll();
+            }catch(CampaignException e){
+                err(e.getMessage());
+            }
+        });
+
+        handler.register("campaign-redirect", "Point every sector that exports items at the current sector.", args -> {
+            Sector sector = SectorService.current();
+            if(sector == null){
+                err("campaign.msg.not-playing");
+                return;
+            }
+
+            int count = SectorService.redirectAllExports(sector);
+            info("campaign.destination.redirected", count, sector.name());
+            CampaignNetwork.pushInfoToAll();
+        });
+
+        handler.register("campaign-why", "<sector>", "Explain whether a sector can be entered right now.", args -> {
+            Sector sector = requireSector(args[0]);
+            String status = SectorService.statusOf(sector);
+            String reason = SectorService.lockReason(sector);
+            info("campaign.why.header", sector.name(), sector.id, sector.planet.name, status);
+            info("campaign.why.result", SectorService.canEnter(sector), reason.isEmpty() ? "-" : reason);
+        });
+
         handler.register("campaign-config", "Show the plugin configuration.", args -> {
             CampaignConfig config = CampaignConfig.data();
             info("campaign.config.campaign", config.planet, config.sector, config.autoStart);
             info("campaign.config.saving", config.autosave, config.autosaveSeconds, config.saveOnExit, config.clearSectorOnLose);
             info("campaign.config.permissions", config.allowSectorSwitch, config.sectorSwitchAdminOnly, config.allowResearch, config.researchAdminOnly);
             info("campaign.config.voting", config.voting, config.voteSector, config.voteResearch, config.votePercent, config.voteMinPlayers, config.voteDuration);
+            info("campaign.config.misc", config.joinInfo, config.announce, config.resyncClients);
+            info("campaign.config.lock", config.enforceSectorUnlock, config.adminBypassLock, config.launchPadLinking);
             info("campaign.config.file", CampaignConfig.location() == null ? "-" : CampaignConfig.location().path());
         });
 
@@ -269,7 +341,7 @@ public class CampaignCommands{
             try{
                 Sector sector = requireSector(args[0]);
                 player.sendMessage(I18n.get("campaign.client.switching", sector.name()));
-                SectorService.enter(sector);
+                SectorService.enter(sector, false, canBypass(player));
             }catch(CampaignException e){
                 player.sendMessage("[scarlet]" + e.getMessage());
             }catch(Throwable t){
@@ -339,6 +411,51 @@ public class CampaignCommands{
                 Math.max(0, state.rules.winWave),
                 state.rules.waves,
                 ResearchService.lockedCount(sector.planet)));
+        });
+
+        handler.<Player>register("destination", "<name|clear>", "[admin] Set the launch pad destination of this sector.", (args, player) -> {
+            if(!requirePermission(player, true)) return;
+
+            Sector sector = SectorService.current();
+            if(sector == null){
+                player.sendMessage(I18n.get("campaign.client.no-sector"));
+                return;
+            }
+
+            if("clear".equalsIgnoreCase(args[0])){
+                SectorService.setDestination(sector, null);
+                player.sendMessage(I18n.get("campaign.destination.cleared", sector.name()));
+                CampaignNetwork.pushInfoToAll();
+                return;
+            }
+
+            Sector destination = SectorService.resolve(args[0]);
+            if(destination == null){
+                player.sendMessage(I18n.get("campaign.destination.invalid", args[0]));
+                return;
+            }
+
+            try{
+                SectorService.setDestination(sector, destination);
+                player.sendMessage(I18n.get("campaign.destination.set", sector.name(), destination.name()));
+                CampaignNetwork.pushInfoToAll();
+            }catch(CampaignException e){
+                player.sendMessage("[scarlet]" + e.getMessage());
+            }
+        });
+
+        handler.<Player>register("redirect", "[admin] Point every exporting sector at this one.", (args, player) -> {
+            if(!requirePermission(player, true)) return;
+
+            Sector sector = SectorService.current();
+            if(sector == null){
+                player.sendMessage(I18n.get("campaign.client.no-sector"));
+                return;
+            }
+
+            int count = SectorService.redirectAllExports(sector);
+            player.sendMessage(I18n.get("campaign.destination.redirected", count, sector.name()));
+            CampaignNetwork.pushInfoToAll();
         });
 
         handler.<Player>register("campaignsave", "Save the current sector.", (args, player) -> {
@@ -417,6 +534,22 @@ public class CampaignCommands{
             throw new CampaignException(I18n.get("campaign.error.no-such-sector", query));
         }
         return sector;
+    }
+
+    /** console commands bypass the unlock gate; admins only bypass it when configured */
+    private static boolean canBypass(Player player){
+        return player != null && player.admin && CampaignConfig.data().adminBypassLock;
+    }
+
+    /** @return whether a sector may be entered, without switching to it. */
+    private static boolean checkEnterable(Sector sector){
+        return !CampaignConfig.data().enforceSectorUnlock || SectorService.canEnter(sector);
+    }
+
+    private static void warnIfLocked(Sector sector){
+        if(sector != null && !checkEnterable(sector)){
+            Log.warn("[CampaignServer] " + I18n.get("campaign.log.forced-locked", sector.name(), SectorService.lockReason(sector)));
+        }
     }
 
     private static boolean requirePermission(Player player, boolean adminOnly){

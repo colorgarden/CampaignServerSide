@@ -212,7 +212,7 @@ public class CampaignNetwork{
                 }
 
                 try{
-                    SectorService.enter(sector);
+                    SectorService.enter(sector, false, player.admin && CampaignConfig.data().adminBypassLock);
                     CampaignInfo info = CampaignInfo.build("");
                     info.admin = player.admin;
                     sendReply(con, packet.requestId, packet.action, true, I18n.get("campaign.api.switched", sector.name()), info.toJson());
@@ -297,6 +297,60 @@ public class CampaignNetwork{
                 info.admin = player.admin;
                 sendReply(con, packet.requestId, packet.action, cancelled,
                     I18n.get(cancelled ? "campaign.api.vote-cancelled" : "campaign.vote.no-vote"), info.toJson());
+            }
+
+            case CampaignProtocol.actionSetDestination -> {
+                if(!requirePermission(con, packet, player, true)) return;
+
+                Sector sector = SectorService.current();
+                if(sector == null){
+                    sendReply(con, packet.requestId, packet.action, false, I18n.get("campaign.msg.not-playing"), "");
+                    return;
+                }
+
+                if(packet.arg.isEmpty() || "clear".equalsIgnoreCase(packet.arg)){
+                    SectorService.setDestination(sector, null);
+                    CampaignInfo info = CampaignInfo.build("");
+                    info.admin = player.admin;
+                    sendReply(con, packet.requestId, packet.action, true,
+                        I18n.get("campaign.destination.cleared", sector.name()), info.toJson());
+                    return;
+                }
+
+                Sector destination = SectorService.resolve(packet.arg);
+                if(destination == null){
+                    sendReply(con, packet.requestId, packet.action, false, I18n.get("campaign.destination.invalid", packet.arg), "");
+                    return;
+                }
+
+                try{
+                    SectorService.setDestination(sector, destination);
+                }catch(CampaignException e){
+                    sendReply(con, packet.requestId, packet.action, false, e.getMessage(), "");
+                    return;
+                }
+                CampaignInfo info = CampaignInfo.build("");
+                info.admin = player.admin;
+                sendReply(con, packet.requestId, packet.action, true,
+                    I18n.get("campaign.destination.set", sector.name(), destination.name()), info.toJson());
+                pushInfoToAll();
+            }
+
+            case CampaignProtocol.actionRedirect -> {
+                if(!requirePermission(con, packet, player, true)) return;
+
+                Sector sector = SectorService.current();
+                if(sector == null){
+                    sendReply(con, packet.requestId, packet.action, false, I18n.get("campaign.msg.not-playing"), "");
+                    return;
+                }
+
+                int count = SectorService.redirectAllExports(sector);
+                CampaignInfo info = CampaignInfo.build("");
+                info.admin = player.admin;
+                sendReply(con, packet.requestId, packet.action, true,
+                    I18n.get("campaign.destination.redirected", count, sector.name()), info.toJson());
+                pushInfoToAll();
             }
 
             default -> sendReply(con, packet.requestId, packet.action, false,

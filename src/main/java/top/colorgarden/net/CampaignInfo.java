@@ -55,6 +55,13 @@ public class CampaignInfo{
     public int cores;
     public int players;
     public int lockedResearch;
+    /** Sector this sector was launched from, -1 when unknown. */
+    public int originId = -1;
+    public String originName = "";
+    /** Where this sector's launch pads export to, -1 when nothing is linked. */
+    public int destinationId = -1;
+    public String destinationName = "";
+    public boolean destinationHasBase;
     public String saveFile = "";
 
     /** Whether the requesting player may use the mutating actions. */
@@ -150,6 +157,15 @@ public class CampaignInfo{
         info.hasBase = sector.hasBase();
         info.lockedResearch = ResearchService.lockedCount(sector.planet);
         info.saveFile = SectorService.sectorFile(sector).name();
+        if(sector.info.origin != null){
+            info.originId = sector.info.origin.id;
+            info.originName = sector.info.origin.name();
+        }
+        if(sector.info.destination != null){
+            info.destinationId = sector.info.destination.id;
+            info.destinationName = sector.info.destination.name();
+            info.destinationHasBase = sector.info.destination.hasBase();
+        }
 
         if(withDetails){
             info.waves = state.rules != null && state.rules.waves;

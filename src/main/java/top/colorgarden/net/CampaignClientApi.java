@@ -98,6 +98,24 @@ public class CampaignClientApi{
             deliverResult(listener, CampaignProtocol.actionResearchAll, reply));
     }
 
+    /** Points this sector's launch pads at another sector (same planet only). Admin only. */
+    public static int setDestination(String sector, @Nullable Cons<Result> listener){
+        return CampaignNetwork.sendRequest(CampaignProtocol.actionSetDestination, sector, reply ->
+            deliverResult(listener, CampaignProtocol.actionSetDestination, reply));
+    }
+
+    /** Clears the launch pad link of this sector. Admin only. */
+    public static int clearDestination(@Nullable Cons<Result> listener){
+        return CampaignNetwork.sendRequest(CampaignProtocol.actionSetDestination, "clear", reply ->
+            deliverResult(listener, CampaignProtocol.actionSetDestination, reply));
+    }
+
+    /** Points every sector that exports items at the current sector (the vanilla landing-pad button). Admin only. */
+    public static int redirectExports(@Nullable Cons<Result> listener){
+        return CampaignNetwork.sendRequest(CampaignProtocol.actionRedirect, "", reply ->
+            deliverResult(listener, CampaignProtocol.actionRedirect, reply));
+    }
+
     /** Asks the server to save the current sector. Admin only. */
     public static int save(@Nullable Cons<Result> listener){
         return CampaignNetwork.sendRequest(CampaignProtocol.actionSave, "", reply ->
