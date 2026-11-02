@@ -12,6 +12,7 @@
 
 目标版本：Mindustry **v160.x** 专用服务端（`server-release.jar`），JDK 17+。
 许可证：**AGPL-3.0-or-later**（见 [`LICENSE`](LICENSE)）。
+仓库：`https://github.com/colorgarden/CampaignServerSide`
 
 ---
 

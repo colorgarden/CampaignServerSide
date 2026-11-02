@@ -67,6 +67,11 @@ runuser -u colorgarden -- $S attach          # 跟踪日志
 ## 注意
 
 - **不要**在这台机器上 `pacman -Syu` 全量升级来“顺便修东西”；只装/删需要的包。
+- 本机（Windows 开发机）的 git 全局配置里有一个 `http.proxy=http://127.0.0.1:7890`，代理没开时
+  `git push` 会报 TLS `unexpected eof`。推送本仓库用：
+  `git -c http.proxy= -c https.proxy= push`
+- 服务端 JVM 需要 UTF-8 输出（`deploy/start.sh` 已带 `-Dstdout.encoding=UTF-8`），
+  否则中文日志会变成 `?`。
 - 改 `config.json`：先停服再改，或改完立刻执行 `server.sh restart`（插件在切换区块时会重写该文件，
   虽然会保留你改过的字段，但停服改最稳）。
 - 想完全重开某个区块：`console 'campaign-reset <sector>'`；想清空整个战役：停服后删
