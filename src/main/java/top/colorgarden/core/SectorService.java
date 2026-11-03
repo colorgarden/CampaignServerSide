@@ -299,8 +299,12 @@ public class SectorService{
         if(sector.hasBase() || sector.id == planet.startSector) return true;
 
         SectorPreset preset = sector.preset;
+        //PlanetDialog#isLocked: a preset with an unlock node cannot be played until it is unlocked,
+        //which for sector presets means its SectorComplete objective (the gate sector) is met.
+        //canSelect() alone is only about picking the sector in the planet view, not about playing it.
+        if(preset != null && preset.techNode != null && preset.locked() && !sector.hasBase()) return false;
+
         if(preset != null && preset.requireUnlock){
-            //exactly PlanetDialog#canSelect: a neighbour of a sector that has a base is selectable
             mindustry.content.TechTree.TechNode node = preset.techNode;
             return preset.unlocked() || node == null || node.parent == null
                 || (node.parent.content.unlocked()
