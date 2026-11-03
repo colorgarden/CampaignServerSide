@@ -293,6 +293,17 @@ public class CampaignVote{
         Log.info("[CampaignServer] @ started a @ vote for '@'.", starter.plainName(), kind, label);
         push();
         VoteMenu.pushVote();
+
+        //a ballot that is already decided (a lone player, or everyone has voted) should not wait for
+        //the idle timeout; resolve on the next frame so the world is not reloaded inside a command
+        arc.Core.app.post(() -> {
+            Vote running = current;
+            if(running != vote) return;
+
+            Boolean decided = decide(running);
+            if(decided != null) finish(decided, decided ? null : failReason(running));
+        });
+
         return null;
     }
 

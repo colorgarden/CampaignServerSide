@@ -117,6 +117,7 @@ public class CampaignHooks{
             player.sendMessage(problem == null
                 ? I18n.get("campaign.vote.ballot-counted", I18n.get(yes ? "campaign.vote.yes" : "campaign.vote.no"))
                 : "[scarlet]" + problem);
+            if(problem == null) VoteMenu.hideVote(player);
 
             //swallow the chat line: a ballot is not something to broadcast
             return null;

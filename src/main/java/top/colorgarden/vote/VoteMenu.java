@@ -151,10 +151,13 @@ public class VoteMenu{
         }
     }
 
-    /** Pushes the ballot to one player (join, or vote start). */
+    /** Pushes the ballot to one player, unless they already voted on it. */
     public static void pushVoteTo(Player player){
         CampaignVote.Vote vote = CampaignVote.active();
         if(!available || player == null || player.con == null || vote == null) return;
+
+        //the starter already counted a yes; re-popping the ballot for them is just noise
+        if(vote.yes.contains(player.uuid()) || vote.no.contains(player.uuid())) return;
 
         String message = I18n.get("campaign.menu.vote-message", CampaignVote.describe(vote),
             vote.yes.size, CampaignVote.requiredVotes(), vote.no.size, vote.secondsLeft())
@@ -166,6 +169,11 @@ public class VoteMenu{
         };
 
         Call.followUpMenu(player.con, voteId, I18n.get("campaign.menu.vote-title"), message, options);
+    }
+
+    /** Closes the ballot for one player, right after they voted. */
+    public static void hideVote(Player player){
+        hide(player, voteId);
     }
 
     /** Closes the ballot on every client once the vote is over. */
@@ -403,9 +411,11 @@ public class VoteMenu{
         if(option == 0){
             String problem = CampaignVote.cast(player, "y");
             if(problem != null) player.sendMessage("[scarlet]" + problem);
+            hide(player, voteId);
         }else if(option == 1){
             String problem = CampaignVote.cast(player, "n");
             if(problem != null) player.sendMessage("[scarlet]" + problem);
+            hide(player, voteId);
         }else{
             hide(player, voteId);
         }
