@@ -526,6 +526,30 @@ public class CampaignCommands{
             String reason = SectorService.lockReason(sector);
             info("campaign.why.header", sector.name(), sector.id, sector.planet.name, status);
             info("campaign.why.result", SectorService.canEnter(sector), reason.isEmpty() ? "-" : reason);
+
+            //raw data behind the decision, so the vanilla rule can be checked instead of guessed
+            mindustry.type.SectorPreset preset = sector.preset;
+            if(preset == null){
+                infoRaw("  preset: none / hasBase=" + sector.hasBase() + " startSector=" + (sector.id == sector.planet.startSector));
+            }else{
+                infoRaw("  preset: requireUnlock=" + preset.requireUnlock + " unlocked=" + preset.unlocked()
+                    + " locked=" + preset.locked() + " hasBase=" + sector.hasBase());
+                mindustry.content.TechTree.TechNode node = preset.techNode;
+                if(node == null){
+                    infoRaw("  techNode: null");
+                }else{
+                    String parent = node.parent == null ? "-"
+                        : node.parent.content.name + " unlocked=" + node.parent.content.unlocked();
+                    infoRaw("  techNode.parent: " + parent);
+                    int pending = ResearchService.pendingObjectives(node);
+                    infoRaw("  objectives: " + (node.objectives == null ? 0 : node.objectives.size) + ", pending=" + pending);
+                    if(node.objectives != null){
+                        for(var objective : node.objectives){
+                            infoRaw("    " + objective + " complete=" + objective.complete());
+                        }
+                    }
+                }
+            }
         });
 
         handler.register("campaign-config", "Show the plugin configuration.", args -> {
