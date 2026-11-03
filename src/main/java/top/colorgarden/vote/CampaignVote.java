@@ -127,6 +127,8 @@ public class CampaignVote{
                 if(content instanceof SectorPreset) continue;
                 //content vanilla unlocks for free must not be votable either
                 if(ResearchService.autoUnlockable(node)) continue;
+                //content gated behind sector objectives is not researchable yet
+                if(ResearchService.researchBlocker(content) != null) continue;
                 //vanilla only offers content of the current planet (the tech tree is shared by all)
                 if(!ResearchService.shownOnPlanet(content, planet)) continue;
                 //strict mode: only offer what the vote could actually unlock
@@ -255,8 +257,8 @@ public class CampaignVote{
                 return I18n.get("campaign.research.other-planet", content.localizedName);
             }
             if(CampaignConfig.data().researchStrict && !content.unlocked()){
-                UnlockableContent blocker = ResearchService.lockedParent(content);
-                if(blocker != null) return I18n.get("campaign.research.parent-locked", blocker.localizedName);
+                String blocker = ResearchService.researchBlocker(content);
+                if(blocker != null) return blocker;
             }
             resolved = content.name;
             label = content.localizedName;
@@ -473,7 +475,13 @@ public class CampaignVote{
                     }
                 }
                 ResearchService.research(content, true);
-                announce(I18n.get("campaign.vote.researched", content.localizedName));
+                if(content.unlocked()){
+                    announce(I18n.get("campaign.vote.researched", content.localizedName));
+                }else{
+                    //partial payment, exactly like vanilla: the missing part stays as progress
+                    announce(I18n.get("campaign.vote.research-partial", content.localizedName,
+                        ResearchService.formatStacks(ResearchService.missing(content))));
+                }
             }
         }catch(Throwable t){
             Log.err("[CampaignServer] Could not apply the vote result.", t);

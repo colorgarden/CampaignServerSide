@@ -122,8 +122,41 @@ public class ResearchService{
         return content.shownPlanets.isEmpty() || content.shownPlanets.contains(planet);
     }
 
-    /** @return the nearest ancestor in the tech tree that is still locked, or null when the path is clear. */
-    public static @Nullable UnlockableContent lockedParent(@Nullable UnlockableContent content){
+    /** @return "item x5, lead x5" for messages. */
+    public static String formatStacks(Seq<ItemStack> stacks){
+        if(stacks == null || stacks.isEmpty()) return "-";
+
+        StringBuilder builder = new StringBuilder();
+        for(ItemStack stack : stacks){
+            if(builder.length() > 0) builder.append(", ");
+            builder.append(stack.item.localizedName).append(" x").append(stack.amount);
+        }
+        return builder.toString();
+    }
+
+    /**
+     * @return a reason why this content cannot be researched right now, or null when it can.
+     *         Mirrors what the vanilla client enforces before it lets a player pay.
+     */
+    public static @Nullable String researchBlocker(@Nullable UnlockableContent content){
+        if(content == null) return I18n.get("campaign.research.unknown", "-");
+        if(content.unlocked()) return null;
+
+        TechNode node = content.techNode;
+        if(node == null) return null;
+
+        int pending = pendingObjectives(node);
+        if(pending > 0) return I18n.get("campaign.research.objectives", content.localizedName, pending);
+
+        if(CampaignConfig.data().researchStrict){
+            UnlockableContent parent = lockedParent(content);
+            if(parent != null) return I18n.get("campaign.research.parent-locked", parent.localizedName);
+        }
+
+        return null;
+    }
+
+    /** @return the nearest ancestor in the tech tree that is still locked, or null when the path is clear. */    public static @Nullable UnlockableContent lockedParent(@Nullable UnlockableContent content){
         TechNode node = content == null ? null : content.techNode;
 
         for(TechNode parent = node == null ? null : node.parent; parent != null; parent = parent.parent){
@@ -197,6 +230,16 @@ public class ResearchService{
     }
 
     /**
+     * @return how many of this node's objectives are still unmet. Vanilla gates research on these
+     *         ({@code ResearchDialog} only allows a node when every objective is complete), so a
+     *         server that ignores them lets players research content that requires a specific sector.
+     */
+    public static int pendingObjectives(@Nullable TechNode node){
+        if(node == null || node.objectives == null) return 0;
+        return node.objectives.count(objective -> !objective.complete());
+    }
+
+    /**
      * @return true when vanilla would unlock this node by itself: parent unlocked, no item cost and
      *         every objective already complete. Such content must never be "researched" by hand.
      */
@@ -205,7 +248,7 @@ public class ResearchService{
         if(node.content.unlocked()) return false;
         if(node.parent != null && !node.parent.content.unlocked()) return false;
         if(node.requirements != null && node.requirements.length > 0) return false;
-        return !node.objectives.contains(o -> !o.complete());
+        return pendingObjectives(node) == 0;
     }
 
     /** Unlocks a single piece of content without touching its parents. */

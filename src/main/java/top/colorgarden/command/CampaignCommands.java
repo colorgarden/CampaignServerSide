@@ -288,12 +288,10 @@ public class CampaignCommands{
                 return;
             }
 
-            if(CampaignConfig.data().researchStrict && !unlockable.unlocked()){
-                UnlockableContent blocker = ResearchService.lockedParent(unlockable);
-                if(blocker != null){
-                    err("campaign.research.parent-locked", blocker.localizedName);
-                    return;
-                }
+            String blocker = ResearchService.researchBlocker(unlockable);
+            if(blocker != null){
+                err(blocker);
+                return;
             }
 
             if(CampaignConfig.data().researchCosts && state.isCampaign() && !unlockable.unlocked()){
@@ -696,12 +694,10 @@ public class CampaignCommands{
                 return;
             }
 
-            if(CampaignConfig.data().researchStrict && !unlockable.unlocked()){
-                UnlockableContent blocker = ResearchService.lockedParent(unlockable);
-                if(blocker != null){
-                    player.sendMessage(I18n.get("campaign.research.parent-locked", blocker.localizedName));
-                    return;
-                }
+            String blocker = ResearchService.researchBlocker(unlockable);
+            if(blocker != null){
+                player.sendMessage(blocker);
+                return;
             }
 
             boolean changed = ResearchService.research(unlockable, true);
