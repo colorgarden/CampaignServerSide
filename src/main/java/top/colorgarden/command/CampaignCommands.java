@@ -330,6 +330,15 @@ public class CampaignCommands{
             info("campaign.logic.counts", counts[0], counts[1], counts[2], counts[3]);
         });
 
+        handler.register("campaign-dumprules", "Dump the rules JSON that clients receive (debug).", args -> {
+            arc.files.Fi file = arc.Core.settings.getDataDirectory().child("rules-dump.json");
+            String json = mindustry.io.JsonIO.write(state.rules);
+            file.writeString(json);
+            info("campaign.dump.done", file.path(), json.length(),
+                json.contains("sector:") ? "yes" : "no",
+                state.rules.researched.size);
+        });
+
         handler.register("campaign-pause", "[on|off]", "Pause the simulation while nobody is online.", args -> {
             CampaignConfig config = CampaignConfig.data();
 

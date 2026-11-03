@@ -136,39 +136,19 @@ CampaignClientApi.setPushListener(info -> { /* 刷新界面 */ });
 - 相关开关：`sectorSwitchAdminOnly` / `researchAdminOnly` / `voting` / `voteSector` / `voteResearch`。
   当某项设为“仅管理员”时，对应的投票会被直接禁用（`campaign.vote.sector-admin-only`）。
 
-## 6. 让客户端认回“战役模式”（rules tags）
+## 6. 客户端为什么能直接看研究界面
 
-原版战役是单人模式，代码里**没有任何**给客户端赋 `state.rules.sector` 的路径。所以客户端连到专用服务器后：
+不用客户端模组。原版 world data 里已经带了两样东西：
 
-| 能力 | 无客户端 mod | 说明 |
-| --- | --- | --- |
-| 研究界面显示已解锁/未解锁 | 可用 | `UnlockableContent.unlocked()` 在多人时读 `state.rules.researched`，该字段随 rules 同步 |
-| 解锁后即时刷新 | 可用 | 服务端 `UnlockEvent` → `Call.researched(content)`（原版逻辑） |
-| 科技树自动切到当前星球 | 不可用 | `ResearchDialog` 靠 `state.rules.sector.planet`，客户端为 `null` |
-| 区块进度（“占领某区块”类目标） | 不可用 | 目标读客户端本地 `Sector.info`，与服务端无关 |
-| 战役 HUD / 教程提示 / 区块名 | 不可用 | 同上，`state.isCampaign()` 为 false |
+- `Rules.sector`：`JsonIO` 为 `Sector` 注册了专用序列化器（写成 `planet-id`，如 `serpulo-170`），
+  读回时用 `content.getByName(planet).sectors.get(id)` 还原。所以客户端 `state.rules.sector` 非空、
+  `state.isCampaign()` 为 true，研究界面与战役 HUD 都正常。
+- `Rules.researched`：`NetworkIO.writeWorld` 在发送前把服务端全部已解锁内容填进该集合，
+  客户端 `UnlockableContent.unlocked()` 在多人时读它，因此解锁状态与服务端一致。
 
-服务端已在 `state.rules.tags` 里写入定位信息（随 rules 一起下发）：
+所以房客（局域网或专用服务器）可以直接打开研究界面查看进度，这一点不需要插件额外处理。
+插件要保证的只有两条：解锁真的发生在服务端（`ResearchService`），切区块后世界数据要重新下发
+（`SectorService` 的 `resyncAll`）。
 
-| tag | 示例 | 含义 |
-| --- | --- | --- |
-| `campaign-api` | `1` | 协议版本，见第 1 节 |
-| `campaign-planet` | `serpulo` | 当前区块所在星球内部名 |
-| `campaign-sector` | `170` | 当前区块 id |
-
-客户端模组只需在进入世界后补一行，原版研究界面/战役界面就会正常工作：
-
-```java
-// WorldLoadEvent 里执行一次
-String planetName = state.rules.tags.get("campaign-planet");
-String sectorId   = state.rules.tags.get("campaign-sector");
-if(planetName != null && !planetName.isEmpty() && sectorId != null && !sectorId.isEmpty()){
-    Planet planet = content.getByName(ContentType.planet, planetName) instanceof Planet p ? p : null;
-    if(planet != null){
-        state.rules.sector = planet.getSector(Integer.parseInt(sectorId));
-    }
-}
-```
-
-注意：这只修正客户端的**界面上下文**。区块是否已占领等进度仍以服务端为准，需要完整同步时请再配合
-`CampaignInfo`（第 3 节）里的 `sectors[].captured / hasBase` 字段自行渲染。
+与原版唯一一致的小差异：科技树里“占领某区块”这类目标读的是**客户端本地** `Sector.info`，可能与服务端
+进度不同；解锁状态本身不受影响。
