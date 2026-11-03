@@ -551,7 +551,7 @@ public class CampaignCommands{
             if(args.length == 0){
                 info("campaign.rule.header");
                 for(String rule : new String[]{"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled"}){
-                    infoRaw("  " + rule + " = " + SectorService.currentRule(rule));
+                    infoRaw("  " + I18n.get("campaign.rule.name." + rule) + " = " + SectorService.currentRule(rule));
                 }
                 return;
             }
@@ -956,7 +956,8 @@ public class CampaignCommands{
             if(args.length == 0){
                 StringBuilder builder = new StringBuilder(I18n.get("campaign.rule.header"));
                 for(String rule : new String[]{"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled"}){
-                    builder.append("\n").append(rule).append(" = ").append(SectorService.currentRule(rule));
+                    builder.append("\n").append(I18n.get("campaign.rule.name." + rule))
+                        .append(" = ").append(SectorService.currentRule(rule));
                 }
                 player.sendMessage(builder.toString());
                 return;

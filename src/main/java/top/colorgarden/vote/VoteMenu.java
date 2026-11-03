@@ -232,7 +232,7 @@ public class VoteMenu{
         Seq<String[]> rows = new Seq<>();
         String[] labels = new String[mindustry.game.Difficulty.all.length];
         for(int i = 0; i < labels.length; i++){
-            labels[i] = mindustry.game.Difficulty.all[i].name();
+            labels[i] = I18n.get("campaign.difficulty." + mindustry.game.Difficulty.all[i].name());
         }
         rows.add((String[])labels);
         rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
@@ -280,7 +280,10 @@ public class VoteMenu{
     }
 
     private static String toggleLabel(String rule){
-        return (top.colorgarden.core.SectorService.currentRule(rule) ? "[green]+ " : "[gray]- ") + rule;
+        String name = I18n.get("campaign.rule.name." + rule);
+        return top.colorgarden.core.SectorService.currentRule(rule)
+            ? "[green]" + name
+            : "[scarlet]" + name;
     }
 
     private static void onRules(Player player, int option){
