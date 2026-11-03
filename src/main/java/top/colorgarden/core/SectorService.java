@@ -390,6 +390,16 @@ public class SectorService{
         return count;
     }
 
+    /**
+     * Sets the "already captured" flag of a sector. A captured sector cannot be played normally
+     * (waves are off) and, more importantly for a persistent server, its save may still carry
+     * {@code rules.disableWorldProcessors}.
+     */
+    public static void setCaptured(Sector sector, boolean captured){
+        sector.info.wasCaptured = captured;
+        sector.saveInfo();
+    }
+
     /** Generates a brand new sector and starts playing it. */
     private static void createSector(Sector sector, @Nullable Sector origin) throws CampaignException{
         SectorPreset preset = sector.preset;

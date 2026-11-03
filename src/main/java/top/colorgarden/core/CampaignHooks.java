@@ -22,9 +22,12 @@ import arc.util.Log;
 import arc.util.Time;
 import mindustry.core.GameState.State;
 import mindustry.game.EventType.*;
+import mindustry.gen.Building;
 import mindustry.gen.Call;
+import mindustry.gen.Groups;
 import mindustry.gen.Player;
 import mindustry.type.Sector;
+import mindustry.world.blocks.logic.LogicBlock;
 
 import static mindustry.Vars.*;
 
@@ -54,6 +57,8 @@ public class CampaignHooks{
         Events.on(PlayerLeave.class, event -> {
             if(event.player != null) pendingJoinInfo.remove(event.player);
         });
+        Events.on(WorldLoadEvent.class, event -> applyLogicRules());
+        Events.on(RulesLoadEvent.class, event -> applyLogicRules());
         Events.on(SectorCaptureEvent.class, event -> onSectorCapture(event.sector));
         Events.on(SaveWriteEvent.class, event -> onSaveWrite());
         Events.run(Trigger.update, CampaignHooks::update);
@@ -96,6 +101,42 @@ public class CampaignHooks{
         });
     }
 
+    /**
+     * Vanilla {@code Logic#sectorCapture()} sets {@code rules.disableWorldProcessors = true} and
+     * {@code LogicBlock.updateTile} returns before running the executor when that flag is set. Since
+     * Rules is serialized into the sector save, one capture disables every world processor in that
+     * sector for good. This clears the flag again (config {@code worldProcessors}).
+     *
+     * <p>Note: this is about <b>execution</b> only. Whether world processors may be built or edited is
+     * governed by {@code allowEditWorldProcessors}, which this plugin deliberately does not touch.
+     */
+    public static void applyLogicRules(){
+        if(!enabled || state.rules == null || !state.isCampaign()) return;
+        if(!CampaignConfig.data().worldProcessors) return;
+
+        if(state.rules.disableWorldProcessors){
+            state.rules.disableWorldProcessors = false;
+            Log.info("[CampaignServer] " + I18n.get("campaign.log.worldprocessors-on"));
+        }
+    }
+
+    /** @return {total logic blocks, privileged ones, initialized executors, enabled and initialized}. */
+    public static int[] logicCounts(){
+        int total = 0, privileged = 0, initialized = 0, running = 0;
+
+        for(Building build : Groups.build){
+            if(!(build instanceof LogicBlock.LogicBuild lb)) continue;
+            total ++;
+            if(lb.block instanceof LogicBlock block && block.privileged) privileged ++;
+            if(lb.executor != null && lb.executor.initialized()){
+                initialized ++;
+                if(lb.enabled) running ++;
+            }
+        }
+
+        return new int[]{total, privileged, initialized, running};
+    }
+
     private static void onSectorCapture(Sector sector){
         if(net.client() || sector == null) return;
 
@@ -107,6 +148,9 @@ public class CampaignHooks{
         }
 
         Log.info("[CampaignServer] " + I18n.get("campaign.log.sector-captured", sector.name(), saved));
+
+        //a capture disables world processors; keep them running while the server stays on this sector
+        applyLogicRules(); //applyLogicRules() after capture
 
         //vanilla unlocks new tech-tree entries on capture from the client; do it here instead
         int unlocked = ResearchService.checkAutoUnlocks();

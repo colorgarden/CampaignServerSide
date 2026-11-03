@@ -91,6 +91,14 @@ public class CampaignConfig{
 
     // --- misc ---
 
+    /**
+     * Keep world (privileged) processors running. Vanilla {@code Logic#sectorCapture} sets
+     * {@code rules.disableWorldProcessors = true}, and Rules is stored in the sector save as JSON,
+     * so after any capture that sector would never execute logic again - even when it is loaded in a
+     * later session. A dedicated campaign server keeps playing those sectors, so the flag is cleared.
+     */
+    public boolean worldProcessors = true;
+
     /** Send a short notice with the command hints to every player that joins. */
     public boolean joinInfo = true;
 

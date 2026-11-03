@@ -54,6 +54,8 @@
 | `campaign-redirect` | 一键把所有向外运送的区块重定向到当前区块（原版接收台的 ↓ 按钮） |
 | `campaign-why <sector>` | 解释某区块现在能不能进入、原因是什么 |
 | `campaign-joininfo` | 预览玩家进服时看到的提示 |
+| `campaign-logic [on\|off]` | 查看世界处理器状态，或切换是否保持其运行 |
+| `campaign-uncapture <sector>` | 清除某区块的“已占领”标记（重玩用） |
 | `campaign-config` | 打印当前配置与文件路径 |
 | `campaign-reload` | 重新读取 `config.json` |
 | `campaign-diag` | 诊断（存档管理器、地图可用性、API 状态、快照往返） |
@@ -124,6 +126,7 @@
 | `adminBypassLock` | `true` | 管理员可无视解锁限制切区块（控制台始终可） |
 | `launchPadLinking` | `true` | 新区块自动把发射台/接收台链路指向来源区块 |
 | `joinInfo` | `true` | 玩家进服时发送一条带指令提示的说明 |
+| `worldProcessors` | `true` | 始终保持世界处理器（逻辑方块）执行 |
 
 存档：`config/saves/sector-<planet>-<id>.msav`；区块经济信息在 `config/settings.bin`
 （键 `<planet>-s-<id>-info`）。彻底重开某区块用 `campaign-reset <sector>`。
@@ -156,6 +159,13 @@
 `campaign-redirect` / `/redirect` 一键重定向，目标只允许同星球（与原版一致）。
 Serpulo 的发射台通过 `Universe#runTurn` 每回合结算运送，Erekir 的接收台按 import 速率拉取，
 两者都依赖这里的 `destination` 与 `export` 统计，链路一通即可正常工作。
+
+**世界处理器（逻辑方块）**：原版 `Logic#sectorCapture()` 会置 `state.rules.disableWorldProcessors = true`，
+而 `LogicBlock#updateTile` 一旦看到该标志就直接返回、不再执行逻辑。`Rules` 通过 `JsonIO` 写进区块存档，
+所以**只要该区块被通关过一次，它的世界处理器就永久不执行**，之后每次加载都是如此。原版不在乎，因为
+通关的区块不会再玩；专用服务器会反复进入同一区块，于是表现为“世界处理器不工作”。
+插件在 `WorldLoadEvent` / `RulesLoadEvent` 与每次攻陷后把该标志清回 `false`（配置 `worldProcessors`），
+且**不触碰** `allowEditWorldProcessors`——那个标志只管“能不能建造/编辑”，与是否执行无关。
 
 **尚未还原**：跨区块“携带物品/发射载具”的开局对话框（原版 `LaunchLoadoutDialog`）没有实现，
 新区块按地图默认核心开局；区块入侵沿用原版 `Universe#runTurn` 的服务端逻辑。

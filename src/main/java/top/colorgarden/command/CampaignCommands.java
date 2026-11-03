@@ -54,6 +54,8 @@ public class CampaignCommands{
             infoHelp("campaign.help.redirect");
             infoHelp("campaign.help.why");
             infoHelp("campaign.help.joininfo");
+            infoHelp("campaign.help.logic");
+            infoHelp("campaign.help.uncapture");
             infoHelp("campaign.help.sectorarg");
         });
 
@@ -142,6 +144,8 @@ public class CampaignCommands{
             info("campaign.status.destination", sector.info.destination == null ? "-" : sector.info.destination.name(),
                 sector.info.origin == null ? "-" : sector.info.origin.name());
             info("campaign.status.research-locked", ResearchService.lockedCount(sector.planet));
+            int[] logic = CampaignHooks.logicCounts();
+            info("campaign.status.logic", state.rules.disableWorldProcessors, logic[0], logic[2], logic[3]);
         });
 
         handler.register("campaign-capture", "Force-capture the current sector (admin tool).", args -> {
@@ -303,6 +307,28 @@ public class CampaignCommands{
             CampaignNetwork.pushInfoToAll();
         });
 
+        handler.register("campaign-logic", "[on|off]", "Report world processor state, or keep world processors running.", args -> {
+            CampaignConfig config = CampaignConfig.data();
+
+            if(args.length > 0){
+                boolean on = !"off".equalsIgnoreCase(args[0]);
+                config.worldProcessors = on;
+                CampaignConfig.save();
+                if(on) CampaignHooks.applyLogicRules();
+                info("campaign.logic.set", on);
+            }
+
+            int[] counts = CampaignHooks.logicCounts();
+            info("campaign.logic.header", config.worldProcessors, state.rules.disableWorldProcessors);
+            info("campaign.logic.counts", counts[0], counts[1], counts[2], counts[3]);
+        });
+
+        handler.register("campaign-uncapture", "<sector>", "Clear the captured flag of a sector.", args -> {
+            Sector sector = requireSector(args[0]);
+            SectorService.setCaptured(sector, false);
+            info("campaign.uncapture.done", sector.name());
+        });
+
         handler.register("campaign-why", "<sector>", "Explain whether a sector can be entered right now.", args -> {
             Sector sector = requireSector(args[0]);
             String status = SectorService.statusOf(sector);
@@ -319,6 +345,7 @@ public class CampaignCommands{
             info("campaign.config.voting", config.voting, config.voteSector, config.voteResearch, config.votePercent, config.voteMinPlayers, config.voteDuration);
             info("campaign.config.misc", config.joinInfo, config.announce, config.resyncClients);
             info("campaign.config.lock", config.enforceSectorUnlock, config.adminBypassLock, config.launchPadLinking);
+            info("campaign.config.logic", config.worldProcessors);
             info("campaign.config.file", CampaignConfig.location() == null ? "-" : CampaignConfig.location().path());
         });
 
@@ -348,6 +375,17 @@ public class CampaignCommands{
                 Log.err(t);
                 player.sendMessage(I18n.get("campaign.error.unexpected", Strings.getSimpleMessage(t)));
             }
+        });
+
+        handler.<Player>register("campaignhelp", "List the campaign chat commands.", (args, player) -> {
+            StringBuilder builder = new StringBuilder(I18n.get("campaign.clienthelp.header"));
+            for(String key : new String[]{
+                "campaign.clienthelp.sector", "campaign.clienthelp.sectors", "campaign.clienthelp.campaign",
+                "campaign.clienthelp.research", "campaign.clienthelp.vote", "campaign.clienthelp.destination",
+                "campaign.clienthelp.save"}){
+                builder.append("\n").append(I18n.get(key));
+            }
+            player.sendMessage(builder.toString());
         });
 
         handler.<Player>register("sectors", "[page]", "List campaign sectors.", (args, player) -> {

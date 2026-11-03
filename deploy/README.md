@@ -64,6 +64,35 @@ runuser -u colorgarden -- $S attach          # 跟踪日志
 - 重启机器后需要手动执行一次 `runuser -u colorgarden -- $S start`（因为不使用 systemd），
   启动后插件会凭 `autoStart` 自动回到上次区块
 
+## 无线链路（wlan0）：规范域必须设置
+
+2026-11-03 排查结论：`wlan0` 表现为“网卡老是休眠”——间歇性完全不可达，但从网关侧看一切正常。
+
+根因是 `iw reg get` 显示 `country 00`（规范域未设置）。该状态下 5GHz 信道 149–165 只被标为
+`PASSIVE-SCAN`，mac80211 会限制发送。实测：
+
+| 指标 | 修复前 | 修复后 |
+| --- | --- | --- |
+| 服务器 → 网关丢包 | 87.5% | 0% |
+| RTT | 110 ms | 2–6 ms |
+| TX 速率 | 48 Mbit/s | 526 Mbit/s |
+| `tx failed` | 10406（持续增长） | 不再增长 |
+
+修复（已落盘）：
+
+```bash
+iw reg set CN
+cat > /etc/modprobe.d/cfg80211.conf <<'EOF'
+options cfg80211 ieee80211_regdom=CN
+EOF
+nmcli connection modify HUAWEI-SVTYH4_5G 802-11-wireless.powersave 2
+```
+
+省电本身不是原因：`iw dev wlan0 get power_save` 一直是 `off`；那条只是顺手显式关闭。
+
+该机还有一个 **USB 网络口 `usb0`（192.168.42.1）**，由 PC 侧 `以太网 2`（Remote NDIS）直连，
+0% 丢包、<1 ms。Wi-Fi 出问题时用它做管理通道：`ssh root@192.168.42.1`。
+
 ## 注意
 
 - **不要**在这台机器上 `pacman -Syu` 全量升级来“顺便修东西”；只装/删需要的包。
