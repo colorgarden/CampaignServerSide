@@ -163,6 +163,11 @@ public class CampaignHooks{
         if(!enabled || state.rules == null || !state.isCampaign()) return;
         if(!CampaignConfig.data().worldProcessors) return;
 
+        //vanilla disables world processors once a sector is captured; keep that, but revive them for
+        //a sector that is still being played (a save can carry the flag from an earlier capture)
+        Sector sector = state.rules.sector;
+        if(sector != null && sector.info.wasCaptured) return;
+
         if(state.rules.disableWorldProcessors){
             state.rules.disableWorldProcessors = false;
             Log.info("[CampaignServer] " + I18n.get("campaign.log.worldprocessors-on"));
@@ -277,8 +282,6 @@ public class CampaignHooks{
 
         Log.info("[CampaignServer] " + I18n.get("campaign.log.sector-captured", sector.name(), saved));
 
-        //a capture disables world processors; keep them running while the server stays on this sector
-        applyLogicRules(); //applyLogicRules() after capture
 
         //vanilla unlocks new tech-tree entries on capture from the client; do it here instead
         int unlocked = ResearchService.checkAutoUnlocks();

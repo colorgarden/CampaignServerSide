@@ -142,7 +142,7 @@
 | `adminBypassLock` | `true` | 管理员可无视解锁限制切区块（控制台始终可） |
 | `launchPadLinking` | `true` | 新区块自动把发射台/接收台链路指向来源区块 |
 | `joinInfo` | `true` | 玩家进服时发送一条带指令提示的说明 |
-| `worldProcessors` | `true` | 始终保持世界处理器（逻辑方块）执行 |
+| `worldProcessors` | `true` | 区块未通关时保持世界处理器执行；通关后按原版停跑 |
 | `pauseWhenEmpty` | `true` | 无人在线时暂停模拟（有人进入自动恢复） |
 
 存档：`config/saves/sector-<planet>-<id>.msav`；区块经济信息在 `config/settings.bin`
