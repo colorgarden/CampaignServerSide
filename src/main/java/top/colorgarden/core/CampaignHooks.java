@@ -313,8 +313,14 @@ public class CampaignHooks{
 
         if(admin){
             lines.add(I18n.get("campaign.join.admin"));
+            if(CampaignConfig.data().allowPlanetSwitch){
+                lines.add(I18n.get("campaign.join.admin-planet"));
+            }
         }else{
             lines.add(I18n.get(voteResearch ? "campaign.join.player-research-vote" : "campaign.join.player-research-adminonly"));
+            if(CampaignVote.votingEnabled(CampaignVote.Kind.planet)){
+                lines.add(I18n.get("campaign.join.player-planet-vote"));
+            }
         }
         return lines;
     }

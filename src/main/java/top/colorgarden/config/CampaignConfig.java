@@ -69,6 +69,13 @@ public class CampaignConfig{
     /** Server admins may enter locked sectors anyway (console commands always may). */
     public boolean adminBypassLock = true;
 
+    /** Allow switching planets at all. */
+    public boolean allowPlanetSwitch = true;
+    /** Only admins may switch planets; when false every player may use /planet. */
+    public boolean planetSwitchAdminOnly = true;
+    /** Allow "switch planet" votes. Disabled automatically while planetSwitchAdminOnly is on. */
+    public boolean votePlanet = true;
+
     /** Only admins may unlock research; when false every player may use /research. */
     public boolean researchAdminOnly = true;
 

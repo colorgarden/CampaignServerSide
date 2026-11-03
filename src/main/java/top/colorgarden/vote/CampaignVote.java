@@ -23,6 +23,7 @@ import mindustry.game.EventType.Trigger;
 import mindustry.gen.Call;
 import mindustry.gen.Groups;
 import mindustry.gen.Player;
+import mindustry.type.Planet;
 import mindustry.type.Sector;
 
 /**
@@ -35,7 +36,7 @@ import mindustry.type.Sector;
  */
 public class CampaignVote{
     public enum Kind{
-        sector, research
+        sector, research, planet
     }
 
     /** The vote that is currently running, if any. */
@@ -62,6 +63,9 @@ public class CampaignVote{
 
         if(kind == Kind.sector){
             return config.voteSector && config.allowSectorSwitch && !config.sectorSwitchAdminOnly;
+        }
+        if(kind == Kind.planet){
+            return config.votePlanet && config.allowPlanetSwitch && !config.planetSwitchAdminOnly;
         }
         return config.voteResearch && config.allowResearch && !config.researchAdminOnly;
     }
@@ -90,6 +94,9 @@ public class CampaignVote{
             if(kind == Kind.sector){
                 return I18n.get(config.sectorSwitchAdminOnly ? "campaign.vote.sector-admin-only" : "campaign.vote.sector-disabled");
             }
+            if(kind == Kind.planet){
+                return I18n.get(config.planetSwitchAdminOnly ? "campaign.vote.planet-admin-only" : "campaign.vote.planet-disabled");
+            }
             return I18n.get(config.researchAdminOnly ? "campaign.vote.research-admin-only" : "campaign.vote.research-disabled");
         }
         if(current != null) return I18n.get("campaign.vote.in-progress");
@@ -110,6 +117,18 @@ public class CampaignVote{
             }
             resolved = sector.planet.name + ":" + sector.id;
             label = sector.name();
+        }else if(kind == Kind.planet){
+            Planet planet = SectorService.planetByName(target);
+            if(planet == null) return I18n.get("campaign.planet.invalid", target);
+
+            Sector destination = SectorService.targetFor(planet);
+            if(destination == null) return I18n.get("campaign.planet.empty", planet.localizedName);
+            if(CampaignConfig.data().enforceSectorUnlock && !SectorService.canEnter(destination)){
+                return I18n.get("campaign.vote.sector-locked", destination.name());
+            }
+
+            resolved = planet.name;
+            label = planet.localizedName;
         }else{
             UnlockableContent content = ResearchService.find(target);
             if(content == null) return I18n.get("campaign.vote.no-such-content", target);
@@ -254,7 +273,12 @@ public class CampaignVote{
 
     /** @return a localized description of what the vote is about. */
     public static String describe(Vote vote){
-        return I18n.get(vote.kind == Kind.sector ? "campaign.vote.describe-sector" : "campaign.vote.describe-research", vote.label);
+        String key = switch(vote.kind){
+            case sector -> "campaign.vote.describe-sector";
+            case planet -> "campaign.vote.describe-planet";
+            case research -> "campaign.vote.describe-research";
+        };
+        return I18n.get(key, vote.label);
     }
 
     private static void finish(boolean passed, @Nullable String reason){
@@ -280,6 +304,14 @@ public class CampaignVote{
                     return;
                 }
                 SectorService.enter(sector);
+            }else if(vote.kind == Kind.planet){
+                Planet planet = SectorService.planetByName(vote.arg);
+                Sector destination = SectorService.targetFor(planet);
+                if(destination == null){
+                    announce(I18n.get("campaign.vote.sector-gone"));
+                    return;
+                }
+                SectorService.enter(destination);
             }else{
                 UnlockableContent content = ResearchService.find(vote.arg);
                 if(content == null){

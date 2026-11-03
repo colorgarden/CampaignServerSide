@@ -79,6 +79,7 @@
 | `/capture` | 管理员 | 强制判定通关 |
 | `/cvote sector <name>` | 所有人 | 发起“切换区块”投票 |
 | `/cvote research <name>` | 所有人 | 发起“解锁科技”投票 |
+| `/cvote planet <name>` | 所有人 | 发起“切换星球”投票 |
 | `/cvote yes` / `/cvote no` | 所有人 | 投票 |
 | `/cvote cancel` | 管理员 | 取消投票 |
 | `/cvote info` | 所有人 | 当前投票状态 |
@@ -131,6 +132,9 @@
 | `voteDuration` | `60` | 投票时长（秒），硬上限 |
 | `voteDecision` | `"threshold"` | 判定模式：`threshold` 阈值 / `veto` 一票否决 / `majority` 多数决 |
 | `voteTimeout` | `10` | 最后一张票之后多少秒未再投票即结算，`0` 关闭 |
+| `allowPlanetSwitch` | `true` | 星球切换总开关 |
+| `planetSwitchAdminOnly` | `true` | 只有管理员能切换星球（独立于区块权限） |
+| `votePlanet` | `true` | 允许“切换星球”投票；`planetSwitchAdminOnly` 为 `true` 时自动禁用 |
 | `voteCooldown` | `30` | 同一玩家再次发起的冷却（秒） |
 | `announce` | `true` | 区块攻陷/丢失时公告 |
 | `resyncClients` | `true` | 切区块后给在线玩家重发世界数据（否则踢出） |

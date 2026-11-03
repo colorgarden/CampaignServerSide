@@ -434,6 +434,7 @@ public class CampaignCommands{
             info("campaign.config.logic", config.worldProcessors);
             info("campaign.config.pause", config.pauseWhenEmpty);
             info("campaign.config.votes", config.voteDecision, config.voteTimeout);
+            info("campaign.config.planet", config.allowPlanetSwitch, config.planetSwitchAdminOnly, config.votePlanet);
             info("campaign.config.file", CampaignConfig.location() == null ? "-" : CampaignConfig.location().path());
         });
 
@@ -492,8 +493,8 @@ public class CampaignCommands{
         });
 
         handler.<Player>register("planet", "<name>", "[admin] Switch the campaign planet.", (args, player) -> {
-            if(!requirePermission(player, CampaignConfig.data().sectorSwitchAdminOnly)) return;
-            if(!CampaignConfig.data().allowSectorSwitch){
+            if(!requirePermission(player, CampaignConfig.data().planetSwitchAdminOnly)) return;
+            if(!CampaignConfig.data().allowPlanetSwitch){
                 player.sendMessage(I18n.get("campaign.error.switch-disabled"));
                 return;
             }
@@ -661,7 +662,7 @@ public class CampaignCommands{
             }
         });
 
-        handler.<Player>register("cvote", "[sector|research|yes|no|cancel|info] [target...]", "Vote to switch the sector or unlock research.", (args, player) -> {
+        handler.<Player>register("cvote", "[sector|planet|research|yes|no|cancel|info] [target...]", "Vote to switch sector/planet or unlock research.", (args, player) -> {
             if(!CampaignHooks.enabled){
                 player.sendMessage(I18n.get("campaign.error.inactive"));
                 return;
@@ -679,13 +680,14 @@ public class CampaignCommands{
                 return;
             }
 
-            if("sector".equalsIgnoreCase(option) || "research".equalsIgnoreCase(option)){
+            if("sector".equalsIgnoreCase(option) || "research".equalsIgnoreCase(option) || "planet".equalsIgnoreCase(option)){
                 if(args.length < 2){
                     player.sendMessage(I18n.get("campaign.vote.target-required"));
                     return;
                 }
 
-                CampaignVote.Kind kind = "sector".equalsIgnoreCase(option) ? CampaignVote.Kind.sector : CampaignVote.Kind.research;
+                CampaignVote.Kind kind = "sector".equalsIgnoreCase(option) ? CampaignVote.Kind.sector
+                    : "planet".equalsIgnoreCase(option) ? CampaignVote.Kind.planet : CampaignVote.Kind.research;
                 String problem = CampaignVote.start(player, kind, args[1]);
                 if(problem != null) player.sendMessage("[scarlet]" + problem);
                 return;
