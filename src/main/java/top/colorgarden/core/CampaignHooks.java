@@ -45,6 +45,7 @@ public class CampaignHooks{
     private static final long joinInfoDelay = 3000L;
     /** Seconds since the last reachable-sector scan. */
     private static float campaignUnlockTimer;
+    private static float autoUnlockTimer;
 
     /** True while the simulation is paused only because no player is online. */
     private static boolean pausedForEmpty;
@@ -434,6 +435,13 @@ public class CampaignHooks{
 
     private static void update(){
         flushJoinInfo();
+
+        //vanilla runs Control#checkAutoUnlocks continuously on the client; a server has to poll it
+        autoUnlockTimer += Time.delta;
+        if(autoUnlockTimer >= 120f){
+            autoUnlockTimer = 0f;
+            if(state.isCampaign()) ResearchService.checkAutoUnlocks();
+        }
 
         campaignUnlockTimer += Time.delta;
         if(campaignUnlockTimer >= 180f){

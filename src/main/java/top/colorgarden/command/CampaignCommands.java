@@ -283,6 +283,11 @@ public class CampaignCommands{
                 return;
             }
 
+            if(ResearchService.autoUnlockable(unlockable.techNode)){
+                err("campaign.research.auto", unlockable.localizedName);
+                return;
+            }
+
             if(CampaignConfig.data().researchStrict && !unlockable.unlocked()){
                 UnlockableContent blocker = ResearchService.lockedParent(unlockable);
                 if(blocker != null){
@@ -683,6 +688,11 @@ public class CampaignCommands{
 
             if(unlockable instanceof mindustry.type.SectorPreset){
                 player.sendMessage(I18n.get("campaign.research.sector-preset", unlockable.localizedName));
+                return;
+            }
+
+            if(ResearchService.autoUnlockable(unlockable.techNode)){
+                player.sendMessage(I18n.get("campaign.research.auto", unlockable.localizedName));
                 return;
             }
 

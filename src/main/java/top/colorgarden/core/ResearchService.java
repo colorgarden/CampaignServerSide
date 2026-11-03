@@ -188,16 +188,24 @@ public class ResearchService{
 
         int count = 0;
         for(TechNode node : mindustry.content.TechTree.all){
-            UnlockableContent content = node.content;
-            if(content == null || content.unlocked()) continue;
-            if(node.parent != null && !node.parent.content.unlocked()) continue;
-            if(node.requirements != null && node.requirements.length > 0) continue;
-            if(node.objectives.contains(o -> !o.complete())) continue;
+            if(!autoUnlockable(node)) continue;
 
-            unlock(content, false);
+            unlock(node.content, false);
             count ++;
         }
         return count;
+    }
+
+    /**
+     * @return true when vanilla would unlock this node by itself: parent unlocked, no item cost and
+     *         every objective already complete. Such content must never be "researched" by hand.
+     */
+    public static boolean autoUnlockable(@Nullable TechNode node){
+        if(node == null || node.content == null) return false;
+        if(node.content.unlocked()) return false;
+        if(node.parent != null && !node.parent.content.unlocked()) return false;
+        if(node.requirements != null && node.requirements.length > 0) return false;
+        return !node.objectives.contains(o -> !o.complete());
     }
 
     /** Unlocks a single piece of content without touching its parents. */

@@ -125,6 +125,8 @@ public class CampaignVote{
                 if(content == null || content.unlocked()) continue;
                 //sector presets are unlocked by playing, not by research
                 if(content instanceof SectorPreset) continue;
+                //content vanilla unlocks for free must not be votable either
+                if(ResearchService.autoUnlockable(node)) continue;
                 //vanilla only offers content of the current planet (the tech tree is shared by all)
                 if(!ResearchService.shownOnPlanet(content, planet)) continue;
                 //strict mode: only offer what the vote could actually unlock
@@ -246,6 +248,9 @@ public class CampaignVote{
             UnlockableContent content = ResearchService.find(target);
             if(content == null) return I18n.get("campaign.vote.no-such-content", target) + suggest(kind, target);
             if(content instanceof SectorPreset) return I18n.get("campaign.research.sector-preset", content.localizedName);
+            if(ResearchService.autoUnlockable(content.techNode)){
+                return I18n.get("campaign.research.auto", content.localizedName);
+            }
             if(!ResearchService.shownOnPlanet(content, SectorService.planet())){
                 return I18n.get("campaign.research.other-planet", content.localizedName);
             }
