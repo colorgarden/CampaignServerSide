@@ -397,6 +397,14 @@ public class SectorService{
      */
     public static void setCaptured(Sector sector, boolean captured){
         sector.info.wasCaptured = captured;
+
+        if(!captured && sector == current()){
+            //make the sector playable again: a capture turns waves off and can leave the
+            //world-processor gate closed in the saved rules
+            state.rules.waves = sector.planet.allowWaves;
+            state.rules.disableWorldProcessors = false;
+        }
+
         sector.saveInfo();
     }
 

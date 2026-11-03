@@ -219,10 +219,15 @@ public class CampaignHooks{
             state.wave, ResearchService.lockedCount(sector.planet)));
         lines.add(I18n.get("campaign.join.commands"));
 
-        boolean voting = CampaignVote.votingEnabled(CampaignVote.Kind.sector) || CampaignVote.votingEnabled(CampaignVote.Kind.research);
-        lines.add(I18n.get(voting ? "campaign.join.vote" : "campaign.join.vote-disabled"));
+        //the research hint differs per audience: vote, or admin-only
+        boolean voteResearch = CampaignVote.votingEnabled(CampaignVote.Kind.research);
+        lines.add(I18n.get(voteResearch ? "campaign.join.vote" : "campaign.join.vote-disabled"));
 
-        if(admin) lines.add(I18n.get("campaign.join.admin"));
+        if(admin){
+            lines.add(I18n.get("campaign.join.admin"));
+        }else{
+            lines.add(I18n.get(voteResearch ? "campaign.join.player-research-vote" : "campaign.join.player-research-adminonly"));
+        }
         return lines;
     }
 
