@@ -13,6 +13,7 @@ import top.colorgarden.net.CampaignProtocol;
 import top.colorgarden.util.CampaignException;
 import top.colorgarden.util.I18n;
 import top.colorgarden.vote.CampaignVote;
+import top.colorgarden.vote.VoteMenu;
 
 
 import arc.struct.ObjectMap;
@@ -52,6 +53,7 @@ public class CampaignCommands{
             infoHelp("campaign.help.research");
             infoHelp("campaign.help.researchall");
             infoHelp("campaign.help.relock");
+            infoHelp("campaign.help.relockall");
             infoHelp("campaign.help.config");
             infoHelp("campaign.help.reload");
             infoHelp("campaign.help.vote");
@@ -281,6 +283,14 @@ public class CampaignCommands{
                 return;
             }
 
+            if(CampaignConfig.data().researchStrict && !unlockable.unlocked()){
+                UnlockableContent blocker = ResearchService.lockedParent(unlockable);
+                if(blocker != null){
+                    err("campaign.research.parent-locked", blocker.localizedName);
+                    return;
+                }
+            }
+
             if(CampaignConfig.data().researchCosts && state.isCampaign() && !unlockable.unlocked()){
                 infoCost(unlockable);
             }
@@ -309,6 +319,38 @@ public class CampaignCommands{
 
             ResearchService.relock(unlockable);
             info("campaign.research.relocked", unlockable.localizedName);
+        });
+
+        handler.register("campaign-relock-all", "Lock every research entry again and clear its cost progress.", args -> {
+            int count = ResearchService.relockAll();
+            info("campaign.research.relocked-all", count);
+        });
+
+        handler.register("campaign-unlocked", "List the research entries that are unlocked right now.", args -> {
+            Seq<String> names = new Seq<>();
+            for(UnlockableContent unlockable : ResearchService.unlockedNow()){
+                names.add(unlockable.localizedName);
+            }
+            names.sort();
+            info("campaign.research.unlocked-list", names.size, names.toString(", "));
+        });
+
+        //same filter as /cvote list, so the console can check what players are offered
+        handler.register("campaign-votelist", "[kind] [query...]", "List the targets a vote could use right now.", args -> {
+            String kindArg = args.length > 0 ? args[0].toLowerCase() : "sector";
+            if(!isVoteKind(kindArg)){
+                err("campaign.vote.usage");
+                return;
+            }
+
+            CampaignVote.Kind kind = voteKind(kindArg);
+            String query = args.length > 1 ? args[1] : "";
+            Seq<String> found = CampaignVote.search(kind, query, 40);
+
+            info("campaign.vote.list-header", I18n.get("campaign.vote.kind." + kind.name()), found.size);
+            for(String entry : found){
+                infoRaw("  " + entry);
+            }
         });
 
         handler.register("campaign-vote", "[info|cancel]", "Show or cancel the running player vote.", args -> {
@@ -489,13 +531,14 @@ public class CampaignCommands{
             info("campaign.config.saving", config.autosave, config.autosaveSeconds, config.saveOnExit, config.clearSectorOnLose);
             info("campaign.config.permissions", config.allowSectorSwitch, config.sectorSwitchAdminOnly, config.allowResearch, config.researchAdminOnly);
             info("campaign.config.voting", config.voting, config.voteSector, config.voteResearch, config.votePercent, config.voteMinPlayers, config.voteDuration);
+            info("campaign.config.voting2", config.votePlanet, config.voteDestination, config.voteRedirect, config.voteDecision);
             info("campaign.config.misc", config.joinInfo, config.announce, config.resyncClients);
             info("campaign.config.lock", config.enforceSectorUnlock, config.adminBypassLock, config.launchPadLinking);
             info("campaign.config.logic", config.worldProcessors);
             info("campaign.config.pause", config.pauseWhenEmpty);
             info("campaign.config.votes", config.voteDecision, config.voteTimeout);
             info("campaign.config.planet", config.allowPlanetSwitch, config.planetSwitchAdminOnly, config.votePlanet);
-            info("campaign.config.research", config.researchCosts);
+            info("campaign.config.research", config.researchCosts, config.researchStrict);
             info("campaign.config.file", CampaignConfig.location() == null ? "-" : CampaignConfig.location().path());
         });
 
@@ -631,6 +674,24 @@ public class CampaignCommands{
             if(unlockable == null){
                 player.sendMessage(I18n.get("campaign.research.unknown", args[0]));
                 return;
+            }
+
+            if(!ResearchService.shownOnPlanet(unlockable, SectorService.planet())){
+                player.sendMessage(I18n.get("campaign.research.other-planet", unlockable.localizedName));
+                return;
+            }
+
+            if(unlockable instanceof mindustry.type.SectorPreset){
+                player.sendMessage(I18n.get("campaign.research.sector-preset", unlockable.localizedName));
+                return;
+            }
+
+            if(CampaignConfig.data().researchStrict && !unlockable.unlocked()){
+                UnlockableContent blocker = ResearchService.lockedParent(unlockable);
+                if(blocker != null){
+                    player.sendMessage(I18n.get("campaign.research.parent-locked", blocker.localizedName));
+                    return;
+                }
             }
 
             boolean changed = ResearchService.research(unlockable, true);
@@ -770,39 +831,122 @@ public class CampaignCommands{
             }
         });
 
-        handler.<Player>register("cvote", "[sector|planet|research|yes|no|cancel|info] [target...]", "Vote to switch sector/planet or unlock research.", (args, player) -> {
-            if(!CampaignHooks.enabled){
-                player.sendMessage(I18n.get("campaign.error.inactive"));
+        handler.<Player>register("cvote", "[option] [args...]", "Vote to switch sector/planet, unlock research or rewire launch pads.", (args, player) -> handleVote(player, args));
+        handler.<Player>register("cv", "[option] [args...]", "Short form of /cvote.", (args, player) -> handleVote(player, args));
+    }
+
+    // ---------------------------------------------------------------- vote command
+
+    private static CampaignVote.Kind voteKind(String option){
+        return switch(option){
+            case "sector" -> CampaignVote.Kind.sector;
+            case "planet" -> CampaignVote.Kind.planet;
+            case "destination" -> CampaignVote.Kind.destination;
+            case "redirect" -> CampaignVote.Kind.redirect;
+            default -> CampaignVote.Kind.research;
+        };
+    }
+
+    private static boolean isVoteKind(String option){
+        return "sector".equals(option) || "planet".equals(option) || "research".equals(option)
+            || "destination".equals(option) || "redirect".equals(option);
+    }
+
+    /** Handles both {@code /cvote} and its short form {@code /cv}. */
+    private static void handleVote(Player player, String[] args){
+        if(!CampaignHooks.enabled){
+            player.sendMessage(I18n.get("campaign.error.inactive"));
+            return;
+        }
+
+        //arc hands the tail over as one string ("list research 钻"), so split it back into tokens
+        java.util.List<String> tokens = new java.util.ArrayList<>();
+        for(int i = 1; i < args.length; i++){
+            if(args[i] == null) continue;
+            for(String part : args[i].trim().split("\\s+")){
+                if(!part.isEmpty()) tokens.add(part);
+            }
+        }
+
+        if(args.length == 0 || args[0] == null || args[0].trim().isEmpty() || "info".equalsIgnoreCase(args[0])){
+            showVote(player);
+            return;
+        }
+
+        String option = args[0].toLowerCase();
+
+        if("yes".equalsIgnoreCase(option) || "y".equalsIgnoreCase(option)
+            || "no".equalsIgnoreCase(option) || "n".equalsIgnoreCase(option)
+            || "cancel".equalsIgnoreCase(option)){
+            String problem = CampaignVote.cast(player, option);
+            if(problem != null) player.sendMessage("[scarlet]" + problem);
+            return;
+        }
+
+        //"menu" opens the native dialog front end
+        if("menu".equalsIgnoreCase(option) || "m".equalsIgnoreCase(option)){
+            if(!VoteMenu.available()){
+                player.sendMessage(I18n.get("campaign.menu.unavailable"));
+                return;
+            }
+            VoteMenu.openMain(player);
+            return;
+        }
+
+        //"list <kind> [search]" - the searchable target list
+        if("list".equalsIgnoreCase(option) || "ls".equalsIgnoreCase(option)){
+            String kindArg = tokens.size() > 0 ? tokens.get(0).toLowerCase() : "sector";
+            String query = tokens.size() > 1 ? joinFrom(tokens, 1) : "";
+            if(!isVoteKind(kindArg)){
+                player.sendMessage(I18n.get("campaign.vote.usage"));
+                return;
+            }
+            showVoteTargets(player, voteKind(kindArg), query);
+            return;
+        }
+
+        if(isVoteKind(option)){
+            CampaignVote.Kind kind = voteKind(option);
+            if(tokens.isEmpty()){
+                //no target: show what can be voted for instead of a bare error
+                player.sendMessage(I18n.get("campaign.vote.target-required"));
+                showVoteTargets(player, kind, "");
                 return;
             }
 
-            if(args.length == 0 || "info".equalsIgnoreCase(args[0])){
-                showVote(player);
-                return;
-            }
+            String problem = CampaignVote.start(player, kind, joinFrom(tokens, 0));
+            if(problem != null) player.sendMessage("[scarlet]" + problem);
+            return;
+        }
 
-            String option = args[0].toLowerCase();
-            if("yes".equalsIgnoreCase(option) || "no".equalsIgnoreCase(option) || "cancel".equalsIgnoreCase(option)){
-                String problem = CampaignVote.cast(player, option);
-                if(problem != null) player.sendMessage("[scarlet]" + problem);
-                return;
-            }
+        player.sendMessage(I18n.get("campaign.vote.usage"));
+    }
 
-            if("sector".equalsIgnoreCase(option) || "research".equalsIgnoreCase(option) || "planet".equalsIgnoreCase(option)){
-                if(args.length < 2){
-                    player.sendMessage(I18n.get("campaign.vote.target-required"));
-                    return;
-                }
+    /** Joins the tokens from {@code start} with single spaces (names may contain spaces). */
+    private static String joinFrom(java.util.List<String> tokens, int start){
+        StringBuilder builder = new StringBuilder();
+        for(int i = start; i < tokens.size(); i++){
+            if(builder.length() > 0) builder.append(' ');
+            builder.append(tokens.get(i));
+        }
+        return builder.toString();
+    }
 
-                CampaignVote.Kind kind = "sector".equalsIgnoreCase(option) ? CampaignVote.Kind.sector
-                    : "planet".equalsIgnoreCase(option) ? CampaignVote.Kind.planet : CampaignVote.Kind.research;
-                String problem = CampaignVote.start(player, kind, args[1]);
-                if(problem != null) player.sendMessage("[scarlet]" + problem);
-                return;
-            }
+    private static void showVoteTargets(Player player, CampaignVote.Kind kind, String query){
+        Seq<String> found = CampaignVote.search(kind, query, 20);
 
-            player.sendMessage(I18n.get("campaign.vote.usage"));
-        });
+        String kindName = I18n.get("campaign.vote.kind." + kind.name());
+        if(found.isEmpty()){
+            player.sendMessage(I18n.get("campaign.vote.list-empty", kindName, query));
+            return;
+        }
+
+        StringBuilder builder = new StringBuilder(I18n.get("campaign.vote.list-header", kindName, found.size));
+        for(String entry : found){
+            builder.append("\n[white]  ").append(entry);
+        }
+        builder.append("\n").append(I18n.get("campaign.vote.list-footer", kind.name()));
+        player.sendMessage(builder.toString());
     }
 
     // ---------------------------------------------------------------- helpers

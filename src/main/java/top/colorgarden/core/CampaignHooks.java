@@ -9,6 +9,7 @@ import top.colorgarden.core.ServerControlHook;
 import top.colorgarden.net.CampaignNetwork;
 import top.colorgarden.util.I18n;
 import top.colorgarden.vote.CampaignVote;
+import top.colorgarden.vote.VoteMenu;
 
 
 
@@ -64,13 +65,21 @@ public class CampaignHooks{
 
         ServerControlHook.install(CampaignHooks::onGameOver);
         installUsageHandler();
+        installChatBallot();
         CampaignVote.init();
         AnnounceService.init();
 
         Events.on(ServerLoadEvent.class, event -> onServerLoad());
-        Events.on(PlayerJoin.class, event -> scheduleJoinInfo(event.player));
+        Events.on(PlayerJoin.class, event -> {
+            scheduleJoinInfo(event.player);
+            //a vote may already be running; give the newcomer the ballot too
+            VoteMenu.pushVoteTo(event.player);
+        });
         Events.on(PlayerLeave.class, event -> {
-            if(event.player != null) pendingJoinInfo.remove(event.player);
+            if(event.player != null){
+                pendingJoinInfo.remove(event.player);
+                VoteMenu.forget(event.player);
+            }
         });
         Events.on(WorldLoadEvent.class, event -> applyLogicRules());
         Events.on(RulesLoadEvent.class, event -> applyLogicRules());
@@ -86,6 +95,31 @@ public class CampaignHooks{
         });
 
         Log.info("[CampaignServer] " + I18n.get("campaign.log.hooks-installed"));
+    }
+
+    /**
+     * Accepts a plain chat line {@code 1} or {@code 0} as a ballot while a vote is running, so nobody
+     * has to type a command. The match is strict: the whole message must be exactly {@code 1} or
+     * {@code 0} (surrounding whitespace ignored), anything else stays a normal chat message. Outside a
+     * running vote the digits are left alone.
+     */
+    private static void installChatBallot(){
+        netServer.admins.addChatFilter((player, message) -> {
+            if(player == null || message == null) return message;
+            if(CampaignVote.active() == null) return message;
+
+            String trimmed = message.trim();
+            if(!trimmed.equals("0") && !trimmed.equals("1")) return message;
+
+            boolean yes = trimmed.equals("1");
+            String problem = CampaignVote.cast(player, yes ? "y" : "n");
+            player.sendMessage(problem == null
+                ? I18n.get("campaign.vote.ballot-counted", I18n.get(yes ? "campaign.vote.yes" : "campaign.vote.no"))
+                : "[scarlet]" + problem);
+
+            //swallow the chat line: a ballot is not something to broadcast
+            return null;
+        });
     }
 
     /**
@@ -353,7 +387,6 @@ public class CampaignHooks{
         //the research hint differs per audience: vote, or admin-only
         boolean voteResearch = CampaignVote.votingEnabled(CampaignVote.Kind.research);
         lines.add(I18n.get(voteResearch ? "campaign.join.vote" : "campaign.join.vote-disabled"));
-
         if(admin){
             lines.add(I18n.get("campaign.join.admin"));
             if(CampaignConfig.data().allowPlanetSwitch){
@@ -361,8 +394,14 @@ public class CampaignHooks{
             }
         }else{
             lines.add(I18n.get(voteResearch ? "campaign.join.player-research-vote" : "campaign.join.player-research-adminonly"));
+            if(CampaignVote.votingEnabled(CampaignVote.Kind.sector)){
+                lines.add(I18n.get("campaign.join.player-sector-vote"));
+            }
             if(CampaignVote.votingEnabled(CampaignVote.Kind.planet)){
                 lines.add(I18n.get("campaign.join.player-planet-vote"));
+            }
+            if(CampaignVote.votingEnabled(CampaignVote.Kind.destination) || CampaignVote.votingEnabled(CampaignVote.Kind.redirect)){
+                lines.add(I18n.get("campaign.join.player-pad-vote"));
             }
         }
         return lines;

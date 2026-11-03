@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh the Mindustry UPnP port mappings (7 day lease on the router)
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/mindustry-portmap.sh
+StandardOutput=append:/var/log/mindustry-portmap.log
+StandardError=append:/var/log/mindustry-portmap.log

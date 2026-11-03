@@ -57,6 +57,9 @@ public class CampaignServerMod extends Plugin{
             CampaignConfig.load();
             I18n.load(CampaignConfig.data().language);
 
+            //a client already has the game bundle; only a server needs the shipped content names
+            if(headless) I18n.localizeContent();
+
             if(headless){
                 SectorService.init();
                 ResearchService.init();

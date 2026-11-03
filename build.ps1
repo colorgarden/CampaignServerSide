@@ -59,6 +59,10 @@ if ($modJsonText.Length -gt 0 -and $modJsonText[0] -eq [char]0xFEFF) { $modJsonT
 if (Test-Path (Join-Path $root "bundles")) {
     Copy-Item -Recurse (Join-Path $root "bundles") (Join-Path $classes "bundles") -Force
 }
+# content display names (game keys such as block.conveyor.name), used for localizedName on a server
+if (Test-Path (Join-Path $root "i18n")) {
+    Copy-Item -Recurse (Join-Path $root "i18n") (Join-Path $classes "i18n") -Force
+}
 if (Test-Path (Join-Path $root "assets")) {
     Copy-Item -Recurse (Join-Path $root "assets") (Join-Path $classes "assets") -Force
 }

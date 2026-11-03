@@ -1,0 +1,9 @@
+[Unit]
+Description=Reconnect wlan0 when the 5GHz link silently degrades
+Documentation=file:///home/colorgarden/campaign-server/README-wifi.md
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/wifi-watchdog.sh

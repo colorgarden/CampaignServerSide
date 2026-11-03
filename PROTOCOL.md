@@ -133,9 +133,12 @@ CampaignClientApi.setPushListener(info -> { /* 刷新界面 */ });
   但会在日志里提示 `version mismatch`，请两边一起更新。
 - 服务端 `hidden: true` 的插件不带任何内容，所以客户端装不装这个 mod 都能连服；
   只有需要调用 API 的客户端才需要装。
-- 相关开关：`sectorSwitchAdminOnly` / `researchAdminOnly` / `voting` / `voteSector` / `voteResearch`。
-  当某项设为“仅管理员”时，对应的投票会被直接禁用（`campaign.vote.sector-admin-only`）。
-- 投票判定模式见 `voteDecision`（`threshold` / `veto` / `majority`）与 `voteTimeout`。
+- 相关开关：`sectorSwitchAdminOnly` / `researchAdminOnly` / `planetSwitchAdminOnly` 只控制**直接调用**
+  的权限；投票由 `voting` + `voteSector` / `voteResearch` / `votePlanet` / `voteDestination` / `voteRedirect`
+  独立控制，两者不再互相禁用。
+- 投票种类（`voteKind`）现在是 `sector` / `planet` / `research` / `destination` / `redirect`。
+- 投票判定模式见 `voteDecision`（`majority` 默认 / `threshold` / `veto`）与 `voteTimeout`；
+  发起门槛见 `voteMinPlayers`。
 - 跨星球：区块查询串支持 `planet:name`（如 `erekir:onset`），也可以走 `/planet <name>`；
   发射台/接收台不允许跨星球，`actionSetDestination` 会返回 `campaign.destination.other-planet`。
 

@@ -80,6 +80,8 @@
 | `/cvote sector <name>` | 所有人 | 发起“切换区块”投票 |
 | `/cvote research <name>` | 所有人 | 发起“解锁科技”投票 |
 | `/cvote planet <name>` | 所有人 | 发起“切换星球”投票 |
+| `/cvote destination <sector>` | 所有人 | 发起“改本区块发射台目标”投票 |
+| `/cvote redirect` | 所有人 | 发起“一键重定向全星球对外运送”投票 |
 | `/cvote yes` / `/cvote no` | 所有人 | 投票 |
 | `/cvote cancel` | 管理员 | 取消投票 |
 | `/cvote info` | 所有人 | 当前投票状态 |
@@ -92,17 +94,23 @@
 
 ## 4. 投票
 
-- 判定模式由 `voteDecision` 决定：
-  - `threshold`（默认）：同意票 ≥ `ceil(在线人数 × votePercent)`（至少 2 票）通过；反对票达到同样数量即失败。
+投票覆盖五种操作：`sector`（切区块）、`planet`（切星球）、`research`（解锁科技）、
+`destination`（改本区块发射台目标）、`redirect`（一键把全星球对外运送指到本区块）。
+
+- **投票与“仅管理员”开关无关**。`sectorSwitchAdminOnly` / `researchAdminOnly` / `planetSwitchAdminOnly`
+  只决定玩家能不能**直接**用 `/sector`、`/research`、`/planet`；投票由 `voting` + 各自的 `vote*` 开关控制。
+  也就是说管理员可以自己动手，普通玩家走投票。
+- 判定模式由 `voteDecision` 决定，**默认 `majority`（少数服从多数）**：
+  - `majority`：在线玩家都投完后立即判定，或超时按当前票数判定——同意 > 反对即通过，平票算失败。
+    少数派无法单方面否决。
+  - `threshold`：同意票 ≥ `ceil(在线人数 × votePercent)` 通过；反对票达到同样数量即失败。
   - `veto`：**一票否决**——只要有一张反对票立刻失败；同意票仍需达到阈值。
-  - `majority`：**多数决**——在线玩家都投完后立即比较，同意多于反对才通过，平票算失败。
 - `voteTimeout`（默认 10 秒）：最后一张票之后若无人再投，超时即按上述模式结算，不必等满 `voteDuration`；
   设为 `0` 关闭超时。`voteDuration` 仍是硬上限，到期按模式结算。
 - 管理员可随时取消投票。
 - 同一玩家两次发起之间要等 `voteCooldown` 秒（冷却从上一次投票结束算起）。
-- 在线人数不足 `voteMinPlayers` 时不能发起。
-- **“仅管理员”优先级最高**：`sectorSwitchAdminOnly` / `researchAdminOnly` 为 `true` 时，
-  对应投票直接被禁用，并提示 `campaign.vote.sector-admin-only` / `campaign.vote.research-admin-only`。
+- 在线人数不足 `voteMinPlayers` 时不能发起。设为 `1` 时单人也能投票——发起者的一票就是全部票数，
+  因此投票必然通过，这是该配置的预期行为。
 - 投票结果会立即执行（切换区块会重载世界），并广播到聊天栏。
 
 ## 5. 配置文件
@@ -122,19 +130,21 @@
 | `clearSectorOnLose` | `false` | 区块丢失时删除该区块存档 |
 | `allowSectorSwitch` | `true` | 区块切换总开关 |
 | `allowResearch` | `true` | 科技解锁总开关 |
-| `sectorSwitchAdminOnly` | `true` | 只有管理员能切换区块（`false` 时所有人可用，投票随之可用） |
-| `researchAdminOnly` | `true` | 只有管理员能解锁科技（同上） |
+| `sectorSwitchAdminOnly` | `true` | 只有管理员能直接用 `/sector` 切区块（不影响投票） |
+| `researchAdminOnly` | `true` | 只有管理员能直接用 `/research` 解锁科技（不影响投票） |
 | `voting` | `true` | 投票总开关 |
 | `voteSector` | `true` | 允许区块切换投票 |
 | `voteResearch` | `true` | 允许科技解锁投票 |
-| `votePercent` | `0.6` | 通过所需的在线玩家比例 |
-| `voteMinPlayers` | `2` | 发起投票的最少在线人数 |
+| `voteDestination` | `true` | 允许“改发射台目标”投票 |
+| `voteRedirect` | `true` | 允许“一键重定向对外运送”投票 |
+| `votePercent` | `0.6` | `threshold` 模式下的通过比例 |
+| `voteMinPlayers` | `2` | 发起投票的最少在线人数（设 `1` 单人可投） |
 | `voteDuration` | `60` | 投票时长（秒），硬上限 |
-| `voteDecision` | `"threshold"` | 判定模式：`threshold` 阈值 / `veto` 一票否决 / `majority` 多数决 |
+| `voteDecision` | `"majority"` | 判定模式：`majority` 少数服从多数 / `threshold` 阈值 / `veto` 一票否决 |
 | `voteTimeout` | `10` | 最后一张票之后多少秒未再投票即结算，`0` 关闭 |
 | `allowPlanetSwitch` | `true` | 星球切换总开关 |
-| `planetSwitchAdminOnly` | `true` | 只有管理员能切换星球（独立于区块权限） |
-| `votePlanet` | `true` | 允许“切换星球”投票；`planetSwitchAdminOnly` 为 `true` 时自动禁用 |
+| `planetSwitchAdminOnly` | `true` | 只有管理员能直接用 `/planet` 切星球（不影响投票） |
+| `votePlanet` | `true` | 允许“切换星球”投票 |
 | `voteCooldown` | `30` | 同一玩家再次发起的冷却（秒） |
 | `announce` | `true` | 区块攻陷/丢失时公告 |
 | `resyncClients` | `true` | 切区块后给在线玩家重发世界数据（否则踢出） |

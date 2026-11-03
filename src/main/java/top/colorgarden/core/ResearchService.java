@@ -12,6 +12,7 @@ import top.colorgarden.util.I18n;
 import arc.struct.Seq;
 import arc.util.Log;
 import arc.util.Nullable;
+import mindustry.content.TechTree;
 import mindustry.content.TechTree.TechNode;
 import mindustry.ctype.Content;
 import arc.Core;
@@ -76,6 +77,58 @@ public class ResearchService{
             if(preset.localizedName != null && preset.localizedName.equalsIgnoreCase(raw)) return preset;
         }
 
+        //partial match, so "钻" or "drill" finds 机械钻头 as long as only one entry matches
+        Seq<UnlockableContent> hits = findMatches(raw, 3);
+        return hits.size == 1 ? hits.first() : null;
+    }
+
+    /**
+     * Partial (substring) search over content names and localized names.
+     *
+     * @return up to {@code limit} matches, empty when the query is blank
+     */
+    public static Seq<UnlockableContent> findMatches(@Nullable String query, int limit){
+        Seq<UnlockableContent> out = new Seq<>();
+        if(query == null || query.trim().isEmpty()) return out;
+
+        String needle = query.trim().toLowerCase(Locale.ROOT);
+
+        for(TechNode node : mindustry.content.TechTree.all){
+            UnlockableContent unlockable = node.content;
+            if(unlockable == null) continue;
+            if(!matches(unlockable, needle)) continue;
+            if(!out.contains(unlockable)) out.add(unlockable);
+            if(out.size >= limit) break;
+        }
+
+        for(SectorPreset preset : content.sectors()){
+            if(!matches(preset, needle)) continue;
+            if(!out.contains(preset)) out.add(preset);
+            if(out.size >= limit) break;
+        }
+
+        return out;
+    }
+
+    private static boolean matches(UnlockableContent content, String needle){
+        return (content.name != null && content.name.toLowerCase(Locale.ROOT).contains(needle))
+            || (content.localizedName != null && content.localizedName.toLowerCase(Locale.ROOT).contains(needle));
+    }
+
+    /** @return whether this content belongs to the planet (vanilla hides off-planet entries). */
+    public static boolean shownOnPlanet(@Nullable UnlockableContent content, @Nullable Planet planet){
+        if(content == null) return false;
+        if(planet == null) return true;
+        return content.shownPlanets.isEmpty() || content.shownPlanets.contains(planet);
+    }
+
+    /** @return the nearest ancestor in the tech tree that is still locked, or null when the path is clear. */
+    public static @Nullable UnlockableContent lockedParent(@Nullable UnlockableContent content){
+        TechNode node = content == null ? null : content.techNode;
+
+        for(TechNode parent = node == null ? null : node.parent; parent != null; parent = parent.parent){
+            if(parent.content != null && !parent.content.unlocked()) return parent.content;
+        }
         return null;
     }
 
@@ -83,6 +136,8 @@ public class ResearchService{
      * Unlocks one piece of content.
      *
      * @param withParents also unlock everything above it in the tech tree, so the tree stays consistent.
+     *                    Ignored in strict mode ({@code researchStrict}), where callers must check
+     *                    {@link #lockedParent} instead.
      * @return true if anything was unlocked by this call.
      */
     public static boolean research(UnlockableContent unlockable, boolean withParents){
@@ -90,7 +145,7 @@ public class ResearchService{
 
         boolean changed = false;
 
-        if(withParents){
+        if(withParents && !CampaignConfig.data().researchStrict){
             TechNode node = unlockable.techNode;
             Seq<TechNode> parents = new Seq<>();
             for(TechNode parent = node == null ? null : node.parent; parent != null; parent = parent.parent){
@@ -335,6 +390,49 @@ public class ResearchService{
         }
     }
 
+    /**
+     * Locks every research entry again and clears the partial payments, then re-runs the vanilla
+     * auto-unlock pass so the campaign's free starting content comes back. Connected clients keep
+     * seeing the old tree until they reconnect.
+     *
+     * @return how many entries were relocked.
+     */
+    public static int relockAll(){
+        int[] counter = {0};
+
+        AnnounceService.suppress(() -> {
+            for(TechNode node : TechTree.all){
+                UnlockableContent target = node.content;
+                if(target == null) continue;
+
+                if(target.unlocked()) counter[0] ++;
+
+                if(node.requirements != null && node.finishedRequirements != null){
+                    for(int i = 0; i < node.requirements.length && i < node.finishedRequirements.length; i++){
+                        ItemStack requirement = node.requirements[i];
+                        if(requirement == null || node.finishedRequirements[i] == null) continue;
+
+                        node.finishedRequirements[i].amount = 0;
+                        Core.settings.remove("req-" + target.name + "-" + requirement.item.name);
+                    }
+                    try{
+                        node.save();
+                    }catch(Throwable ignored){
+                        //progress bookkeeping only
+                    }
+                }
+
+                relock(target);
+            }
+
+            //restore everything the campaign gives away for free (no requirements, objectives done)
+            checkAutoUnlocks();
+        });
+
+        Log.info("[CampaignServer] " + I18n.get("campaign.log.relocked-all", counter[0]));
+        return counter[0];
+    }
+
     /** @return how many pieces of content were unlocked. */
     public static int researchAll(@Nullable Planet planet){
         //bulk unlock: do not flood the chat with one message per entry
@@ -365,6 +463,16 @@ public class ResearchService{
 
         Log.info("[CampaignServer] " + I18n.get("campaign.log.research-all", count));
         return count;
+    }
+
+    /** @return every content entry that is unlocked right now, in tech tree order. */
+    public static Seq<UnlockableContent> unlockedNow(){
+        Seq<UnlockableContent> out = new Seq<>();
+        for(TechNode node : TechTree.all){
+            UnlockableContent target = node.content;
+            if(target != null && target.unlocked()) out.add(target);
+        }
+        return out;
     }
 
     /** @return how much content relevant to this planet is still locked. */

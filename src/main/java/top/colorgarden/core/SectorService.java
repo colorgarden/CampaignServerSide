@@ -247,7 +247,30 @@ public class SectorService{
             }
         }
 
-        return null;
+        //partial match: typing "零号" or "ground" should still find it, as long as it is unambiguous
+        Sector partial = null;
+        int hits = 0;
+        for(SectorPreset other : presets(planet)){
+            if(other.sector == null) continue;
+            if(contains(other.name, lower) || contains(other.localizedName, lower)){
+                partial = other.sector;
+                if(++hits > 1) return null;
+            }
+        }
+
+        for(Sector sector : planet.sectors){
+            if(sector == null || sector == partial) continue;
+            if(contains(sector.name(), lower) || contains(String.valueOf(sector.id), lower)){
+                partial = sector;
+                if(++hits > 1) return null;
+            }
+        }
+
+        return hits == 1 ? partial : null;
+    }
+
+    private static boolean contains(@Nullable String value, String needle){
+        return value != null && !needle.isEmpty() && value.toLowerCase(Locale.ROOT).contains(needle);
     }
 
     /** @return a short, human readable description of a sector's progress. */

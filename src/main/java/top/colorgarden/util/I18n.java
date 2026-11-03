@@ -5,13 +5,19 @@ package top.colorgarden.util;
 
 
 import arc.Core;
+import arc.struct.Seq;
 import arc.util.Strings;
+import mindustry.ctype.Content;
+import mindustry.ctype.ContentType;
+import mindustry.ctype.UnlockableContent;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Properties;
+
+import static mindustry.Vars.content;
 
 /**
  * Message lookup for everything the plugin prints (console, chat, API replies).
@@ -24,6 +30,8 @@ import java.util.Properties;
 public class I18n{
     private static final Properties english = new Properties();
     private static final Properties translated = new Properties();
+    /** Content display names (game keys such as {@code block.conveyor.name}), see {@link #localizeContent()}. */
+    private static final Properties contentNames = new Properties();
     private static boolean loaded;
     private static String language = "auto";
 
@@ -37,6 +45,36 @@ public class I18n{
         String code = localeCode(language);
         if(!code.isEmpty()){
             read("bundles/bundle_" + code + ".properties", translated);
+        }
+
+        //content names are a separate table: they are the game's keys, not the plugin's
+        read("i18n/content.properties", contentNames);
+        if(!code.isEmpty()){
+            read("i18n/content_" + code + ".properties", contentNames);
+        }
+    }
+
+    /**
+     * Fills {@code UnlockableContent#localizedName} from the shipped content-name table.
+     *
+     * <p>A dedicated server has no {@code Core.bundle} with the game's content keys, so vanilla leaves
+     * {@code localizedName} at the internal id ({@code mechanical-drill} instead of {@code 机械钻头}).
+     * Every message that names a block, item or sector would show that id, so the names are patched
+     * once at startup. Clients keep their own translation - only display strings are touched.</p>
+     */
+    public static void localizeContent(){
+        if(contentNames.isEmpty()) return;
+
+        for(ContentType type : ContentType.all){
+            Seq<Content> all = content.getBy(type);
+            if(all == null) continue;
+
+            for(Content c : all){
+                if(!(c instanceof UnlockableContent unlockable)) continue;
+
+                String value = contentNames.getProperty(type + "." + unlockable.name + ".name");
+                if(value != null) unlockable.localizedName = value;
+            }
         }
     }
 

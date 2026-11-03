@@ -75,11 +75,18 @@ public class CampaignConfig{
      */
     public boolean researchCosts = true;
 
+    /**
+     * Strict tech tree. When true (default) research unlocks <b>only</b> the requested content: if one
+     * of its parents in the tech tree is still locked the request is refused and the missing parent is
+     * named. When false the whole ancestor chain is unlocked along with it.
+     */
+    public boolean researchStrict = true;
+
     /** Allow switching planets at all. */
     public boolean allowPlanetSwitch = true;
     /** Only admins may switch planets; when false every player may use /planet. */
     public boolean planetSwitchAdminOnly = true;
-    /** Allow "switch planet" votes. Disabled automatically while planetSwitchAdminOnly is on. */
+    /** Allow "switch planet" votes. Independent of {@link #planetSwitchAdminOnly}. */
     public boolean votePlanet = true;
 
     /** Only admins may unlock research; when false every player may use /research. */
@@ -93,6 +100,10 @@ public class CampaignConfig{
     public boolean voteSector = true;
     /** Allow votes that unlock a research entry. */
     public boolean voteResearch = true;
+    /** Allow votes that point the current sector's launch pads at another sector (same planet). */
+    public boolean voteDestination = true;
+    /** Allow votes that redirect the exports of every sector on the planet to the current one. */
+    public boolean voteRedirect = true;
     /** Share of online players that must vote yes for a vote to pass (0.1 - 1). */
     public float votePercent = 0.6f;
     /** Minimum online players needed to start a vote. */
@@ -102,13 +113,14 @@ public class CampaignConfig{
     /**
      * How a vote is decided.
      * <ul>
+     *   <li>{@code majority} - decided once everyone online has voted, or on timeout: more yes than no.
+     *       This is the default: a minority cannot block the vote.</li>
      *   <li>{@code threshold} - pass at {@code ceil(online * votePercent)} yes votes, fail at the same
-     *       number of no votes (original behaviour).</li>
-     *   <li>{@code veto} - a single no vote fails the vote immediately.</li>
-     *   <li>{@code majority} - decided once everyone online has voted, or on timeout: more yes than no.</li>
+     *       number of no votes.</li>
+     *   <li>{@code veto} - a single no vote fails the vote immediately; yes still needs the threshold.</li>
      * </ul>
      */
-    public String voteDecision = "threshold";
+    public String voteDecision = "majority";
     /** Seconds without a new vote before the vote resolves; <= 0 disables the idle timeout. */
     public float voteTimeout = 10f;
 

@@ -238,6 +238,15 @@ public class CampaignNetwork{
                     return;
                 }
 
+                if(CampaignConfig.data().researchStrict && !unlockable.unlocked()){
+                    UnlockableContent blocker = ResearchService.lockedParent(unlockable);
+                    if(blocker != null){
+                        sendReply(con, packet.requestId, packet.action, false,
+                            I18n.get("campaign.research.parent-locked", blocker.localizedName), "");
+                        return;
+                    }
+                }
+
                 boolean changed = ResearchService.research(unlockable, true);
                 CampaignInfo info = CampaignInfo.build("");
                 info.admin = player.admin;

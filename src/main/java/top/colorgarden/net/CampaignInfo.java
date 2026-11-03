@@ -127,7 +127,7 @@ public class CampaignInfo{
 
         CampaignVote.Vote vote = CampaignVote.active();
         if(vote != null){
-            info.voteKind = vote.kind == CampaignVote.Kind.sector ? "sector" : "research";
+            info.voteKind = vote.kind.name();
             info.voteTarget = vote.label;
             info.voteStarter = vote.starterName;
             info.voteYes = vote.yes.size;

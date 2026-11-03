@@ -13,10 +13,12 @@ import top.colorgarden.util.I18n;
 import arc.Events;
 import arc.struct.ObjectMap;
 import arc.struct.ObjectSet;
+import arc.struct.Seq;
 import arc.util.Log;
 import arc.util.Nullable;
 import arc.util.Strings;
 import arc.util.Time;
+import mindustry.content.TechTree.TechNode;
 import mindustry.ctype.UnlockableContent;
 import mindustry.game.EventType.ResetEvent;
 import mindustry.game.EventType.Trigger;
@@ -25,18 +27,20 @@ import mindustry.gen.Groups;
 import mindustry.gen.Player;
 import mindustry.type.Planet;
 import mindustry.type.Sector;
+import mindustry.type.SectorPreset;
 
 /**
- * Player votes for switching the sector or unlocking research.
+ * Player votes for switching the sector or planet, unlocking research and rewiring launch pads.
  *
- * <p>Votes only exist to let <i>non-admins</i> move the campaign forward: a vote kind is effective
- * only when the matching action is enabled and <b>not</b> restricted to admins
- * ({@link #votingEnabled(Kind)}). A vote passes once {@code ceil(online * votePercent)} players voted
- * yes (at least two) and fails on timeout, on enough no-votes, or when an admin cancels it.</p>
+ * <p>Votes are independent of the "admin only" switches: those decide whether a player may perform the
+ * action <i>directly</i>, while a vote lets everyone decide together. A kind is effective when voting
+ * is on, the matching action is enabled and its own {@code vote*} switch is on
+ * ({@link #votingEnabled(Kind)}). With the default {@code majority} decision a vote passes once
+ * everyone voted and there are more yes than no.</p>
  */
 public class CampaignVote{
     public enum Kind{
-        sector, research, planet
+        sector, research, planet, destination, redirect
     }
 
     /** The vote that is currently running, if any. */
@@ -47,6 +51,7 @@ public class CampaignVote{
     public static void init(){
         Events.on(ResetEvent.class, event -> current = null);
         Events.run(Trigger.update, CampaignVote::update);
+        VoteMenu.init();
     }
 
     public static @Nullable Vote active(){
@@ -54,31 +59,126 @@ public class CampaignVote{
     }
 
     /**
-     * @return whether votes for this kind are effective: voting enabled, the action enabled and
-     *         the action <i>not</i> restricted to admins.
+     * @return whether votes for this kind are effective: voting enabled, the action enabled and the
+     *         vote switch for this kind on. The matching {@code *AdminOnly} flag is deliberately
+     *         ignored - it only controls direct use of the command.
      */
     public static boolean votingEnabled(Kind kind){
         CampaignConfig config = CampaignConfig.data();
         if(!config.voting) return false;
 
-        if(kind == Kind.sector){
-            return config.voteSector && config.allowSectorSwitch && !config.sectorSwitchAdminOnly;
-        }
-        if(kind == Kind.planet){
-            return config.votePlanet && config.allowPlanetSwitch && !config.planetSwitchAdminOnly;
-        }
-        return config.voteResearch && config.allowResearch && !config.researchAdminOnly;
+        return switch(kind){
+            case sector -> config.voteSector && config.allowSectorSwitch;
+            case planet -> config.votePlanet && config.allowPlanetSwitch;
+            case research -> config.voteResearch && config.allowResearch;
+            case destination -> config.voteDestination && config.allowSectorSwitch;
+            case redirect -> config.voteRedirect && config.allowSectorSwitch;
+        };
     }
 
     /** @return how many yes votes are needed with the given number of online players. */
     public static int requiredVotes(int online){
         int byPercent = (int)Math.ceil(online * CampaignConfig.data().votePercent);
-        return Math.max(2, Math.min(Math.max(online, 1), byPercent));
+        return Math.max(1, Math.min(Math.max(online, 1), byPercent));
     }
 
     /** @return how many yes votes are needed right now. */
     public static int requiredVotes(){
         return requiredVotes(Groups.player.size());
+    }
+
+    /**
+     * Case-insensitive search for <b>valid</b> vote targets of one kind: only research that can be
+     * unlocked right now (strict tech tree applied) and only sectors that can be entered right now.
+     *
+     * @param query empty to list the first entries
+     * @return up to {@code limit} {@code localized (id)} strings
+     */
+    public static Seq<String> search(Kind kind, @Nullable String query, int limit){
+        Seq<String> out = new Seq<>();
+        String needle = query == null ? "" : query.trim().toLowerCase();
+        CampaignConfig config = CampaignConfig.data();
+
+        if(kind == Kind.redirect) return out;
+
+        if(kind == Kind.planet){
+            for(Planet planet : SectorService.planets()){
+                if(planet == SectorService.planet()) continue;
+
+                Sector target = SectorService.targetFor(planet);
+                if(target == null) continue;
+                if(config.enforceSectorUnlock && !SectorService.canEnter(target)) continue;
+
+                if(matches(planet.name, planet.localizedName, needle)){
+                    out.add(planet.localizedName + " (" + planet.name + ")");
+                }
+                if(out.size >= limit) break;
+            }
+            return out;
+        }
+
+        if(kind == Kind.research){
+            Planet planet = SectorService.planet();
+
+            for(TechNode node : mindustry.content.TechTree.all){
+                UnlockableContent content = node.content;
+                if(content == null || content.unlocked()) continue;
+                //sector presets are unlocked by playing, not by research
+                if(content instanceof SectorPreset) continue;
+                //vanilla only offers content of the current planet (the tech tree is shared by all)
+                if(!ResearchService.shownOnPlanet(content, planet)) continue;
+                //strict mode: only offer what the vote could actually unlock
+                if(config.researchStrict && ResearchService.lockedParent(content) != null) continue;
+
+                if(matches(content.name, content.localizedName, needle)){
+                    out.add(content.localizedName + " (" + content.name + ")");
+                }
+                if(out.size >= limit) break;
+            }
+            return out;
+        }
+
+        if(kind == Kind.destination){
+            Sector current = SectorService.current();
+            if(current == null) return out;
+
+            for(Sector sector : current.planet.sectors){
+                if(sector == null || sector == current || !sector.hasBase()) continue;
+                if(matches(sector.name(), String.valueOf(sector.id), needle)){
+                    out.add(sector.name() + " (" + current.planet.name + ":" + sector.id + ")");
+                }
+                if(out.size >= limit) break;
+            }
+            return out;
+        }
+
+        //sector votes target the named sector presets, but only the ones that may be entered now
+        for(Planet planet : SectorService.planets()){
+            for(SectorPreset preset : SectorService.presets(planet)){
+                Sector sector = preset.sector;
+                if(sector == null) continue;
+                if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
+
+                if(matches(preset.name, preset.localizedName, needle) || matches(String.valueOf(sector.id), "", needle)){
+                    out.add(preset.localizedName + " (" + planet.name + ":" + sector.id + ")");
+                }
+                if(out.size >= limit) break;
+            }
+            if(out.size >= limit) break;
+        }
+        return out;
+    }
+
+    /** @return a localized one-line "did you mean" hint, or "" when nothing is close. */
+    public static String suggest(Kind kind, @Nullable String query){
+        Seq<String> found = search(kind, query, 4);
+        return found.isEmpty() ? "" : "\n" + I18n.get("campaign.vote.suggest", found.toString(", "));
+    }
+
+    private static boolean matches(String name, String localized, String needle){
+        if(needle.isEmpty()) return true;
+        return (name != null && name.toLowerCase().contains(needle))
+            || (localized != null && localized.toLowerCase().contains(needle));
     }
 
     /**
@@ -91,16 +191,10 @@ public class CampaignVote{
 
         if(!config.voting) return I18n.get("campaign.vote.disabled");
         if(!votingEnabled(kind)){
-            if(kind == Kind.sector){
-                return I18n.get(config.sectorSwitchAdminOnly ? "campaign.vote.sector-admin-only" : "campaign.vote.sector-disabled");
-            }
-            if(kind == Kind.planet){
-                return I18n.get(config.planetSwitchAdminOnly ? "campaign.vote.planet-admin-only" : "campaign.vote.planet-disabled");
-            }
-            return I18n.get(config.researchAdminOnly ? "campaign.vote.research-admin-only" : "campaign.vote.research-disabled");
+            return I18n.get("campaign.vote.kind-disabled");
         }
         if(current != null) return I18n.get("campaign.vote.in-progress");
-        if(Groups.player.size() < Math.max(2, config.voteMinPlayers)) return I18n.get("campaign.vote.not-enough-players");
+        if(Groups.player.size() < Math.max(1, config.voteMinPlayers)) return I18n.get("campaign.vote.not-enough-players");
 
         Long until = cooldownUntil.get(starter.uuid());
         if(until != null && Time.millis() < until){
@@ -111,7 +205,7 @@ public class CampaignVote{
         String resolved;
         if(kind == Kind.sector){
             Sector sector = SectorService.resolve(target);
-            if(sector == null) return I18n.get("campaign.vote.no-such-sector", target);
+            if(sector == null) return I18n.get("campaign.vote.no-such-sector", target) + suggest(kind, target);
             if(CampaignConfig.data().enforceSectorUnlock && !SectorService.canEnter(sector)){
                 return I18n.get("campaign.vote.sector-locked", sector.name());
             }
@@ -129,9 +223,36 @@ public class CampaignVote{
 
             resolved = planet.name;
             label = planet.localizedName;
+        }else if(kind == Kind.destination){
+            Sector current = SectorService.current();
+            if(current == null) return I18n.get("campaign.msg.not-playing");
+
+            Sector destination = SectorService.resolve(target);
+            if(destination == null) return I18n.get("campaign.vote.no-such-sector", target);
+            if(destination.planet != current.planet){
+                return I18n.get("campaign.destination.other-planet", destination.name(), current.planet.localizedName);
+            }
+            if(destination == current) return I18n.get("campaign.vote.destination-same");
+
+            resolved = destination.planet.name + ":" + destination.id;
+            label = destination.name();
+        }else if(kind == Kind.redirect){
+            Sector current = SectorService.current();
+            if(current == null) return I18n.get("campaign.msg.not-playing");
+
+            resolved = current.name();
+            label = current.name();
         }else{
             UnlockableContent content = ResearchService.find(target);
-            if(content == null) return I18n.get("campaign.vote.no-such-content", target);
+            if(content == null) return I18n.get("campaign.vote.no-such-content", target) + suggest(kind, target);
+            if(content instanceof SectorPreset) return I18n.get("campaign.research.sector-preset", content.localizedName);
+            if(!ResearchService.shownOnPlanet(content, SectorService.planet())){
+                return I18n.get("campaign.research.other-planet", content.localizedName);
+            }
+            if(CampaignConfig.data().researchStrict && !content.unlocked()){
+                UnlockableContent blocker = ResearchService.lockedParent(content);
+                if(blocker != null) return I18n.get("campaign.research.parent-locked", blocker.localizedName);
+            }
             resolved = content.name;
             label = content.localizedName;
         }
@@ -153,6 +274,7 @@ public class CampaignVote{
 
         Log.info("[CampaignServer] @ started a @ vote for '@'.", starter.plainName(), kind, label);
         push();
+        VoteMenu.pushVote();
         return null;
     }
 
@@ -197,6 +319,7 @@ public class CampaignVote{
         Boolean decided = decide(vote);
         if(decided == null){
             push();
+            VoteMenu.pushVote();
         }else{
             finish(decided, decided ? null : failReason(vote));
         }
@@ -277,6 +400,8 @@ public class CampaignVote{
             case sector -> "campaign.vote.describe-sector";
             case planet -> "campaign.vote.describe-planet";
             case research -> "campaign.vote.describe-research";
+            case destination -> "campaign.vote.describe-destination";
+            case redirect -> "campaign.vote.describe-redirect";
         };
         return I18n.get(key, vote.label);
     }
@@ -312,11 +437,35 @@ public class CampaignVote{
                     return;
                 }
                 SectorService.enter(destination);
+            }else if(vote.kind == Kind.destination){
+                Sector current = SectorService.current();
+                Sector destination = SectorService.resolve(vote.arg);
+                if(current == null || destination == null){
+                    announce(I18n.get("campaign.vote.sector-gone"));
+                    return;
+                }
+                SectorService.setDestination(current, destination);
+                announce(I18n.get("campaign.vote.destination-done", current.name(), destination.name()));
+            }else if(vote.kind == Kind.redirect){
+                Sector current = SectorService.current();
+                if(current == null){
+                    announce(I18n.get("campaign.vote.sector-gone"));
+                    return;
+                }
+                int count = SectorService.redirectAllExports(current);
+                announce(I18n.get("campaign.vote.redirect-done", count, current.name()));
             }else{
                 UnlockableContent content = ResearchService.find(vote.arg);
                 if(content == null){
                     announce(I18n.get("campaign.vote.content-gone"));
                     return;
+                }
+                if(CampaignConfig.data().researchStrict && !content.unlocked()){
+                    UnlockableContent blocker = ResearchService.lockedParent(content);
+                    if(blocker != null){
+                        announce(I18n.get("campaign.research.parent-locked", blocker.localizedName));
+                        return;
+                    }
                 }
                 ResearchService.research(content, true);
                 announce(I18n.get("campaign.vote.researched", content.localizedName));
@@ -326,6 +475,7 @@ public class CampaignVote{
             announce(I18n.get("campaign.vote.apply-error", Strings.getSimpleMessage(t)));
         }finally{
             push();
+            VoteMenu.hideVote();
         }
     }
 
