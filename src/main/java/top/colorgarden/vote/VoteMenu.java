@@ -128,7 +128,15 @@ public class VoteMenu{
 
     // ---------------------------------------------------------------- click handlers
 
+    /** Closes one of our dialogs; in game the client never closes a follow-up menu by itself. */
+    private static void hide(Player player, int menuId){
+        if(player == null || player.con == null) return;
+        Call.hideFollowUpMenu(player.con, menuId);
+    }
+
     private static void onMain(Player player, int option){
+        if(option < 0) return; //closed with back/ESC
+
         switch(option){
             case 0 -> showList(player, CampaignVote.Kind.sector, "", 0);
             case 1 -> showList(player, CampaignVote.Kind.research, "", 0);
@@ -143,14 +151,15 @@ public class VoteMenu{
                     pushVoteTo(player);
                 }
             }
-            default -> {
-                //close
-            }
+            default -> hide(player, mainId);
         }
     }
 
     private static void showList(Player player, CampaignVote.Kind kind, String query, int page){
         if(!available || player == null || player.con == null) return;
+
+        //the category picker stays open underneath otherwise
+        hide(player, mainId);
 
         Seq<String> found = CampaignVote.search(kind, query, 200);
         if(found.isEmpty()){
@@ -186,17 +195,19 @@ public class VoteMenu{
     }
 
     private static void onList(Player player, int option){
+        if(option < 0) return; //closed with back/ESC
+
         ListState state = listStates.get(player);
         if(state == null) return;
 
         int start = state.page * perPage;
         int shown = Math.min(state.entries.size, start + perPage) - start;
-        int pages = Math.max(1, (state.entries.size + perPage - 1) / perPage);
 
         if(option < shown){
             String label = state.entries.get(start + option);
             //entries are "显示名 (id)"; the id inside the parentheses is what the resolver accepts
             String target = inside(label);
+            hide(player, listId);
             askConfirm(player, state.kind, target, label);
             return;
         }
@@ -209,13 +220,16 @@ public class VoteMenu{
             Call.textInput(player.con, searchId, I18n.get("campaign.menu.search-title"),
                 I18n.get("campaign.menu.search-message"), 32, state.query, false);
         }else{
-            //close; nothing to do
+            hide(player, listId);
             listStates.remove(player);
         }
     }
 
     private static void askConfirm(Player player, CampaignVote.Kind kind, String target, String label){
         if(!available || player == null || player.con == null) return;
+
+        hide(player, mainId);
+        hide(player, listId);
 
         Pending entry = new Pending();
         entry.kind = kind;
@@ -234,18 +248,20 @@ public class VoteMenu{
     }
 
     private static void onConfirm(Player player, int option){
-        Pending entry = pending.remove(player);
-        if(entry == null) return;
+        if(option < 0) return; //closed with back/ESC
 
-        if(option != 0){
-            return;
-        }
+        Pending entry = pending.remove(player);
+        hide(player, confirmId);
+
+        if(entry == null || option != 0) return;
 
         String problem = CampaignVote.start(player, entry.kind, entry.target);
         if(problem != null) player.sendMessage("[scarlet]" + problem);
     }
 
     private static void onVote(Player player, int option){
+        if(option < 0) return; //closed with back/ESC
+
         if(option == 0){
             String problem = CampaignVote.cast(player, "y");
             if(problem != null) player.sendMessage("[scarlet]" + problem);
@@ -253,7 +269,7 @@ public class VoteMenu{
             String problem = CampaignVote.cast(player, "n");
             if(problem != null) player.sendMessage("[scarlet]" + problem);
         }else{
-            Call.hideFollowUpMenu(player.con, voteId);
+            hide(player, voteId);
         }
     }
 
