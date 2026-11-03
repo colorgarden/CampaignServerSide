@@ -300,9 +300,7 @@ public class SectorService{
 
         SectorPreset preset = sector.preset;
         if(preset != null && preset.requireUnlock){
-            //strict mode: only progression (a captured gate sector) unlocks the next one
-            if(CampaignConfig.data().requireSectorCapture) return preset.unlocked();
-
+            //exactly PlanetDialog#canSelect: a neighbour of a sector that has a base is selectable
             mindustry.content.TechTree.TechNode node = preset.techNode;
             return preset.unlocked() || node == null || node.parent == null
                 || (node.parent.content.unlocked()

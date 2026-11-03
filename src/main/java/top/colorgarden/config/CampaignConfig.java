@@ -66,12 +66,6 @@ public class CampaignConfig{
     public boolean sectorSwitchAdminOnly = true;
     /** Only sectors that are unlocked in the campaign may be entered (same rules as the vanilla planet view). */
     public boolean enforceSectorUnlock = true;
-    /**
-     * Stricter than vanilla: a preset sector may only be entered once its {@code TechNode} was unlocked by
-     * progression, i.e. after the sector that gates it was captured. Vanilla also allows the neighbour of
-     * a sector that merely has a base, which lets players leave a sector before winning it.
-     */
-    public boolean requireSectorCapture = false;
     /** Server admins may enter locked sectors anyway (console commands always may). */
     public boolean adminBypassLock = true;
 
