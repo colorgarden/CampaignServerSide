@@ -3,15 +3,18 @@
 
 package top.colorgarden.vote;
 
+import top.colorgarden.core.ResearchService;
 import top.colorgarden.util.I18n;
 
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.Log;
 import arc.util.Nullable;
+import mindustry.ctype.UnlockableContent;
 import mindustry.gen.Call;
 import mindustry.gen.Groups;
 import mindustry.gen.Player;
+import mindustry.type.ItemStack;
 import mindustry.ui.Menus;
 
 /**
@@ -48,6 +51,44 @@ public class VoteMenu{
         CampaignVote.Kind kind;
         String target;
         String label;
+    }
+
+    /**
+     * @return the cost / progress block for a research dialog, or "" for the other kinds.
+     */
+    private static String costBlock(CampaignVote.Kind kind, String target){
+        if(kind != CampaignVote.Kind.research) return "";
+
+        UnlockableContent content = ResearchService.find(target);
+        if(content == null) return "";
+
+        Seq<ItemStack> missing = ResearchService.missing(content);
+
+        StringBuilder builder = new StringBuilder();
+        builder.append("\n").append(I18n.get("campaign.menu.cost",
+            ResearchService.formatStacks(seqOf(ResearchService.requirements(content)))));
+
+        Seq<ItemStack> paid = seqOf(ResearchService.progress(content));
+        paid.removeAll(stack -> stack == null || stack.amount <= 0);
+        if(!paid.isEmpty()){
+            builder.append("\n").append(I18n.get("campaign.menu.paid", ResearchService.formatStacks(paid)));
+        }
+
+        if(missing.isEmpty()){
+            builder.append("\n").append(I18n.get("campaign.menu.ready"));
+        }else{
+            builder.append("\n").append(I18n.get("campaign.menu.missing", ResearchService.formatStacks(missing)));
+            builder.append("\n").append(I18n.get(ResearchService.affordable(content)
+                ? "campaign.menu.affordable" : "campaign.menu.not-affordable"));
+        }
+
+        return builder.toString();
+    }
+
+    private static Seq<ItemStack> seqOf(ItemStack[] stacks){
+        Seq<ItemStack> out = new Seq<>();
+        if(stacks != null) out.addAll(stacks);
+        return out;
     }
 
     public static void init(){
@@ -105,7 +146,8 @@ public class VoteMenu{
         if(!available || player == null || player.con == null || vote == null) return;
 
         String message = I18n.get("campaign.menu.vote-message", CampaignVote.describe(vote),
-            vote.yes.size, CampaignVote.requiredVotes(), vote.no.size, vote.secondsLeft());
+            vote.yes.size, CampaignVote.requiredVotes(), vote.no.size, vote.secondsLeft())
+            + costBlock(vote.kind, vote.arg);
 
         String[][] options = {
             {I18n.get("campaign.menu.vote-yes"), I18n.get("campaign.menu.vote-no")},
@@ -185,7 +227,7 @@ public class VoteMenu{
             rows.add(new String[]{found.get(i)});
         }
         rows.add(new String[]{I18n.get("campaign.menu.prev"), I18n.get("campaign.menu.next")});
-        rows.add(new String[]{I18n.get("campaign.menu.search"), I18n.get("campaign.menu.close")});
+        rows.add(new String[]{I18n.get("campaign.menu.search"), I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
 
         String message = I18n.get("campaign.menu.list-message", current + 1, pages,
             I18n.get("campaign.vote.kind." + kind.name()));
@@ -219,6 +261,9 @@ public class VoteMenu{
         }else if(option == shown + 2){
             Call.textInput(player.con, searchId, I18n.get("campaign.menu.search-title"),
                 I18n.get("campaign.menu.search-message"), 32, state.query, false);
+        }else if(option == shown + 3){
+            hide(player, listId);
+            openMain(player);
         }else{
             hide(player, listId);
             listStates.remove(player);
@@ -238,7 +283,7 @@ public class VoteMenu{
         pending.put(player, entry);
 
         String message = I18n.get("campaign.menu.confirm-message", label,
-            CampaignVote.requiredVotes(), Groups.player.size());
+            CampaignVote.requiredVotes(), Groups.player.size()) + costBlock(kind, target);
 
         String[][] options = {
             {I18n.get("campaign.menu.confirm"), I18n.get("campaign.menu.cancel")}

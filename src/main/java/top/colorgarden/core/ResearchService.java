@@ -122,8 +122,7 @@ public class ResearchService{
         return content.shownPlanets.isEmpty() || content.shownPlanets.contains(planet);
     }
 
-    /** @return "item x5, lead x5" for messages. */
-    public static String formatStacks(Seq<ItemStack> stacks){
+    /** @return "item x5, lead x5" for messages. */    public static String formatStacks(Seq<ItemStack> stacks){
         if(stacks == null || stacks.isEmpty()) return "-";
 
         StringBuilder builder = new StringBuilder();
@@ -281,8 +280,7 @@ public class ResearchService{
         return node == null || node.requirements == null ? new ItemStack[0] : node.requirements;
     }
 
-    /** @return the part of the cost that was already paid (persisted in settings by the tech node). */
-    public static ItemStack[] progress(@Nullable UnlockableContent content){
+    /** @return the part of the cost that was already paid (persisted in settings by the tech node). */    public static ItemStack[] progress(@Nullable UnlockableContent content){
         TechNode node = content == null ? null : content.techNode;
         return node == null || node.finishedRequirements == null ? new ItemStack[0] : node.finishedRequirements;
     }
@@ -335,6 +333,18 @@ public class ResearchService{
             if(remaining > 0) out.add(new ItemStack(requirements[i].item, remaining));
         }
         return out;
+    }
+
+    /** @return whether the planet's combined storage covers every still-missing item. */
+    public static boolean affordable(@Nullable UnlockableContent content){
+        Planet planet = state.getPlanet();
+        if(planet == null) return false;
+
+        ItemSeq stock = planetItems(planet);
+        for(ItemStack stack : missing(content)){
+            if(stock.get(stack.item) < stack.amount) return false;
+        }
+        return true;
     }
 
     /**

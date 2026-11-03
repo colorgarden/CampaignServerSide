@@ -156,17 +156,20 @@ public class CampaignVote{
             return out;
         }
 
-        //sector votes target the named sector presets, but only the ones that may be entered now
-        for(Planet planet : SectorService.planets()){
-            for(SectorPreset preset : SectorService.presets(planet)){
-                Sector sector = preset.sector;
-                if(sector == null) continue;
-                if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
+        //sector votes target the named sector presets of the current planet only,
+        //and never the sector that is already being played
+        Planet currentPlanet = SectorService.planet();
+        if(currentPlanet == null) return out;
 
-                if(matches(preset.name, preset.localizedName, needle) || matches(String.valueOf(sector.id), "", needle)){
-                    out.add(preset.localizedName + " (" + planet.name + ":" + sector.id + ")");
-                }
-                if(out.size >= limit) break;
+        Sector playing = SectorService.current();
+
+        for(SectorPreset preset : SectorService.presets(currentPlanet)){
+            Sector sector = preset.sector;
+            if(sector == null || sector == playing) continue;
+            if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
+
+            if(matches(preset.name, preset.localizedName, needle) || matches(String.valueOf(sector.id), "", needle)){
+                out.add(preset.localizedName + " (" + currentPlanet.name + ":" + sector.id + ")");
             }
             if(out.size >= limit) break;
         }
@@ -210,6 +213,7 @@ public class CampaignVote{
         if(kind == Kind.sector){
             Sector sector = SectorService.resolve(target);
             if(sector == null) return I18n.get("campaign.vote.no-such-sector", target) + suggest(kind, target);
+            if(sector == SectorService.current()) return I18n.get("campaign.vote.already-there", sector.name());
             if(CampaignConfig.data().enforceSectorUnlock && !SectorService.canEnter(sector)){
                 return I18n.get("campaign.vote.sector-locked", sector.name());
             }
