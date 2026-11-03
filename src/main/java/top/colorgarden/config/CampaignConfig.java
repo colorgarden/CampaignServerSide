@@ -86,6 +86,19 @@ public class CampaignConfig{
     public int voteMinPlayers = 2;
     /** How long a vote stays open, in seconds. */
     public float voteDuration = 60f;
+    /**
+     * How a vote is decided.
+     * <ul>
+     *   <li>{@code threshold} - pass at {@code ceil(online * votePercent)} yes votes, fail at the same
+     *       number of no votes (original behaviour).</li>
+     *   <li>{@code veto} - a single no vote fails the vote immediately.</li>
+     *   <li>{@code majority} - decided once everyone online has voted, or on timeout: more yes than no.</li>
+     * </ul>
+     */
+    public String voteDecision = "threshold";
+    /** Seconds without a new vote before the vote resolves; <= 0 disables the idle timeout. */
+    public float voteTimeout = 10f;
+
     /** Cooldown before the same player can start another vote, in seconds. */
     public float voteCooldown = 30f;
 
@@ -133,6 +146,13 @@ public class CampaignConfig{
             }
         }else{
             save();
+        }
+
+        if(data.voteTimeout < 0f) data.voteTimeout = 0f;
+        if(!"veto".equalsIgnoreCase(data.voteDecision) && !"majority".equalsIgnoreCase(data.voteDecision)){
+            data.voteDecision = "threshold";
+        }else{
+            data.voteDecision = data.voteDecision.toLowerCase();
         }
 
         if(data.autosaveSeconds < 10f){

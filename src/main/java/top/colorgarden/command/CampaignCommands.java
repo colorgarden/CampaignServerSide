@@ -58,6 +58,8 @@ public class CampaignCommands{
             infoHelp("campaign.help.logic");
             infoHelp("campaign.help.uncapture");
             infoHelp("campaign.help.pause");
+            infoHelp("campaign.help.planets");
+            infoHelp("campaign.help.planet");
             infoHelp("campaign.help.sectorarg");
         });
 
@@ -193,8 +195,63 @@ public class CampaignCommands{
                 probe.sectors.length);
         });
 
-        handler.register("campaign-sectors", "[page]", "List sector presets for the campaign planet.", args -> {
+        handler.register("campaign-planets", "List the planets that take part in the campaign.", args -> {
+            Planet currentPlanet = SectorService.planet();
+            for(Planet planet : SectorService.planets()){
+                int captured = 0;
+                for(Sector sector : planet.sectors){
+                    if(sector != null && sector.hasBase()) captured ++;
+                }
+                info("campaign.planets.line", planet == currentPlanet ? "[accent]" : "", planet.localizedName,
+                    planet.name, captured, planet.sectors.size);
+            }
+            info("campaign.planets.hint");
+        });
+
+        handler.register("campaign-planet", "[name]", "Show or switch the campaign planet.", args -> {
+            if(args.length == 0){
+                Planet planet = SectorService.planet();
+                info("campaign.planet.current", planet == null ? "-" : planet.localizedName,
+                    planet == null ? "-" : planet.name,
+                    SectorService.targetFor(planet) == null ? "-" : SectorService.targetFor(planet).name());
+                return;
+            }
+
+            Planet planet = SectorService.planetByName(args[0]);
+            if(planet == null){
+                err("campaign.planet.invalid", args[0]);
+                return;
+            }
+
+            Sector target = SectorService.targetFor(planet);
+            if(target == null){
+                err("campaign.planet.empty", planet.localizedName);
+                return;
+            }
+
+            try{
+                warnIfLocked(target);
+                SectorService.enter(target, false, true);
+                info("campaign.planet.switched", planet.localizedName, target.name());
+            }catch(CampaignException e){
+                err(e.getMessage());
+            }
+        });
+
+        handler.register("campaign-sectors", "[planet|page] [page]", "List sector presets for the campaign planet.", args -> {
             Planet planet = SectorService.planet();
+            String pageArg = args.length > 0 ? args[0] : null;
+
+            if(pageArg != null && !pageArg.matches("\\d+")){
+                Planet named = SectorService.planetByName(pageArg);
+                if(named == null){
+                    err("campaign.planet.invalid", pageArg);
+                    return;
+                }
+                planet = named;
+                pageArg = args.length > 1 ? args[1] : null;
+            }
+
             Seq<SectorPreset> presets = SectorService.presets(planet);
 
             if(presets.isEmpty()){
@@ -202,7 +259,7 @@ public class CampaignCommands{
                 return;
             }
 
-            int page = pageOf(args.length > 0 ? args[0] : null, presets.size);
+            int page = pageOf(pageArg, presets.size);
             int pages = Math.max(1, (presets.size + pageSize - 1) / pageSize);
 
             info("campaign.sectors.header", planet.localizedName, presets.size, page + 1, pages);
@@ -376,6 +433,7 @@ public class CampaignCommands{
             info("campaign.config.lock", config.enforceSectorUnlock, config.adminBypassLock, config.launchPadLinking);
             info("campaign.config.logic", config.worldProcessors);
             info("campaign.config.pause", config.pauseWhenEmpty);
+            info("campaign.config.votes", config.voteDecision, config.voteTimeout);
             info("campaign.config.file", CampaignConfig.location() == null ? "-" : CampaignConfig.location().path());
         });
 
@@ -412,14 +470,68 @@ public class CampaignCommands{
             for(String key : new String[]{
                 "campaign.clienthelp.sector", "campaign.clienthelp.sectors", "campaign.clienthelp.campaign",
                 "campaign.clienthelp.research", "campaign.clienthelp.vote", "campaign.clienthelp.destination",
-                "campaign.clienthelp.save"}){
+                "campaign.clienthelp.save", "campaign.clienthelp.planets", "campaign.clienthelp.planet"}){
                 builder.append("\n").append(I18n.get(key));
             }
             player.sendMessage(builder.toString());
         });
 
-        handler.<Player>register("sectors", "[page]", "List campaign sectors.", (args, player) -> {
+        handler.<Player>register("planets", "List the planets that take part in the campaign.", (args, player) -> {
+            Planet currentPlanet = SectorService.planet();
+            StringBuilder builder = new StringBuilder(I18n.get("campaign.planets.header"));
+            for(Planet planet : SectorService.planets()){
+                int captured = 0;
+                for(Sector sector : planet.sectors){
+                    if(sector != null && sector.hasBase()) captured ++;
+                }
+                builder.append("\n").append(I18n.get("campaign.planets.line",
+                    planet == currentPlanet ? "[accent]" : "", planet.localizedName,
+                    planet.name, captured, planet.sectors.size));
+            }
+            player.sendMessage(builder.toString());
+        });
+
+        handler.<Player>register("planet", "<name>", "[admin] Switch the campaign planet.", (args, player) -> {
+            if(!requirePermission(player, CampaignConfig.data().sectorSwitchAdminOnly)) return;
+            if(!CampaignConfig.data().allowSectorSwitch){
+                player.sendMessage(I18n.get("campaign.error.switch-disabled"));
+                return;
+            }
+
+            Planet planet = SectorService.planetByName(args[0]);
+            if(planet == null){
+                player.sendMessage(I18n.get("campaign.planet.invalid", args[0]));
+                return;
+            }
+
+            Sector target = SectorService.targetFor(planet);
+            if(target == null){
+                player.sendMessage(I18n.get("campaign.planet.empty", planet.localizedName));
+                return;
+            }
+
+            try{
+                player.sendMessage(I18n.get("campaign.client.planet-switching", planet.localizedName, target.name()));
+                SectorService.enter(target, false, canBypass(player));
+            }catch(CampaignException e){
+                player.sendMessage("[scarlet]" + e.getMessage());
+            }
+        });
+
+        handler.<Player>register("sectors", "[planet|page] [page]", "List campaign sectors.", (args, player) -> {
             Planet planet = SectorService.planet();
+            String pageArg = args.length > 0 ? args[0] : null;
+
+            if(pageArg != null && !pageArg.matches("\\d+")){
+                Planet named = SectorService.planetByName(pageArg);
+                if(named == null){
+                    player.sendMessage(I18n.get("campaign.planet.invalid", pageArg));
+                    return;
+                }
+                planet = named;
+                pageArg = args.length > 1 ? args[1] : null;
+            }
+
             Seq<SectorPreset> presets = SectorService.presets(planet);
 
             if(presets.isEmpty()){
@@ -427,7 +539,7 @@ public class CampaignCommands{
                 return;
             }
 
-            int page = pageOf(args.length > 0 ? args[0] : null, presets.size);
+            int page = pageOf(pageArg, presets.size);
             int pages = Math.max(1, (presets.size + pageSize - 1) / pageSize);
 
             StringBuilder builder = new StringBuilder(I18n.get("campaign.client.sectors.header", planet.localizedName, page + 1, pages)).append("\n");

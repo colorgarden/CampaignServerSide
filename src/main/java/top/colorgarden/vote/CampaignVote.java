@@ -162,6 +162,8 @@ public class CampaignVote{
             return I18n.get("campaign.vote.need-choice");
         }
 
+        vote.lastCastAt = Time.millis();
+
         if(yes){
             vote.no.remove(player.uuid());
             if(!vote.yes.add(player.uuid())) return I18n.get("campaign.vote.already-yes");
@@ -173,12 +175,11 @@ public class CampaignVote{
         announce(I18n.get("campaign.vote.cast", player.plainName(), I18n.get(yes ? "campaign.vote.yes" : "campaign.vote.no"),
             describe(vote), vote.yes.size, requiredVotes()));
 
-        if(vote.yes.size >= requiredVotes()){
-            finish(true, null);
-        }else if(vote.no.size >= requiredVotes()){
-            finish(false, I18n.get("campaign.vote.too-many-no"));
-        }else{
+        Boolean decided = decide(vote);
+        if(decided == null){
             push();
+        }else{
+            finish(decided, decided ? null : failReason(vote));
         }
 
         return null;
@@ -197,9 +198,58 @@ public class CampaignVote{
         Vote vote = current;
         if(vote == null) return;
 
-        if(Time.millis() >= vote.endsAt){
-            finish(false, I18n.get("campaign.vote.expired"));
+        long now = Time.millis();
+
+        if(now >= vote.endsAt){
+            Boolean decided = decide(vote);
+            finish(decided != null && decided, decided == null || !decided
+                ? I18n.get("campaign.vote.expired") : null);
+            return;
         }
+
+        float timeout = CampaignConfig.data().voteTimeout;
+        if(timeout > 0f && now - vote.lastCastAt >= (long)(timeout * 1000f)){
+            Boolean decided = decide(vote);
+            if(decided == null) decided = fallback(vote);
+            finish(decided, decided ? null : I18n.get("campaign.vote.timeout-no", vote.yes.size, vote.no.size));
+        }
+    }
+
+    /**
+     * @return TRUE to pass, FALSE to fail, NULL while the vote should keep running, according to
+     *         {@code voteDecision}.
+     */
+    private static @Nullable Boolean decide(Vote vote){
+        int online = Math.max(1, Groups.player.size());
+        int required = requiredVotes(online);
+        String mode = CampaignConfig.data().voteDecision;
+
+        if("veto".equals(mode)){
+            if(!vote.no.isEmpty()) return false;
+            return vote.yes.size >= required ? Boolean.TRUE : null;
+        }
+
+        if("majority".equals(mode)){
+            if(vote.yes.size + vote.no.size >= online) return vote.yes.size > vote.no.size;
+            return null;
+        }
+
+        if(vote.yes.size >= required) return true;
+        if(vote.no.size >= required) return false;
+        return null;
+    }
+
+    /** Resolution when a timed-out vote is still undecided. */
+    private static boolean fallback(Vote vote){
+        return "majority".equals(CampaignConfig.data().voteDecision) && vote.yes.size > vote.no.size;
+    }
+
+    private static String failReason(Vote vote){
+        return switch(CampaignConfig.data().voteDecision){
+            case "veto" -> I18n.get("campaign.vote.vetoed");
+            case "majority" -> I18n.get("campaign.vote.majority-failed", vote.yes.size, vote.no.size);
+            default -> I18n.get("campaign.vote.too-many-no");
+        };
     }
 
     /** @return a localized description of what the vote is about. */
@@ -271,6 +321,9 @@ public class CampaignVote{
         public long startedAt, endsAt;
         public final ObjectSet<String> yes = new ObjectSet<>();
         public final ObjectSet<String> no = new ObjectSet<>();
+
+        /** Timestamp of the most recent vote (start counts as one). */
+        public long lastCastAt = Time.millis();
 
         public int secondsLeft(){
             return Math.max(0, (int)((endsAt - Time.millis()) / 1000L));

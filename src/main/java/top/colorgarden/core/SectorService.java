@@ -105,6 +105,58 @@ public class SectorService{
         return Planets.serpulo;
     }
 
+    /** @return every planet that can host a campaign (has sectors and a tech tree). */
+    public static Seq<Planet> planets(){
+        Seq<Planet> result = new Seq<>();
+        for(Planet planet : content.planets()){
+            if(planet != null && planet.sectors != null && planet.sectors.size > 0 && planet.techTree != null){
+                result.add(planet);
+            }
+        }
+        return result;
+    }
+
+    /** @return a campaign planet by internal name or localized name, ignoring case. */
+    public static @Nullable Planet planetByName(@Nullable String query){
+        if(query == null || query.isEmpty()) return null;
+
+        for(Planet planet : planets()){
+            if(planet.name.equalsIgnoreCase(query) || planet.localizedName.equalsIgnoreCase(query)){
+                return planet;
+            }
+        }
+        return null;
+    }
+
+    /** @return the sector to enter when switching to this planet: the last one played, else its start. */
+    public static @Nullable Sector targetFor(@Nullable Planet planet){
+        if(planet == null) return null;
+        Sector last = planet.getLastSector();
+        return last != null ? last : planet.getStartSector();
+    }
+
+    /**
+     * Clears launch/landing pad links that point at another planet. Vanilla ignores them anyway
+     * ({@code Universe#runTurn} requires {@code to.planet == planet}) and {@link #setDestination}
+     * refuses to create them, but a hand-edited or older save can still contain one.
+     *
+     * @return how many links were cleared.
+     */
+    public static int sanitizeLaunchLinks(@Nullable Planet planet){
+        if(planet == null) return 0;
+
+        int cleared = 0;
+        for(Sector sector : planet.sectors){
+            if(sector == null || sector.info == null) continue;
+            if(sector.info.destination != null && sector.info.destination.planet != planet){
+                sector.info.destination = null;
+                sector.saveInfo();
+                cleared ++;
+            }
+        }
+        return cleared;
+    }
+
     /** @return every sector preset that belongs to this planet. */
     public static Seq<SectorPreset> presets(@Nullable Planet planet){
         Planet target = planet == null ? planet() : planet;
@@ -293,6 +345,12 @@ public class SectorService{
                 }
             }
             throw e;
+        }
+
+        //a pad link that crosses planets can never transfer anything; drop it defensively
+        int cleaned = sanitizeLaunchLinks(sector.planet);
+        if(cleaned > 0){
+            Log.info("[CampaignServer] " + I18n.get("campaign.log.links-cleaned", cleaned, sector.planet.localizedName));
         }
 
         //launch/landing pads of both ends need fresh import statistics

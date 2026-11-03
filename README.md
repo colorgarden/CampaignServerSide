@@ -56,6 +56,8 @@
 | `campaign-joininfo` | 预览玩家进服时看到的提示 |
 | `campaign-logic [on|off|probe]` | 查看世界处理器状态、切换是否保持运行、用累加器探针验证真实执行 |
 | `campaign-pause [on|off]` | 无人在线时暂停模拟 |
+| `campaign-planets` | 列出参与战役的星球与占领进度 |
+| `campaign-planet [name]` | 查看或切换星球（进入该星球上次或起始区块） |
 | `campaign-uncapture <sector>` | 清除某区块的“已占领”标记（重玩用） |
 | `campaign-config` | 打印当前配置与文件路径 |
 | `campaign-reload` | 重新读取 `config.json` |
@@ -82,13 +84,20 @@
 | `/cvote info` | 所有人 | 当前投票状态 |
 | `/destination <name\|clear>` | 管理员 | 设置本区块的发射台目标 |
 | `/redirect` | 管理员 | 一键重定向所有对外运送 |
+| `/planets` | 所有人 | 列出参与战役的星球与占领进度 |
+| `/planet <name>` | 见配置 | 切换星球 |
 
 “见配置”指 `sectorSwitchAdminOnly` / `researchAdminOnly`：为 `true` 时只有管理员能用。
 
 ## 4. 投票
 
-- 通过条件：同意票 ≥ `ceil(在线人数 × votePercent)`（至少 2 票），或反对票达到同样数量即失败，
-  `voteDuration` 秒内没通过也会失败；管理员可随时取消。
+- 判定模式由 `voteDecision` 决定：
+  - `threshold`（默认）：同意票 ≥ `ceil(在线人数 × votePercent)`（至少 2 票）通过；反对票达到同样数量即失败。
+  - `veto`：**一票否决**——只要有一张反对票立刻失败；同意票仍需达到阈值。
+  - `majority`：**多数决**——在线玩家都投完后立即比较，同意多于反对才通过，平票算失败。
+- `voteTimeout`（默认 10 秒）：最后一张票之后若无人再投，超时即按上述模式结算，不必等满 `voteDuration`；
+  设为 `0` 关闭超时。`voteDuration` 仍是硬上限，到期按模式结算。
+- 管理员可随时取消投票。
 - 同一玩家两次发起之间要等 `voteCooldown` 秒（冷却从上一次投票结束算起）。
 - 在线人数不足 `voteMinPlayers` 时不能发起。
 - **“仅管理员”优先级最高**：`sectorSwitchAdminOnly` / `researchAdminOnly` 为 `true` 时，
@@ -119,7 +128,9 @@
 | `voteResearch` | `true` | 允许科技解锁投票 |
 | `votePercent` | `0.6` | 通过所需的在线玩家比例 |
 | `voteMinPlayers` | `2` | 发起投票的最少在线人数 |
-| `voteDuration` | `60` | 投票时长（秒） |
+| `voteDuration` | `60` | 投票时长（秒），硬上限 |
+| `voteDecision` | `"threshold"` | 判定模式：`threshold` 阈值 / `veto` 一票否决 / `majority` 多数决 |
+| `voteTimeout` | `10` | 最后一张票之后多少秒未再投票即结算，`0` 关闭 |
 | `voteCooldown` | `30` | 同一玩家再次发起的冷却（秒） |
 | `announce` | `true` | 区块攻陷/丢失时公告 |
 | `resyncClients` | `true` | 切区块后给在线玩家重发世界数据（否则踢出） |
