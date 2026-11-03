@@ -42,6 +42,9 @@ public class CampaignHooks{
     private static final ObjectMap<Player, Long> pendingJoinInfo = new ObjectMap<>();
     /** Delay before the notice is sent, so the client finished loading its chat. */
     private static final long joinInfoDelay = 3000L;
+    /** Seconds since the last reachable-sector scan. */
+    private static float campaignUnlockTimer;
+
     /** True while the simulation is paused only because no player is online. */
     private static boolean pausedForEmpty;
 
@@ -62,6 +65,7 @@ public class CampaignHooks{
         ServerControlHook.install(CampaignHooks::onGameOver);
         installUsageHandler();
         CampaignVote.init();
+        AnnounceService.init();
 
         Events.on(ServerLoadEvent.class, event -> onServerLoad());
         Events.on(PlayerJoin.class, event -> scheduleJoinInfo(event.player));
@@ -388,6 +392,13 @@ public class CampaignHooks{
 
     private static void update(){
         flushJoinInfo();
+
+        campaignUnlockTimer += Time.delta;
+        if(campaignUnlockTimer >= 180f){
+            campaignUnlockTimer = 0f;
+            Sector currentSector = SectorService.current();
+            AnnounceService.scan(currentSector == null ? null : currentSector.planet);
+        }
         updateLogicProbe();
         handleEmptyPause();
 

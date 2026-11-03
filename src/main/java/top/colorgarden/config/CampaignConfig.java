@@ -69,6 +69,12 @@ public class CampaignConfig{
     /** Server admins may enter locked sectors anyway (console commands always may). */
     public boolean adminBypassLock = true;
 
+    /**
+     * Require and consume items for research, like the vanilla campaign: the cost is paid from the
+     * storage of every sector with a base on the same planet, current sector last.
+     */
+    public boolean researchCosts = true;
+
     /** Allow switching planets at all. */
     public boolean allowPlanetSwitch = true;
     /** Only admins may switch planets; when false every player may use /planet. */
@@ -124,6 +130,9 @@ public class CampaignConfig{
 
     /** Send a short notice with the command hints to every player that joins. */
     public boolean joinInfo = true;
+
+    /** Announce newly unlocked research and newly reachable sectors in chat. */
+    public boolean announceUnlocks = true;
 
     /** Announce sector changes to every player. */
     public boolean announce = true;

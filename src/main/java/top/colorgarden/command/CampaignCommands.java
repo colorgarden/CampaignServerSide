@@ -15,7 +15,11 @@ import top.colorgarden.util.I18n;
 import top.colorgarden.vote.CampaignVote;
 
 
+import arc.struct.ObjectMap;
 import arc.struct.Seq;
+import mindustry.type.Item;
+import mindustry.type.ItemSeq;
+import mindustry.type.ItemStack;
 import arc.util.CommandHandler;
 import arc.util.Log;
 import arc.util.Strings;
@@ -60,6 +64,8 @@ public class CampaignCommands{
             infoHelp("campaign.help.pause");
             infoHelp("campaign.help.planets");
             infoHelp("campaign.help.planet");
+            infoHelp("campaign.help.resources");
+            infoHelp("campaign.help.sectorinfo");
             infoHelp("campaign.help.sectorarg");
         });
 
@@ -275,8 +281,18 @@ public class CampaignCommands{
                 return;
             }
 
+            if(CampaignConfig.data().researchCosts && state.isCampaign() && !unlockable.unlocked()){
+                infoCost(unlockable);
+            }
+
             boolean changed = ResearchService.research(unlockable, true);
-            info(changed ? "campaign.research.ok" : "campaign.research.already", unlockable.localizedName);
+            if(changed){
+                info("campaign.research.ok", unlockable.localizedName);
+            }else if(!unlockable.unlocked()){
+                err("campaign.research.missing", formatStacks(ResearchService.missing(unlockable)));
+            }else{
+                info("campaign.research.already", unlockable.localizedName);
+            }
         });
 
         handler.register("campaign-research-all", "Unlock every research entry.", args -> {
@@ -396,6 +412,50 @@ public class CampaignCommands{
                 state.rules.researched.size);
         });
 
+        handler.register("campaign-resources", "[planet]", "Show the total resources of a planet.", args -> {
+            Planet planet = args.length > 0 ? SectorService.planetByName(args[0]) : SectorService.planet();
+            if(planet == null){
+                err("campaign.planet.invalid", args.length > 0 ? args[0] : "-");
+                return;
+            }
+
+            ItemSeq items = ResearchService.planetItems(planet);
+            ObjectMap<Item, Float> production = ResearchService.planetProduction(planet);
+            ObjectMap<Item, Float> exports = ResearchService.planetExports(planet);
+
+            info("campaign.resources.header", planet.localizedName, items.total);
+            boolean any = false;
+            for(Item item : content.items()){
+                int amount = items.get(item);
+                float produced = production.get(item, 0f);
+                float exported = exports.get(item, 0f);
+                if(amount <= 0 && produced <= 0f && exported <= 0f) continue;
+                any = true;
+                info("campaign.resources.line", item.localizedName, amount, produced, exported);
+            }
+            if(!any) info("campaign.resources.none");
+        });
+
+        handler.register("campaign-sectorinfo", "<sector>", "Show storage, production and transport of a sector.", args -> {
+            Sector sector = requireSector(args[0]);
+            info("campaign.sectorinfo.header", sector.name(), sector.id, sector.planet.localizedName);
+            info("campaign.sectorinfo.status", SectorService.statusOf(sector), sector.info.storageCapacity,
+                sector.info.items.total, sector.info.origin == null ? "-" : sector.info.origin.name(),
+                sector.info.destination == null ? "-" : sector.info.destination.name());
+
+            boolean any = false;
+            for(Item item : content.items()){
+                int amount = sector.info.items.get(item);
+                float produced = sector.info.production.get(item) == null ? 0f : sector.info.production.get(item).mean * 60f;
+                float exported = sector.info.export.get(item) == null ? 0f : sector.info.export.get(item).mean * 60f;
+                float imported = sector.info.getImportRate(sector.planet, item) * 60f;
+                if(amount <= 0 && produced <= 0f && exported <= 0f && imported <= 0f) continue;
+                any = true;
+                info("campaign.sectorinfo.item", item.localizedName, amount, produced, exported, imported);
+            }
+            if(!any) info("campaign.resources.none");
+        });
+
         handler.register("campaign-pause", "[on|off]", "Pause the simulation while nobody is online.", args -> {
             CampaignConfig config = CampaignConfig.data();
 
@@ -435,6 +495,7 @@ public class CampaignCommands{
             info("campaign.config.pause", config.pauseWhenEmpty);
             info("campaign.config.votes", config.voteDecision, config.voteTimeout);
             info("campaign.config.planet", config.allowPlanetSwitch, config.planetSwitchAdminOnly, config.votePlanet);
+            info("campaign.config.research", config.researchCosts);
             info("campaign.config.file", CampaignConfig.location() == null ? "-" : CampaignConfig.location().path());
         });
 
@@ -639,6 +700,53 @@ public class CampaignCommands{
             CampaignNetwork.pushInfoToAll();
         });
 
+        handler.<Player>register("resources", "[planet]", "Show the total resources of a planet.", (args, player) -> {
+            Planet planet = args.length > 0 ? SectorService.planetByName(args[0]) : SectorService.planet();
+            if(planet == null){
+                player.sendMessage(I18n.get("campaign.planet.invalid", args.length > 0 ? args[0] : "-"));
+                return;
+            }
+
+            ItemSeq items = ResearchService.planetItems(planet);
+            ObjectMap<Item, Float> production = ResearchService.planetProduction(planet);
+            ObjectMap<Item, Float> exports = ResearchService.planetExports(planet);
+
+            StringBuilder builder = new StringBuilder(I18n.get("campaign.resources.header", planet.localizedName, items.total));
+            for(Item item : content.items()){
+                int amount = items.get(item);
+                float produced = production.get(item, 0f);
+                float exported = exports.get(item, 0f);
+                if(amount <= 0 && produced <= 0f && exported <= 0f) continue;
+                builder.append("\n").append(I18n.get("campaign.resources.line", item.localizedName, amount, produced, exported));
+            }
+            player.sendMessage(builder.toString());
+        });
+
+        handler.<Player>register("sectorinfo", "<sector>", "Show storage, production and transport of a sector.", (args, player) -> {
+            Sector sector = SectorService.resolve(args[0]);
+            if(sector == null){
+                player.sendMessage(I18n.get("campaign.msg.no-sector-hint"));
+                return;
+            }
+
+            StringBuilder builder = new StringBuilder(I18n.get("campaign.sectorinfo.header",
+                sector.name(), sector.id, sector.planet.localizedName));
+            builder.append("\n").append(I18n.get("campaign.sectorinfo.status", SectorService.statusOf(sector),
+                sector.info.storageCapacity, sector.info.items.total,
+                sector.info.origin == null ? "-" : sector.info.origin.name(),
+                sector.info.destination == null ? "-" : sector.info.destination.name()));
+
+            for(Item item : content.items()){
+                int amount = sector.info.items.get(item);
+                float produced = sector.info.production.get(item) == null ? 0f : sector.info.production.get(item).mean * 60f;
+                float exported = sector.info.export.get(item) == null ? 0f : sector.info.export.get(item).mean * 60f;
+                float imported = sector.info.getImportRate(sector.planet, item) * 60f;
+                if(amount <= 0 && produced <= 0f && exported <= 0f && imported <= 0f) continue;
+                builder.append("\n").append(I18n.get("campaign.sectorinfo.item", item.localizedName, amount, produced, exported, imported));
+            }
+            player.sendMessage(builder.toString());
+        });
+
         handler.<Player>register("campaignsave", "Save the current sector.", (args, player) -> {
             if(!requirePermission(player, true)) return;
 
@@ -723,6 +831,25 @@ public class CampaignCommands{
         info("campaign.logic.probe.start", CampaignHooks.logicCounts()[0]);
         CampaignHooks.startLogicProbe();
     }
+    /** Prints the remaining research cost, so the operator knows what the planet still needs. */
+    private static void infoCost(UnlockableContent content){
+        Seq<ItemStack> missing = ResearchService.missing(content);
+        if(!missing.isEmpty()){
+            info("campaign.research.cost", formatStacks(missing));
+        }
+    }
+
+    private static String formatStacks(Seq<ItemStack> stacks){
+        if(stacks.isEmpty()) return "-";
+
+        StringBuilder builder = new StringBuilder();
+        for(ItemStack stack : stacks){
+            if(builder.length() > 0) builder.append(", ");
+            builder.append(stack.item.localizedName).append(" x").append(stack.amount);
+        }
+        return builder.toString();
+    }
+
     /** console commands bypass the unlock gate; admins only bypass it when configured */
     private static boolean canBypass(Player player){
         return player != null && player.admin && CampaignConfig.data().adminBypassLock;

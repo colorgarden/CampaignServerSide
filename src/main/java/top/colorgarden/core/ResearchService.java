@@ -3,6 +3,7 @@
 
 package top.colorgarden.core;
 
+import top.colorgarden.config.CampaignConfig;
 import top.colorgarden.util.I18n;
 
 
@@ -13,6 +14,12 @@ import arc.util.Log;
 import arc.util.Nullable;
 import mindustry.content.TechTree.TechNode;
 import mindustry.ctype.Content;
+import arc.Core;
+import arc.struct.ObjectMap;
+import mindustry.type.Item;
+import mindustry.type.ItemSeq;
+import mindustry.type.ItemStack;
+import mindustry.type.Sector;
 import mindustry.ctype.ContentType;
 import mindustry.ctype.UnlockableContent;
 import mindustry.type.Planet;
@@ -100,7 +107,14 @@ public class ResearchService{
         }
 
         if(!unlockable.unlocked()){
-            unlock(unlockable, true);
+            if(CampaignConfig.data().researchCosts && state.isCampaign()){
+                if(!payAndUnlock(unlockable)){
+                    //partially paid; the caller reports what is still missing
+                    return changed;
+                }
+            }else{
+                unlock(unlockable, true);
+            }
             changed = true;
         }
 
@@ -155,6 +169,162 @@ public class ResearchService{
         }
     }
 
+    /** @return the item cost of this content in the tech tree, empty when it has none. */
+    public static ItemStack[] requirements(@Nullable UnlockableContent content){
+        TechNode node = content == null ? null : content.techNode;
+        return node == null || node.requirements == null ? new ItemStack[0] : node.requirements;
+    }
+
+    /** @return the part of the cost that was already paid (persisted in settings by the tech node). */
+    public static ItemStack[] progress(@Nullable UnlockableContent content){
+        TechNode node = content == null ? null : content.techNode;
+        return node == null || node.finishedRequirements == null ? new ItemStack[0] : node.finishedRequirements;
+    }
+
+    /** @return total items stored in every sector with a base on this planet. */
+    public static ItemSeq planetItems(Planet planet){
+        ItemSeq total = new ItemSeq();
+        if(planet == null) return total;
+
+        for(Sector sector : planet.sectors){
+            if(sector == null || !sector.hasBase() || sector.isFrozen()) continue;
+            total.add(sector.items());
+        }
+        return total;
+    }
+
+    /** @return per-minute production summed over every sector with a base on this planet. */
+    public static ObjectMap<Item, Float> planetProduction(Planet planet){
+        ObjectMap<Item, Float> rates = new ObjectMap<>();
+        if(planet == null) return rates;
+
+        for(Sector sector : planet.sectors){
+            if(sector == null || !sector.hasBase() || sector.isFrozen()) continue;
+            sector.info.production.each((item, stat) -> rates.put(item, rates.get(item, 0f) + stat.mean * 60f));
+        }
+        return rates;
+    }
+
+    /** @return per-minute exports summed over every sector with a base on this planet. */
+    public static ObjectMap<Item, Float> planetExports(Planet planet){
+        ObjectMap<Item, Float> rates = new ObjectMap<>();
+        if(planet == null) return rates;
+
+        for(Sector sector : planet.sectors){
+            if(sector == null || !sector.hasBase() || sector.isFrozen()) continue;
+            sector.info.export.each((item, stat) -> rates.put(item, rates.get(item, 0f) + stat.mean * 60f));
+        }
+        return rates;
+    }
+
+    /** @return the still unpaid part of the cost, comparing requirements with progress. */
+    public static Seq<ItemStack> missing(@Nullable UnlockableContent content){
+        Seq<ItemStack> out = new Seq<>();
+        ItemStack[] requirements = requirements(content);
+        ItemStack[] progress = progress(content);
+
+        for(int i = 0; i < requirements.length; i++){
+            int paid = i < progress.length ? progress[i].amount : 0;
+            int remaining = requirements[i].amount - paid;
+            if(remaining > 0) out.add(new ItemStack(requirements[i].item, remaining));
+        }
+        return out;
+    }
+
+    /**
+     * Removes items from the planet's combined storage, mirroring {@code ResearchDialog}'s removal
+     * logic: every sector except the current one gives a proportional share, the current sector pays
+     * only what the others could not cover.
+     *
+     * @return how many items were actually removed.
+     */
+    public static int takeFromPlanet(Planet planet, Item item, int amount){
+        if(planet == null || item == null || amount <= 0) return 0;
+
+        Sector currentSector = SectorService.current();
+        if(currentSector != null && currentSector.planet != planet) currentSector = null;
+
+        int available = 0;
+        for(Sector sector : planet.sectors){
+            if(sector == null || !sector.hasBase() || sector.isFrozen()) continue;
+            available += Math.max(0, sector.items().get(item));
+        }
+
+        int take = Math.min(amount, available);
+        if(take <= 0) return 0;
+
+        int currentAmount = currentSector == null ? 0 : Math.max(0, currentSector.items().get(item));
+        double percentage = (double)take / Math.max(available - currentAmount, 1);
+        int[] counter = {take};
+
+        for(Sector sector : planet.sectors){
+            if(counter[0] == 0) break;
+            if(sector == null || sector == currentSector || !sector.hasBase() || sector.isFrozen()) continue;
+
+            int stored = Math.max(0, sector.items().get(item));
+            if(stored <= 0) continue;
+
+            int remove = Math.min(counter[0], Math.min((int)Math.ceil(percentage * stored), stored));
+            sector.removeItem(item, remove);
+            sector.saveInfo();
+            counter[0] -= remove;
+        }
+
+        if(counter[0] > 0 && currentSector != null){
+            int remove = Math.min(Math.max(0, currentSector.items().get(item)), counter[0]);
+            currentSector.removeItem(item, remove);
+            counter[0] -= remove;
+        }
+
+        return take - counter[0];
+    }
+
+    /**
+     * Pays as much of the cost as the planet can afford and records the progress on the tech node,
+     * exactly like {@code ResearchDialog#spend}.
+     *
+     * @return true when every requirement is now fulfilled and the content was unlocked.
+     */
+    public static boolean payAndUnlock(UnlockableContent content){
+        TechNode node = content.techNode;
+        if(node == null || node.requirements == null || node.requirements.length == 0){
+            unlock(content, true);
+            return true;
+        }
+
+        Planet planet = SectorService.planet();
+        boolean complete = true;
+
+        for(int i = 0; i < node.requirements.length; i++){
+            ItemStack requirement = node.requirements[i];
+            ItemStack done = node.finishedRequirements[i];
+            int needed = requirement.amount - done.amount;
+            if(needed <= 0) continue;
+
+            int used = takeFromPlanet(planet, requirement.item, needed);
+            done.amount += used;
+
+            try{
+                Core.settings.put("req-" + content.name + "-" + requirement.item.name, done.amount);
+            }catch(Throwable ignored){
+                //progress bookkeeping only
+            }
+
+            if(done.amount < requirement.amount) complete = false;
+        }
+
+        try{
+            node.save();
+        }catch(Throwable ignored){
+            //progress bookkeeping only
+        }
+
+        if(complete){
+            unlock(content, true);
+        }
+        return complete;
+    }
+
     /** Locks content again. Connected clients keep seeing it until they reconnect. */
     public static void relock(UnlockableContent unlockable){
         if(unlockable == null) return;
@@ -167,6 +337,13 @@ public class ResearchService{
 
     /** @return how many pieces of content were unlocked. */
     public static int researchAll(@Nullable Planet planet){
+        //bulk unlock: do not flood the chat with one message per entry
+        int[] counter = {0};
+        AnnounceService.suppress(() -> counter[0] = researchAllQuiet(planet));
+        return counter[0];
+    }
+
+    private static int researchAllQuiet(@Nullable Planet planet){
         int count = 0;
 
         for(ContentType type : ContentType.all){
