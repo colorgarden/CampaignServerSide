@@ -18,6 +18,7 @@ import arc.Core;
 import arc.Events;
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
+import arc.util.CommandHandler;
 import arc.util.Log;
 import arc.util.Strings;
 import arc.util.Time;
@@ -59,6 +60,7 @@ public class CampaignHooks{
         enabled = true;
 
         ServerControlHook.install(CampaignHooks::onGameOver);
+        installUsageHandler();
         CampaignVote.init();
 
         Events.on(ServerLoadEvent.class, event -> onServerLoad());
@@ -80,6 +82,40 @@ public class CampaignHooks{
         });
 
         Log.info("[CampaignServer] " + I18n.get("campaign.log.hooks-installed"));
+    }
+
+    /**
+     * Vanilla {@code NetServer#invalidHandler} replies to wrong argument counts with English text that
+     * uses gray; it is a public field explicitly meant for customisation, so it is replaced here with
+     * the same logic in the configured language (accent labels, no gray).
+     */
+    private static void installUsageHandler(){
+        netServer.invalidHandler = (player, response) -> {
+            if(response.type == CommandHandler.ResponseType.manyArguments){
+                return I18n.get("campaign.usage.many", response.command.text, response.command.paramText);
+            }
+
+            if(response.type == CommandHandler.ResponseType.fewArguments){
+                return I18n.get("campaign.usage.few", response.command.text, response.command.paramText);
+            }
+
+            //unknown command: keep the vanilla "did you mean" suggestion, but localized
+            int closestDistance = 0;
+            CommandHandler.Command closest = null;
+
+            for(CommandHandler.Command command : netServer.clientCommands.getCommandList()){
+                int distance = Strings.levenshtein(command.text, response.runCommand);
+                if(distance < 3 && (closest == null || distance < closestDistance)){
+                    closestDistance = distance;
+                    closest = command;
+                }
+            }
+
+            return closest == null ? I18n.get("campaign.usage.unknown")
+                : I18n.get("campaign.usage.suggest", closest.text);
+        };
+
+        Log.info("[CampaignServer] " + I18n.get("campaign.log.usage-handler"));
     }
 
     private static void onServerLoad(){
