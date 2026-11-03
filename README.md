@@ -54,7 +54,8 @@
 | `campaign-redirect` | 一键把所有向外运送的区块重定向到当前区块（原版接收台的 ↓ 按钮） |
 | `campaign-why <sector>` | 解释某区块现在能不能进入、原因是什么 |
 | `campaign-joininfo` | 预览玩家进服时看到的提示 |
-| `campaign-logic [on\|off]` | 查看世界处理器状态，或切换是否保持其运行 |
+| `campaign-logic [on|off|probe]` | 查看世界处理器状态、切换是否保持运行、用累加器探针验证真实执行 |
+| `campaign-pause [on|off]` | 无人在线时暂停模拟 |
 | `campaign-uncapture <sector>` | 清除某区块的“已占领”标记（重玩用） |
 | `campaign-config` | 打印当前配置与文件路径 |
 | `campaign-reload` | 重新读取 `config.json` |
@@ -127,6 +128,7 @@
 | `launchPadLinking` | `true` | 新区块自动把发射台/接收台链路指向来源区块 |
 | `joinInfo` | `true` | 玩家进服时发送一条带指令提示的说明 |
 | `worldProcessors` | `true` | 始终保持世界处理器（逻辑方块）执行 |
+| `pauseWhenEmpty` | `true` | 无人在线时暂停模拟（有人进入自动恢复） |
 
 存档：`config/saves/sector-<planet>-<id>.msav`；区块经济信息在 `config/settings.bin`
 （键 `<planet>-s-<id>-info`）。彻底重开某区块用 `campaign-reset <sector>`。

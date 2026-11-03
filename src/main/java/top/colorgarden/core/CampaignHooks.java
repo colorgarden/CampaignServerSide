@@ -19,6 +19,7 @@ import arc.Events;
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.Log;
+import arc.util.Strings;
 import arc.util.Time;
 import mindustry.core.GameState.State;
 import mindustry.game.EventType.*;
@@ -40,6 +41,14 @@ public class CampaignHooks{
     private static final ObjectMap<Player, Long> pendingJoinInfo = new ObjectMap<>();
     /** Delay before the notice is sent, so the client finished loading its chat. */
     private static final long joinInfoDelay = 3000L;
+    /** True while the simulation is paused only because no player is online. */
+    private static boolean pausedForEmpty;
+
+    /** Live execution probe state. */
+    private static boolean logicProbeActive;
+    private static int logicProbeFrame, logicProbeIndex;
+    private static final int logicProbeInterval = 12;
+    private static final float[] logicProbeSamples = new float[6];
 
     public static void install(){
         if(!headless){
@@ -135,6 +144,85 @@ public class CampaignHooks{
         }
 
         return new int[]{total, privileged, initialized, running};
+    }
+
+    /**
+     * Sum of the logic accumulators of every enabled logic build. This is a live signal, not a
+     * configuration check: {@code LogicBlock#updateTile} advances the accumulator only when the
+     * executor is actually allowed to run, so a sum that stays 0 across samples means the blocks
+     * are not executing (for example while the game is paused).
+     */
+    public static float logicAccumulatorSum(){
+        float sum = 0f;
+        for(Building build : Groups.build){
+            if(build instanceof LogicBlock.LogicBuild lb && lb.enabled) sum += lb.accumulator;
+        }
+        return sum;
+    }
+
+    /** @return true while the simulation is paused only because the server is empty. */
+    public static boolean isPausedForEmpty(){
+        return pausedForEmpty;
+    }
+
+    /** Resumes the simulation if it was stopped by the empty-server pause. */
+    public static void resumeIfEmptyPaused(){
+        if(pausedForEmpty){
+            pausedForEmpty = false;
+            if(state.isPaused()) state.set(State.playing);
+            Log.info("[CampaignServer] " + I18n.get("campaign.log.resumed"));
+        }
+    }
+
+    /** Starts sampling the logic accumulators; sampled from the tick hook so pausing cannot stall it. */
+    public static void startLogicProbe(){
+        logicProbeActive = true;
+        logicProbeFrame = 0;
+        logicProbeIndex = 0;
+        java.util.Arrays.fill(logicProbeSamples, 0f);
+    }
+
+    /** Advances the probe; called from the tick hook, which also runs while the game is paused. */
+    private static void updateLogicProbe(){
+        if(!logicProbeActive) return;
+
+        if(++logicProbeFrame < logicProbeInterval) return;
+        logicProbeFrame = 0;
+        logicProbeSamples[logicProbeIndex ++] = logicAccumulatorSum();
+
+        if(logicProbeIndex < logicProbeSamples.length) return;
+
+        logicProbeActive = false;
+
+        StringBuilder builder = new StringBuilder();
+        float max = 0f;
+        for(float value : logicProbeSamples){
+            if(value > max) max = value;
+            if(builder.length() > 0) builder.append(' ');
+            builder.append(Strings.fixed(value, 3));
+        }
+
+        Log.info("[CampaignServer] " + I18n.get("campaign.logic.probe.result", builder.toString(), max, state.isPaused()));
+    }
+
+    /** Pauses the simulation while nobody is online, and resumes as soon as a player joins. */
+    private static void handleEmptyPause(){
+        if(!enabled || !CampaignConfig.data().pauseWhenEmpty || !state.isCampaign()) return;
+
+        if(Groups.player.size() > 0){
+            if(pausedForEmpty){
+                pausedForEmpty = false;
+                if(state.isPaused()) state.set(State.playing);
+                Log.info("[CampaignServer] " + I18n.get("campaign.log.resumed"));
+            }
+            return;
+        }
+
+        if(state.isPlaying() && !state.isPaused()){
+            state.set(State.paused);
+            pausedForEmpty = true;
+            Log.info("[CampaignServer] " + I18n.get("campaign.log.paused-empty"));
+        }
     }
 
     private static void onSectorCapture(Sector sector){
@@ -258,6 +346,8 @@ public class CampaignHooks{
 
     private static void update(){
         flushJoinInfo();
+        updateLogicProbe();
+        handleEmptyPause();
 
         CampaignConfig config = CampaignConfig.data();
         if(!config.autosave || !state.isCampaign() || state.isPaused()){

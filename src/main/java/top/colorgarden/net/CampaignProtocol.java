@@ -15,6 +15,10 @@ public class CampaignProtocol{
      * without sending an unknown packet to a server that would not understand it.
      */
     public static final String tagKey = "campaign-api";
+    /** Planet name of the running sector; lets a client mod restore {@code state.rules.sector}. */
+    public static final String tagPlanet = "campaign-planet";
+    /** Numeric sector id of the running sector. */
+    public static final String tagSector = "campaign-sector";
 
     /** Request id reserved for unsolicited server pushes. Client requests must never use it. */
     public static final int pushId = 0;

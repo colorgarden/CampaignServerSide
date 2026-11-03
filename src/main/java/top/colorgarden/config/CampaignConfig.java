@@ -99,6 +99,9 @@ public class CampaignConfig{
      */
     public boolean worldProcessors = true;
 
+    /** Pause the simulation while no player is online, and resume when someone joins. */
+    public boolean pauseWhenEmpty = true;
+
     /** Send a short notice with the command hints to every player that joins. */
     public boolean joinInfo = true;
 
@@ -149,25 +152,8 @@ public class CampaignConfig{
         if(target == null) return;
 
         try{
-            CampaignConfig out = data;
-
-            if(target.exists()){
-                CampaignConfig onDisk = null;
-                try{
-                    onDisk = JsonIO.read(CampaignConfig.class, target.readString());
-                }catch(Throwable ignored){
-                    //unreadable file - fall back to the in-memory defaults
-                }
-                if(onDisk != null){
-                    onDisk.planet = data.planet;
-                    onDisk.sector = data.sector;
-                    data = onDisk;
-                    out = onDisk;
-                }
-            }
-
             target.parent().mkdirs();
-            target.writeString(writer.prettyPrint(out));
+            target.writeString(writer.prettyPrint(data));
         }catch(Throwable t){
             Log.warn("[CampaignServer] " + I18n.get("campaign.log.config-write-failed", target.path()));
         }

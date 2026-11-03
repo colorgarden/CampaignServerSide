@@ -135,3 +135,40 @@ CampaignClientApi.setPushListener(info -> { /* 刷新界面 */ });
   只有需要调用 API 的客户端才需要装。
 - 相关开关：`sectorSwitchAdminOnly` / `researchAdminOnly` / `voting` / `voteSector` / `voteResearch`。
   当某项设为“仅管理员”时，对应的投票会被直接禁用（`campaign.vote.sector-admin-only`）。
+
+## 6. 让客户端认回“战役模式”（rules tags）
+
+原版战役是单人模式，代码里**没有任何**给客户端赋 `state.rules.sector` 的路径。所以客户端连到专用服务器后：
+
+| 能力 | 无客户端 mod | 说明 |
+| --- | --- | --- |
+| 研究界面显示已解锁/未解锁 | 可用 | `UnlockableContent.unlocked()` 在多人时读 `state.rules.researched`，该字段随 rules 同步 |
+| 解锁后即时刷新 | 可用 | 服务端 `UnlockEvent` → `Call.researched(content)`（原版逻辑） |
+| 科技树自动切到当前星球 | 不可用 | `ResearchDialog` 靠 `state.rules.sector.planet`，客户端为 `null` |
+| 区块进度（“占领某区块”类目标） | 不可用 | 目标读客户端本地 `Sector.info`，与服务端无关 |
+| 战役 HUD / 教程提示 / 区块名 | 不可用 | 同上，`state.isCampaign()` 为 false |
+
+服务端已在 `state.rules.tags` 里写入定位信息（随 rules 一起下发）：
+
+| tag | 示例 | 含义 |
+| --- | --- | --- |
+| `campaign-api` | `1` | 协议版本，见第 1 节 |
+| `campaign-planet` | `serpulo` | 当前区块所在星球内部名 |
+| `campaign-sector` | `170` | 当前区块 id |
+
+客户端模组只需在进入世界后补一行，原版研究界面/战役界面就会正常工作：
+
+```java
+// WorldLoadEvent 里执行一次
+String planetName = state.rules.tags.get("campaign-planet");
+String sectorId   = state.rules.tags.get("campaign-sector");
+if(planetName != null && !planetName.isEmpty() && sectorId != null && !sectorId.isEmpty()){
+    Planet planet = content.getByName(ContentType.planet, planetName) instanceof Planet p ? p : null;
+    if(planet != null){
+        state.rules.sector = planet.getSector(Integer.parseInt(sectorId));
+    }
+}
+```
+
+注意：这只修正客户端的**界面上下文**。区块是否已占领等进度仍以服务端为准，需要完整同步时请再配合
+`CampaignInfo`（第 3 节）里的 `sectors[].captured / hasBase` 字段自行渲染。

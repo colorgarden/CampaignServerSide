@@ -19,6 +19,7 @@ import arc.struct.Seq;
 import arc.util.CommandHandler;
 import arc.util.Log;
 import arc.util.Strings;
+import arc.util.Time;
 import mindustry.ctype.UnlockableContent;
 import mindustry.gen.Player;
 import mindustry.type.Planet;
@@ -56,6 +57,7 @@ public class CampaignCommands{
             infoHelp("campaign.help.joininfo");
             infoHelp("campaign.help.logic");
             infoHelp("campaign.help.uncapture");
+            infoHelp("campaign.help.pause");
             infoHelp("campaign.help.sectorarg");
         });
 
@@ -307,8 +309,13 @@ public class CampaignCommands{
             CampaignNetwork.pushInfoToAll();
         });
 
-        handler.register("campaign-logic", "[on|off]", "Report world processor state, or keep world processors running.", args -> {
+        handler.register("campaign-logic", "[on|off|probe]", "Report world processor state, keep them running, or probe execution.", args -> {
             CampaignConfig config = CampaignConfig.data();
+
+            if(args.length > 0 && "probe".equalsIgnoreCase(args[0])){
+                probeLogic();
+                return;
+            }
 
             if(args.length > 0){
                 boolean on = !"off".equalsIgnoreCase(args[0]);
@@ -321,6 +328,19 @@ public class CampaignCommands{
             int[] counts = CampaignHooks.logicCounts();
             info("campaign.logic.header", config.worldProcessors, state.rules.disableWorldProcessors);
             info("campaign.logic.counts", counts[0], counts[1], counts[2], counts[3]);
+        });
+
+        handler.register("campaign-pause", "[on|off]", "Pause the simulation while nobody is online.", args -> {
+            CampaignConfig config = CampaignConfig.data();
+
+            if(args.length > 0){
+                config.pauseWhenEmpty = !"off".equalsIgnoreCase(args[0]);
+                CampaignConfig.save();
+                if(!config.pauseWhenEmpty) CampaignHooks.resumeIfEmptyPaused();
+                info("campaign.pause.set", config.pauseWhenEmpty);
+            }
+
+            info("campaign.pause.state", config.pauseWhenEmpty, state.isPaused(), CampaignHooks.isPausedForEmpty());
         });
 
         handler.register("campaign-uncapture", "<sector>", "Clear the captured flag of a sector.", args -> {
@@ -346,6 +366,7 @@ public class CampaignCommands{
             info("campaign.config.misc", config.joinInfo, config.announce, config.resyncClients);
             info("campaign.config.lock", config.enforceSectorUnlock, config.adminBypassLock, config.launchPadLinking);
             info("campaign.config.logic", config.worldProcessors);
+            info("campaign.config.pause", config.pauseWhenEmpty);
             info("campaign.config.file", CampaignConfig.location() == null ? "-" : CampaignConfig.location().path());
         });
 
@@ -574,6 +595,11 @@ public class CampaignCommands{
         return sector;
     }
 
+    /** Starts the live accumulator probe (sampled from the tick hook, so pausing cannot stall it). */
+    private static void probeLogic(){
+        info("campaign.logic.probe.start", CampaignHooks.logicCounts()[0]);
+        CampaignHooks.startLogicProbe();
+    }
     /** console commands bypass the unlock gate; admins only bypass it when configured */
     private static boolean canBypass(Player player){
         return player != null && player.admin && CampaignConfig.data().adminBypassLock;
