@@ -40,7 +40,7 @@ import mindustry.type.SectorPreset;
  */
 public class CampaignVote{
     public enum Kind{
-        sector, research, planet, destination, redirect
+        sector, research, planet, destination, redirect, pause
     }
 
     /** The vote that is currently running, if any. */
@@ -73,6 +73,7 @@ public class CampaignVote{
             case research -> config.voteResearch && config.allowResearch;
             case destination -> config.voteDestination && config.allowSectorSwitch;
             case redirect -> config.voteRedirect && config.allowSectorSwitch;
+            case pause -> config.votePause;
         };
     }
 
@@ -99,7 +100,7 @@ public class CampaignVote{
         String needle = query == null ? "" : query.trim().toLowerCase();
         CampaignConfig config = CampaignConfig.data();
 
-        if(kind == Kind.redirect) return out;
+        if(kind == Kind.redirect || kind == Kind.pause) return out;
 
         if(kind == Kind.planet){
             for(Planet planet : SectorService.planets()){
@@ -250,6 +251,12 @@ public class CampaignVote{
 
             resolved = current.name();
             label = current.name();
+        }else if(kind == Kind.pause){
+            //the action is fixed when the vote starts, so it cannot flip while people are voting
+            boolean paused = mindustry.Vars.state.isPaused();
+
+            resolved = paused ? "resume" : "pause";
+            label = I18n.get(paused ? "campaign.pause.resume" : "campaign.pause.pause");
         }else{
             UnlockableContent content = ResearchService.find(target);
             if(content == null) return I18n.get("campaign.vote.no-such-content", target) + suggest(kind, target);
@@ -413,6 +420,7 @@ public class CampaignVote{
             case research -> "campaign.vote.describe-research";
             case destination -> "campaign.vote.describe-destination";
             case redirect -> "campaign.vote.describe-redirect";
+            case pause -> "campaign.vote.describe-pause";
         };
         return I18n.get(key, vote.label);
     }
@@ -465,6 +473,15 @@ public class CampaignVote{
                 }
                 int count = SectorService.redirectAllExports(current);
                 announce(I18n.get("campaign.vote.redirect-done", count, current.name()));
+            }else if(vote.kind == Kind.pause){
+                //vanilla pause: the game state machine, so the server simply stops simulating
+                boolean pause = "pause".equals(vote.arg);
+
+                mindustry.Vars.state.set(pause
+                    ? mindustry.core.GameState.State.paused
+                    : mindustry.core.GameState.State.playing);
+
+                announce(I18n.get(pause ? "campaign.vote.paused" : "campaign.vote.resumed"));
             }else{
                 UnlockableContent content = ResearchService.find(vote.arg);
                 if(content == null){

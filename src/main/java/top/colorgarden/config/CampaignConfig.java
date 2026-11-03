@@ -104,6 +104,25 @@ public class CampaignConfig{
     public boolean voteDestination = true;
     /** Allow votes that redirect the exports of every sector on the planet to the current one. */
     public boolean voteRedirect = true;
+    /** Allow votes that pause or resume the simulation. */
+    public boolean votePause = true;
+
+    // --- campaign rules (the same dialog the vanilla campaign offers) ---
+
+    /** Campaign difficulty: casual / easy / normal / hard / eradication. */
+    public String difficulty = "normal";
+    /** Enemy sectors invade the ones you own. */
+    public boolean ruleSectorInvasion = false;
+    /** Fog of war. */
+    public boolean ruleFog = false;
+    /** Hide enemy spawn points. */
+    public boolean ruleHideSpawns = false;
+    /** Unpredictable AI waves. */
+    public boolean ruleRandomWaveAI = false;
+    /** RTS attack AI for the enemy team. */
+    public boolean ruleRtsAI = false;
+    /** Disallow pausing. */
+    public boolean rulePauseDisabled = false;
     /** Share of online players that must vote yes for a vote to pass (0.1 - 1). */
     public float votePercent = 0.6f;
     /** Minimum online players needed to start a vote. */

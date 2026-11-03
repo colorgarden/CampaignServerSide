@@ -520,8 +520,66 @@ public class CampaignCommands{
             info("campaign.uncapture.done", sector.name());
         });
 
-        handler.register("campaign-why", "<sector>", "Explain whether a sector can be entered right now.", args -> {
+        handler.register("campaign-sim", "[pause|resume|toggle]", "Pause or resume the simulation directly (vanilla game state).", args -> {
+            boolean pause = toggleSimulation(args.length > 0 ? args[0] : "toggle");
+            info(pause ? "campaign.sim.paused" : "campaign.sim.resumed");
+        });
+
+        handler.register("campaign-difficulty", "[name]", "Show or set the campaign difficulty.", args -> {
+            mindustry.game.Difficulty current = SectorService.difficulty();
+            info("campaign.difficulty.current", I18n.get("campaign.difficulty." + current.name()));
+
+            if(args.length == 0){
+                StringBuilder list = new StringBuilder();
+                for(mindustry.game.Difficulty value : mindustry.game.Difficulty.all){
+                    if(list.length() > 0) list.append(", ");
+                    list.append(value.name());
+                }
+                infoRaw("  " + I18n.get("campaign.difficulty.list", list.toString()));
+                return;
+            }
+
+            mindustry.game.Difficulty applied = SectorService.setDifficulty(args[0]);
+            if(applied == null){
+                err("campaign.difficulty.unknown", args[0]);
+            }else{
+                info("campaign.difficulty.set", I18n.get("campaign.difficulty." + applied.name()));
+            }
+        });
+
+        handler.register("campaign-rule", "[name] [on|off]", "Show or toggle a campaign rule flag.", args -> {
+            if(args.length == 0){
+                info("campaign.rule.header");
+                for(String rule : new String[]{"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled"}){
+                    infoRaw("  " + rule + " = " + SectorService.currentRule(rule));
+                }
+                return;
+            }
+
+            if(!SectorService.isRule(args[0])){
+                err("campaign.rule.unknown", args[0]);
+                return;
+            }
+
+            Boolean force = args.length > 1 ? Boolean.valueOf(!("off".equalsIgnoreCase(args[1]) || "false".equalsIgnoreCase(args[1]) || "0".equals(args[1]))) : null;
+            Boolean value = SectorService.toggleRule(args[0], force);
+            if(value == null){
+                err("campaign.rule.unknown", args[0]);
+            }else{
+                info("campaign.rule.set", args[0], value);
+            }
+        });
+
+        handler.register("campaign-reset-sector", "<sector>", "Wipe a sector save, clear its info and lock its preset again.", args -> {
             Sector sector = requireSector(args[0]);
+            if(SectorService.resetSector(sector)){
+                info("campaign.reset-sector.done", sector.name());
+            }else{
+                err("campaign.reset-sector.refused", sector.name());
+            }
+        });
+
+        handler.register("campaign-why", "<sector>", "Explain whether a sector can be entered right now.", args -> {            Sector sector = requireSector(args[0]);
             String status = SectorService.statusOf(sector);
             String reason = SectorService.lockReason(sector);
             info("campaign.why.header", sector.name(), sector.id, sector.planet.name, status);
@@ -863,6 +921,58 @@ public class CampaignCommands{
 
         handler.<Player>register("cvote", "[option] [args...]", "Vote to switch sector/planet, unlock research or rewire launch pads.", (args, player) -> handleVote(player, args));
         handler.<Player>register("cv", "[option] [args...]", "Short form of /cvote.", (args, player) -> handleVote(player, args));
+
+        handler.<Player>register("sim", "[pause|resume|toggle]", "[admin] Pause or resume the simulation.", (args, player) -> {
+            if(!requirePermission(player, true)) return;
+
+            boolean pause = toggleSimulation(args.length > 0 ? args[0] : "toggle");
+            player.sendMessage(I18n.get(pause ? "campaign.sim.paused" : "campaign.sim.resumed"));
+        });
+
+        handler.<Player>register("difficulty", "[name]", "[admin] Show or set the campaign difficulty.", (args, player) -> {
+            if(!requirePermission(player, true)) return;
+
+            mindustry.game.Difficulty current = SectorService.difficulty();
+            if(args.length == 0){
+                StringBuilder list = new StringBuilder();
+                for(mindustry.game.Difficulty value : mindustry.game.Difficulty.all){
+                    if(list.length() > 0) list.append(" / ");
+                    list.append(value.name());
+                }
+                player.sendMessage(I18n.get("campaign.difficulty.current",
+                    I18n.get("campaign.difficulty." + current.name())) + "\n" + I18n.get("campaign.difficulty.list", list.toString()));
+                return;
+            }
+
+            mindustry.game.Difficulty applied = SectorService.setDifficulty(args[0]);
+            player.sendMessage(applied == null
+                ? I18n.get("campaign.difficulty.unknown", args[0])
+                : I18n.get("campaign.difficulty.set", I18n.get("campaign.difficulty." + applied.name())));
+        });
+
+        handler.<Player>register("rule", "[name] [on|off]", "[admin] Show or toggle a campaign rule flag.", (args, player) -> {
+            if(!requirePermission(player, true)) return;
+
+            if(args.length == 0){
+                StringBuilder builder = new StringBuilder(I18n.get("campaign.rule.header"));
+                for(String rule : new String[]{"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled"}){
+                    builder.append("\n").append(rule).append(" = ").append(SectorService.currentRule(rule));
+                }
+                player.sendMessage(builder.toString());
+                return;
+            }
+
+            if(!SectorService.isRule(args[0])){
+                player.sendMessage(I18n.get("campaign.rule.unknown", args[0]));
+                return;
+            }
+
+            Boolean force = args.length > 1 ? Boolean.valueOf(!("off".equalsIgnoreCase(args[1]) || "false".equalsIgnoreCase(args[1]) || "0".equals(args[1]))) : null;
+            Boolean value = SectorService.toggleRule(args[0], force);
+            player.sendMessage(value == null
+                ? I18n.get("campaign.rule.unknown", args[0])
+                : I18n.get("campaign.rule.set", args[0], value));
+        });
     }
 
     // ---------------------------------------------------------------- vote command
@@ -873,13 +983,14 @@ public class CampaignCommands{
             case "planet" -> CampaignVote.Kind.planet;
             case "destination" -> CampaignVote.Kind.destination;
             case "redirect" -> CampaignVote.Kind.redirect;
+            case "pause" -> CampaignVote.Kind.pause;
             default -> CampaignVote.Kind.research;
         };
     }
 
     private static boolean isVoteKind(String option){
         return "sector".equals(option) || "planet".equals(option) || "research".equals(option)
-            || "destination".equals(option) || "redirect".equals(option);
+            || "destination".equals(option) || "redirect".equals(option) || "pause".equals(option);
     }
 
     /** Handles both {@code /cvote} and its short form {@code /cv}. */
@@ -937,6 +1048,14 @@ public class CampaignCommands{
 
         if(isVoteKind(option)){
             CampaignVote.Kind kind = voteKind(option);
+
+            //these two take no target
+            if(kind == CampaignVote.Kind.pause || kind == CampaignVote.Kind.redirect){
+                String problem = CampaignVote.start(player, kind, "");
+                if(problem != null) player.sendMessage("[scarlet]" + problem);
+                return;
+            }
+
             if(tokens.isEmpty()){
                 //no target: show what can be voted for instead of a bare error
                 player.sendMessage(I18n.get("campaign.vote.target-required"));
@@ -992,8 +1111,22 @@ public class CampaignCommands{
             vote.yes.size, CampaignVote.requiredVotes(), vote.secondsLeft()));
     }
 
-    private static Sector requireSector(String query) throws CampaignException{
-        Sector sector = SectorService.resolve(query);
+    /** @return true when the simulation is now paused. */
+    private static boolean toggleSimulation(String action){
+        boolean pause;
+        if("pause".equalsIgnoreCase(action) || "on".equalsIgnoreCase(action)){
+            pause = true;
+        }else if("resume".equalsIgnoreCase(action) || "play".equalsIgnoreCase(action) || "off".equalsIgnoreCase(action)){
+            pause = false;
+        }else{
+            pause = !state.isPaused();
+        }
+
+        state.set(pause ? mindustry.core.GameState.State.paused : mindustry.core.GameState.State.playing);
+        return pause;
+    }
+
+    private static Sector requireSector(String query) throws CampaignException{        Sector sector = SectorService.resolve(query);
         if(sector == null){
             throw new CampaignException(I18n.get("campaign.error.no-such-sector", query));
         }

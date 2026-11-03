@@ -196,6 +196,10 @@ public class CampaignHooks{
      */
     public static void applyLogicRules(){
         if(!enabled || state.rules == null || !state.isCampaign()) return;
+
+        //the vanilla difficulty dialog writes into the planet's campaign rules; do the same from config
+        SectorService.applyCampaignRules(state.getPlanet());
+
         if(!CampaignConfig.data().worldProcessors) return;
 
         //vanilla disables world processors once a sector is captured; keep that, but revive them for

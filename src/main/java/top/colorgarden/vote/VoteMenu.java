@@ -33,6 +33,7 @@ public class VoteMenu{
     private static final int perPage = 6;
 
     private static int mainId = -1, listId = -1, confirmId = -1, voteId = -1, searchId = -1;
+    private static int difficultyId = -1, rulesId = -1;
     private static boolean available;
 
     private static final ObjectMap<Player, ListState> listStates = new ObjectMap<>();
@@ -98,6 +99,8 @@ public class VoteMenu{
             confirmId = Menus.registerMenu(VoteMenu::onConfirm);
             voteId = Menus.registerMenu(VoteMenu::onVote);
             searchId = Menus.registerTextInput(VoteMenu::onSearch);
+            difficultyId = Menus.registerMenu(VoteMenu::onDifficulty);
+            rulesId = Menus.registerMenu(VoteMenu::onRules);
             available = true;
             Log.info("[CampaignServer] " + I18n.get("campaign.log.menu-ready"));
         }catch(Throwable t){
@@ -120,10 +123,18 @@ public class VoteMenu{
         String message = I18n.get("campaign.menu.main-message",
             vote == null ? I18n.get("campaign.vote.info-none") : CampaignVote.describe(vote));
 
-        String[][] options = {
+        String[][] options = player.admin ? new String[][]{
             {I18n.get("campaign.menu.sector"), I18n.get("campaign.menu.research")},
             {I18n.get("campaign.menu.planet"), I18n.get("campaign.menu.destination")},
-            {I18n.get("campaign.menu.redirect"), I18n.get("campaign.menu.info")},
+            {I18n.get("campaign.menu.redirect"), I18n.get("campaign.menu.pause")},
+            {I18n.get("campaign.menu.info"), I18n.get("campaign.menu.difficulty")},
+            {I18n.get("campaign.menu.rules")},
+            {I18n.get("campaign.menu.close")}
+        } : new String[][]{
+            {I18n.get("campaign.menu.sector"), I18n.get("campaign.menu.research")},
+            {I18n.get("campaign.menu.planet"), I18n.get("campaign.menu.destination")},
+            {I18n.get("campaign.menu.redirect"), I18n.get("campaign.menu.pause")},
+            {I18n.get("campaign.menu.info")},
             {I18n.get("campaign.menu.close")}
         };
 
@@ -186,6 +197,11 @@ public class VoteMenu{
             case 3 -> showList(player, CampaignVote.Kind.destination, "", 0);
             case 4 -> askConfirm(player, CampaignVote.Kind.redirect, "", I18n.get("campaign.vote.kind.redirect"));
             case 5 -> {
+                mindustry.core.GameState state = mindustry.Vars.state;
+                String label = I18n.get(state.isPaused() ? "campaign.pause.resume" : "campaign.pause.pause");
+                askConfirm(player, CampaignVote.Kind.pause, "", label);
+            }
+            case 6 -> {
                 CampaignVote.Vote vote = CampaignVote.active();
                 if(vote == null){
                     player.sendMessage(I18n.get("campaign.vote.info-none"));
@@ -193,7 +209,84 @@ public class VoteMenu{
                     pushVoteTo(player);
                 }
             }
+            case 7 -> openDifficulty(player);
+            case 8 -> openRules(player);
             default -> hide(player, mainId);
+        }
+    }
+
+    /** Admin only: the vanilla difficulty picker. */
+    private static void openDifficulty(Player player){
+        if(!available || player == null || player.con == null || !player.admin) return;
+
+        hide(player, mainId);
+
+        Seq<String[]> rows = new Seq<>();
+        String[] labels = new String[mindustry.game.Difficulty.all.length];
+        for(int i = 0; i < labels.length; i++){
+            labels[i] = mindustry.game.Difficulty.all[i].name();
+        }
+        rows.add((String[])labels);
+        rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
+
+        String message = I18n.get("campaign.difficulty.current",
+            I18n.get("campaign.difficulty." + top.colorgarden.core.SectorService.difficulty().name()));
+
+        Call.followUpMenu(player.con, difficultyId, I18n.get("campaign.menu.difficulty"), message,
+            rows.toArray(String[].class));
+    }
+
+    private static void onDifficulty(Player player, int option){
+        if(option < 0) return;
+
+        int count = mindustry.game.Difficulty.all.length;
+        if(option < count){
+            mindustry.game.Difficulty value = top.colorgarden.core.SectorService.setDifficulty(mindustry.game.Difficulty.all[option].name());
+            if(value != null){
+                player.sendMessage(I18n.get("campaign.difficulty.set", I18n.get("campaign.difficulty." + value.name())));
+            }
+            openDifficulty(player);
+        }else if(option == count){
+            hide(player, difficultyId);
+            openMain(player);
+        }else{
+            hide(player, difficultyId);
+        }
+    }
+
+    /** Admin only: the vanilla campaign rule toggles. */
+    private static void openRules(Player player){
+        if(!available || player == null || player.con == null || !player.admin) return;
+
+        hide(player, mainId);
+
+        String[] rules = {"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled"};
+        Seq<String[]> rows = new Seq<>();
+        rows.add(new String[]{toggleLabel(rules[0]), toggleLabel(rules[1])});
+        rows.add(new String[]{toggleLabel(rules[2]), toggleLabel(rules[3])});
+        rows.add(new String[]{toggleLabel(rules[4]), toggleLabel(rules[5])});
+        rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
+
+        Call.followUpMenu(player.con, rulesId, I18n.get("campaign.rule.header"), "",
+            rows.toArray(String[].class));
+    }
+
+    private static String toggleLabel(String rule){
+        return (top.colorgarden.core.SectorService.currentRule(rule) ? "[green]+ " : "[gray]- ") + rule;
+    }
+
+    private static void onRules(Player player, int option){
+        if(option < 0) return;
+
+        String[] rules = {"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled"};
+        if(option < rules.length){
+            top.colorgarden.core.SectorService.toggleRule(rules[option], null);
+            openRules(player);
+        }else if(option == rules.length){
+            hide(player, rulesId);
+            openMain(player);
+        }else{
+            hide(player, rulesId);
         }
     }
 

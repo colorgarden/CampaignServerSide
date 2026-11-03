@@ -273,6 +273,108 @@ public class SectorService{
         return value != null && !needle.isEmpty() && value.toLowerCase(Locale.ROOT).contains(needle);
     }
 
+    /** @return the campaign rules of the given planet, creating the object when the game has none. */
+    public static mindustry.game.CampaignRules campaignRules(@Nullable Planet planet){
+        if(planet == null) return new mindustry.game.CampaignRules();
+        if(planet.campaignRules == null) planet.campaignRules = new mindustry.game.CampaignRules();
+        return planet.campaignRules;
+    }
+
+    /** @return the difficulty named in the config, falling back to normal. */
+    public static mindustry.game.Difficulty difficulty(){
+        String name = CampaignConfig.data().difficulty;
+
+        for(mindustry.game.Difficulty value : mindustry.game.Difficulty.all){
+            if(value.name().equalsIgnoreCase(name)) return value;
+        }
+        return mindustry.game.Difficulty.normal;
+    }
+
+    /**
+     * Copies the config into the planet's campaign rules and applies them to the running rules object,
+     * which is what the vanilla difficulty dialog does.
+     */
+    public static void applyCampaignRules(@Nullable Planet planet){
+        if(planet == null) return;
+
+        CampaignConfig config = CampaignConfig.data();
+        mindustry.game.CampaignRules rules = campaignRules(planet);
+
+        rules.difficulty = difficulty();
+        rules.sectorInvasion = config.ruleSectorInvasion;
+        rules.fog = config.ruleFog;
+        rules.hideSpawns = config.ruleHideSpawns;
+        rules.randomWaveAI = config.ruleRandomWaveAI;
+        rules.rtsAI = config.ruleRtsAI;
+        rules.pauseDisabled = config.rulePauseDisabled;
+
+        if(state.rules != null){
+            rules.apply(planet, state.rules);
+        }
+    }
+
+    /** Sets the difficulty by name. @return the applied difficulty, or null when the name is unknown. */
+    public static @Nullable mindustry.game.Difficulty setDifficulty(String name){
+        mindustry.game.Difficulty found = null;
+        for(mindustry.game.Difficulty value : mindustry.game.Difficulty.all){
+            if(value.name().equalsIgnoreCase(name)){
+                found = value;
+                break;
+            }
+        }
+        if(found == null) return null;
+
+        CampaignConfig.data().difficulty = found.name();
+        applyCampaignRules(planet());
+        return found;
+    }
+
+    /** @return the new value, or null when the rule name is unknown. */
+    public static @Nullable Boolean toggleRule(String name, @Nullable Boolean force){
+        CampaignConfig config = CampaignConfig.data();
+        boolean value;
+        java.util.function.Consumer<Boolean> setter;
+
+        switch(name.toLowerCase(Locale.ROOT)){
+            case "invasion", "sectorinvasion" -> setter = v -> config.ruleSectorInvasion = v;
+            case "fog" -> setter = v -> config.ruleFog = v;
+            case "hidespawns" -> setter = v -> config.ruleHideSpawns = v;
+            case "randomwaveai" -> setter = v -> config.ruleRandomWaveAI = v;
+            case "rtsai" -> setter = v -> config.ruleRtsAI = v;
+            case "pausedisabled" -> setter = v -> config.rulePauseDisabled = v;
+            default -> {
+                return null;
+            }
+        }
+
+        value = force != null ? force : !currentRule(name);
+        setter.accept(value);
+        applyCampaignRules(planet());
+        return value;
+    }
+
+    /** @return the current value of a campaign rule flag. */
+    public static boolean currentRule(String name){
+        CampaignConfig config = CampaignConfig.data();
+        return switch(name.toLowerCase(Locale.ROOT)){
+            case "invasion", "sectorinvasion" -> config.ruleSectorInvasion;
+            case "fog" -> config.ruleFog;
+            case "hidespawns" -> config.ruleHideSpawns;
+            case "randomwaveai" -> config.ruleRandomWaveAI;
+            case "rtsai" -> config.ruleRtsAI;
+            case "pausedisabled" -> config.rulePauseDisabled;
+            default -> false;
+        };
+    }
+
+    /** @return whether a campaign rule flag name exists. */
+    public static boolean isRule(String name){
+        return switch(name.toLowerCase(Locale.ROOT)){
+            case "invasion", "sectorinvasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled" -> true;
+            default -> false;
+        };
+    }
+
     /** @return a short, human readable description of a sector's progress. */
     public static String statusOf(@Nullable Sector sector){
         if(sector == null) return "unknown";
@@ -474,6 +576,40 @@ public class SectorService{
 
         target.info.refreshImportRates(target.planet);
         return count;
+    }
+
+    /**
+     * Wipes a sector back to "never played": deletes its save, clears the stored {@code SectorInfo}
+     * and locks its preset again. The sector that is currently loaded is refused, because its world is
+     * live.
+     *
+     * @return true when the sector was reset.
+     */
+    public static boolean resetSector(@Nullable Sector sector){
+        if(sector == null || sector == current() || state.isCampaign() && state.rules.sector == sector){
+            return false;
+        }
+
+        deleteSaveData(sector);
+
+        sector.save = null;
+        sector.info = new mindustry.game.SectorInfo();
+        sector.info.hasCore = false;
+        sector.info.wasCaptured = false;
+        sector.info.destination = null;
+        sector.info.origin = null;
+        sector.info.items.clear();
+        sector.info.production.clear();
+        sector.info.rawProduction.clear();
+        sector.info.export.clear();
+        sector.info.imports.clear();
+        sector.saveInfo();
+
+        if(sector.preset != null){
+            sector.preset.clearUnlock();
+        }
+
+        return true;
     }
 
     /**
