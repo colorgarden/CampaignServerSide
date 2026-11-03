@@ -134,6 +134,40 @@ public class ResearchService{
     }
 
     /**
+     * @return a very short reason a node is not researchable yet (for list entries), or "" when it is.
+     */
+    public static String shortBlocker(@Nullable UnlockableContent content){
+        if(content == null || content.unlocked()) return "";
+
+        TechNode node = content.techNode;
+        if(node == null) return "";
+
+        //name the sector that gates it when the unmet objective is a sector completion
+        if(node.objectives != null){
+            for(var objective : node.objectives){
+                if(objective.complete()) continue;
+
+                String text = String.valueOf(objective);
+                if(text.startsWith("sectorComplete: ")){
+                    String raw = text.substring("sectorComplete: ".length()).trim();
+                    SectorPreset preset = mindustry.Vars.content.sector(raw);
+                    return I18n.get("campaign.vote.blocked.sector", preset != null ? preset.localizedName : raw);
+                }
+            }
+        }
+
+        int pending = pendingObjectives(node);
+        if(pending > 0) return I18n.get("campaign.vote.blocked.objectives", pending);
+
+        if(CampaignConfig.data().researchStrict){
+            UnlockableContent parent = lockedParent(content);
+            if(parent != null) return I18n.get("campaign.vote.blocked.parent", parent.localizedName);
+        }
+
+        return "";
+    }
+
+    /**
      * @return a reason why this content cannot be researched right now, or null when it can.
      *         Mirrors what the vanilla client enforces before it lets a player pay.
      */

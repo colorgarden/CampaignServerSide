@@ -339,16 +339,17 @@ public class CampaignCommands{
         });
 
         //same filter as /cvote list, so the console can check what players are offered
-        handler.register("campaign-votelist", "[kind] [query...]", "List the targets a vote could use right now.", args -> {
+        handler.register("campaign-votelist", "[kind] [query...]", "List the targets a vote could use right now (add --all for locked research).", args -> {
             String kindArg = args.length > 0 ? args[0].toLowerCase() : "sector";
             if(!isVoteKind(kindArg)){
                 err("campaign.vote.usage");
                 return;
             }
 
+            boolean includeBlocked = args.length > 1 && args[1].contains("--all");
             CampaignVote.Kind kind = voteKind(kindArg);
-            String query = args.length > 1 ? args[1] : "";
-            Seq<String> found = CampaignVote.search(kind, query, 40);
+            String query = args.length > 1 ? args[1].replace("--all", "").trim() : "";
+            Seq<String> found = CampaignVote.search(kind, query, 40, includeBlocked);
 
             info("campaign.vote.list-header", I18n.get("campaign.vote.kind." + kind.name()), found.size);
             for(String entry : found){
@@ -1035,15 +1036,19 @@ public class CampaignCommands{
             return;
         }
 
-        //"list <kind> [search]" - the searchable target list
+        //"list <kind> [search]" - the searchable target list; "--all" also shows locked research
         if("list".equalsIgnoreCase(option) || "ls".equalsIgnoreCase(option)){
+            boolean includeBlocked = tokens.contains("--all") || tokens.contains("-a");
+            tokens.remove("--all");
+            tokens.remove("-a");
+
             String kindArg = tokens.size() > 0 ? tokens.get(0).toLowerCase() : "sector";
             String query = tokens.size() > 1 ? joinFrom(tokens, 1) : "";
             if(!isVoteKind(kindArg)){
                 player.sendMessage(I18n.get("campaign.vote.usage"));
                 return;
             }
-            showVoteTargets(player, voteKind(kindArg), query);
+            showVoteTargets(player, voteKind(kindArg), query, includeBlocked);
             return;
         }
 
@@ -1060,7 +1065,7 @@ public class CampaignCommands{
             if(tokens.isEmpty()){
                 //no target: show what can be voted for instead of a bare error
                 player.sendMessage(I18n.get("campaign.vote.target-required"));
-                showVoteTargets(player, kind, "");
+                showVoteTargets(player, kind, "", false);
                 return;
             }
 
@@ -1082,8 +1087,8 @@ public class CampaignCommands{
         return builder.toString();
     }
 
-    private static void showVoteTargets(Player player, CampaignVote.Kind kind, String query){
-        Seq<String> found = CampaignVote.search(kind, query, 20);
+    private static void showVoteTargets(Player player, CampaignVote.Kind kind, String query, boolean includeBlocked){
+        Seq<String> found = CampaignVote.search(kind, query, 20, includeBlocked);
 
         String kindName = I18n.get("campaign.vote.kind." + kind.name());
         if(found.isEmpty()){
@@ -1092,6 +1097,7 @@ public class CampaignCommands{
         }
 
         StringBuilder builder = new StringBuilder(I18n.get("campaign.vote.list-header", kindName, found.size));
+        if(includeBlocked) builder.append(I18n.get("campaign.vote.list-blocked-hint"));
         for(String entry : found){
             builder.append("\n[white]  ").append(entry);
         }

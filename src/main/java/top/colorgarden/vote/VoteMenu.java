@@ -44,6 +44,7 @@ public class VoteMenu{
         CampaignVote.Kind kind;
         String query = "";
         int page;
+        boolean showAll;
         Seq<String> entries = new Seq<>();
     }
 
@@ -301,13 +302,13 @@ public class VoteMenu{
         }
     }
 
-    private static void showList(Player player, CampaignVote.Kind kind, String query, int page){
+    private static void showList(Player player, CampaignVote.Kind kind, String query, int page, boolean showAll){
         if(!available || player == null || player.con == null) return;
 
         //the category picker stays open underneath otherwise
         hide(player, mainId);
 
-        Seq<String> found = CampaignVote.search(kind, query, 200);
+        Seq<String> found = CampaignVote.search(kind, query, 200, showAll);
         if(found.isEmpty()){
             player.sendMessage(I18n.get("campaign.menu.no-target", I18n.get("campaign.vote.kind." + kind.name())));
             return;
@@ -320,6 +321,7 @@ public class VoteMenu{
         state.kind = kind;
         state.query = query;
         state.page = current;
+        state.showAll = showAll;
         state.entries = found;
         listStates.put(player, state);
 
@@ -331,13 +333,20 @@ public class VoteMenu{
             rows.add(new String[]{found.get(i)});
         }
         rows.add(new String[]{I18n.get("campaign.menu.prev"), I18n.get("campaign.menu.next")});
-        rows.add(new String[]{I18n.get("campaign.menu.search"), I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
+        rows.add(new String[]{I18n.get("campaign.menu.search"),
+            I18n.get(showAll ? "campaign.menu.show-ready" : "campaign.menu.show-all")});
+        rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
 
         String message = I18n.get("campaign.menu.list-message", current + 1, pages,
-            I18n.get("campaign.vote.kind." + kind.name()));
+            I18n.get("campaign.vote.kind." + kind.name()),
+            I18n.get(showAll ? "campaign.menu.mode-all" : "campaign.menu.mode-ready"));
 
         Call.followUpMenu(player.con, listId, I18n.get("campaign.menu.list-title"), message,
             rows.toArray(String[].class));
+    }
+
+    private static void showList(Player player, CampaignVote.Kind kind, String query, int page){
+        showList(player, kind, query, page, false);
     }
 
     private static void onList(Player player, int option){
@@ -359,13 +368,15 @@ public class VoteMenu{
         }
 
         if(option == shown){
-            showList(player, state.kind, state.query, state.page - 1);
+            showList(player, state.kind, state.query, state.page - 1, state.showAll);
         }else if(option == shown + 1){
-            showList(player, state.kind, state.query, state.page + 1);
+            showList(player, state.kind, state.query, state.page + 1, state.showAll);
         }else if(option == shown + 2){
             Call.textInput(player.con, searchId, I18n.get("campaign.menu.search-title"),
                 I18n.get("campaign.menu.search-message"), 32, state.query, false);
         }else if(option == shown + 3){
+            showList(player, state.kind, state.query, 0, !state.showAll);
+        }else if(option == shown + 4){
             hide(player, listId);
             openMain(player);
         }else{
@@ -428,7 +439,7 @@ public class VoteMenu{
         ListState state = listStates.get(player);
         if(state == null) return;
 
-        showList(player, state.kind, text == null ? "" : text.trim(), 0);
+        showList(player, state.kind, text == null ? "" : text.trim(), 0, state.showAll);
     }
 
     /** Extracts the id from a "显示名 (id)" entry produced by {@link CampaignVote#search}. */

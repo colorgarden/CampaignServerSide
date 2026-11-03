@@ -89,13 +89,13 @@ public class CampaignVote{
     }
 
     /**
-     * Case-insensitive search for <b>valid</b> vote targets of one kind: only research that can be
-     * unlocked right now (strict tech tree applied) and only sectors that can be entered right now.
+     * Case-insensitive search for vote targets of one kind.
      *
-     * @param query empty to list the first entries
+     * @param query          empty to list the first entries
+     * @param includeBlocked also list research that is still locked (with the missing prerequisite)
      * @return up to {@code limit} {@code localized (id)} strings
      */
-    public static Seq<String> search(Kind kind, @Nullable String query, int limit){
+    public static Seq<String> search(Kind kind, @Nullable String query, int limit, boolean includeBlocked){
         Seq<String> out = new Seq<>();
         String needle = query == null ? "" : query.trim().toLowerCase();
         CampaignConfig config = CampaignConfig.data();
@@ -128,15 +128,17 @@ public class CampaignVote{
                 if(content instanceof SectorPreset) continue;
                 //content vanilla unlocks for free must not be votable either
                 if(ResearchService.autoUnlockable(node)) continue;
-                //content gated behind sector objectives is not researchable yet
-                if(ResearchService.researchBlocker(content) != null) continue;
                 //vanilla only offers content of the current planet (the tech tree is shared by all)
                 if(!ResearchService.shownOnPlanet(content, planet)) continue;
-                //strict mode: only offer what the vote could actually unlock
-                if(config.researchStrict && ResearchService.lockedParent(content) != null) continue;
 
                 if(matches(content.name, content.localizedName, needle)){
-                    out.add(content.localizedName + " (" + content.name + ")");
+                    //locked entries stay in the list, marked with the prerequisite that is missing
+                    String blocker = ResearchService.shortBlocker(content);
+                    if(!blocker.isEmpty() && !includeBlocked) continue;
+
+                    out.add(blocker.isEmpty()
+                        ? content.localizedName + " (" + content.name + ")"
+                        : content.localizedName + " [scarlet]— " + blocker + "[] (" + content.name + ")");
                 }
                 if(out.size >= limit) break;
             }
@@ -177,9 +179,14 @@ public class CampaignVote{
         return out;
     }
 
+    /** @return only the targets that can be used right now. */
+    public static Seq<String> search(Kind kind, @Nullable String query, int limit){
+        return search(kind, query, limit, false);
+    }
+
     /** @return a localized one-line "did you mean" hint, or "" when nothing is close. */
     public static String suggest(Kind kind, @Nullable String query){
-        Seq<String> found = search(kind, query, 4);
+        Seq<String> found = search(kind, query, 4, false);
         return found.isEmpty() ? "" : "\n" + I18n.get("campaign.vote.suggest", found.toString(", "));
     }
 
