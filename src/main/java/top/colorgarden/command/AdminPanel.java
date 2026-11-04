@@ -72,7 +72,7 @@ public class AdminPanel{
         if(!available || player == null || player.con == null) return;
 
         String message = I18n.get("campaign.admin.message",
-            CampaignConfig.data().voteDecision, (int)CampaignConfig.data().voteDuration,
+            I18n.get("campaign.decision." + CampaignConfig.data().voteDecision), (int)CampaignConfig.data().voteDuration,
             ActivityTracker.activeCount(), mindustry.gen.Groups.player.size());
 
         String[][] options = {
