@@ -691,7 +691,10 @@ public class CampaignCommands{
             for(String key : new String[]{
                 "campaign.clienthelp.sector", "campaign.clienthelp.sectors", "campaign.clienthelp.campaign",
                 "campaign.clienthelp.research", "campaign.clienthelp.vote", "campaign.clienthelp.destination",
-                "campaign.clienthelp.save", "campaign.clienthelp.planets", "campaign.clienthelp.planet"}){
+                "campaign.clienthelp.save", "campaign.clienthelp.planets", "campaign.clienthelp.planet",
+                "campaign.clienthelp.resources", "campaign.clienthelp.sectorinfo", "campaign.clienthelp.admin",
+                "campaign.clienthelp.jump", "campaign.clienthelp.sim", "campaign.clienthelp.difficulty",
+                "campaign.clienthelp.rule", "campaign.clienthelp.help"}){
                 builder.append("\n").append(I18n.get(key));
             }
             player.sendMessage(builder.toString());
