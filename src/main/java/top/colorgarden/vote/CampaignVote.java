@@ -43,19 +43,32 @@ public class CampaignVote{
         sector, research, planet, destination, redirect, pause, wave, abandon
     }
 
-    /** The vote that is currently running, if any. */
-    private static @Nullable Vote current;
+    /** Votes that are currently running; several kinds may run in parallel. */
+    private static final Seq<Vote> votes = new Seq<>();
     /** Cooldown end time per player uuid. */
     private static final ObjectMap<String, Long> cooldownUntil = new ObjectMap<>();
 
     public static void init(){
-        Events.on(ResetEvent.class, event -> current = null);
+        Events.on(ResetEvent.class, event -> votes.clear());
         Events.run(Trigger.update, CampaignVote::update);
         VoteMenu.init();
     }
 
     public static @Nullable Vote active(){
-        return current;
+        return votes.isEmpty() ? null : votes.peek();
+    }
+
+    /** @return a snapshot of the running votes, oldest first. */
+    public static Seq<Vote> activeVotes(){
+        return votes.copy();
+    }
+
+    /** @return true when a vote of this kind is already running. */
+    public static boolean running(Kind kind){
+        for(Vote vote : votes){
+            if(vote.kind == kind) return true;
+        }
+        return false;
     }
 
     /**
@@ -222,7 +235,7 @@ public class CampaignVote{
         if(!votingEnabled(kind)){
             return I18n.get("campaign.vote.kind-disabled");
         }
-        if(current != null) return I18n.get("campaign.vote.in-progress");
+        if(votes.size > 0 && running(kind)) return I18n.get("campaign.vote.in-progress");
         if(top.colorgarden.core.ActivityTracker.activeCount() < Math.max(1, config.voteMinPlayers)){
             return I18n.get("campaign.vote.not-enough-players");
         }
@@ -325,7 +338,7 @@ public class CampaignVote{
         vote.pushAt = vote.endsAt - (long)(Math.max(0f, config.votePushSeconds) * 1000f);
         vote.yes.add(starter.uuid());
 
-        current = vote;
+        votes.add(vote);
 
         announce(I18n.get("campaign.vote.started", starter.plainName(), describe(vote), requiredVotes(), Groups.player.size()));
 
@@ -336,11 +349,10 @@ public class CampaignVote{
         //a ballot that is already decided (a lone player, or everyone has voted) should not wait for
         //the idle timeout; resolve on the next frame so the world is not reloaded inside a command
         arc.Core.app.post(() -> {
-            Vote running = current;
-            if(running != vote) return;
+            if(!votes.contains(vote)) return;
 
-            Boolean decided = decide(running);
-            if(decided != null) finish(decided, decided ? null : failReason(running));
+            Boolean decided = decide(vote);
+            if(decided != null) finish(vote, decided, decided ? null : failReason(vote));
         });
 
         return null;
@@ -353,12 +365,16 @@ public class CampaignVote{
      * @return null on success, otherwise a player-readable reason.
      */
     public static @Nullable String cast(Player player, String choice){
-        Vote vote = current;
+        return cast(player, choice, active());
+    }
+
+    /** Casts a vote on one specific vote (needed while several run in parallel). */
+    public static @Nullable String cast(Player player, String choice, @Nullable Vote vote){
         if(vote == null) return I18n.get("campaign.vote.no-vote");
 
         if("cancel".equalsIgnoreCase(choice)){
             if(!player.admin) return I18n.get("campaign.vote.cancel-admin-only");
-            finish(false, I18n.get("campaign.vote.cancelled-by", player.plainName()));
+            finish(vote, false, I18n.get("campaign.vote.cancelled-by", player.plainName()));
             return null;
         }
 
@@ -387,9 +403,9 @@ public class CampaignVote{
         Boolean decided = decide(vote);
         if(decided == null){
             push();
-            VoteMenu.pushVote();
+            if(vote.pushed) VoteMenu.pushVote();
         }else{
-            finish(decided, decided ? null : failReason(vote));
+            finish(vote, decided, decided ? null : failReason(vote));
         }
 
         return null;
@@ -397,34 +413,46 @@ public class CampaignVote{
 
     /** Cancels the running vote; {@code by} may be null for the console. */
     public static boolean cancel(@Nullable Player by){
-        if(current == null) return false;
-        finish(false, by == null ? I18n.get("campaign.vote.cancelled-console-reason")
+        return cancel(by, active());
+    }
+
+    /** Cancels one specific vote; {@code by} may be null for the console. */
+    public static boolean cancel(@Nullable Player by, @Nullable Vote vote){
+        if(vote == null) return false;
+        finish(vote, false, by == null ? I18n.get("campaign.vote.cancelled-console-reason")
             : I18n.get("campaign.vote.cancelled-by", by.plainName()));
         return true;
     }
 
     /** Called every tick on the server. */
     public static void update(){
-        Vote vote = current;
-        if(vote == null) return;
+        if(votes.isEmpty()) return;
 
         long now = Time.millis();
-
-        if(now >= vote.endsAt){
-            Boolean decided = decide(vote);
-            finish(decided != null && decided, decided == null || !decided
-                ? I18n.get("campaign.vote.expired") : null);
-            return;
-        }
-
         float timeout = CampaignConfig.data().voteTimeout;
-        if(timeout > 0f && now - vote.lastCastAt >= (long)(timeout * 1000f)){
-            Boolean decided = decide(vote);
-            if(decided == null) decided = fallback(vote);
-            finish(decided, decided ? null : I18n.get("campaign.vote.timeout-no", vote.yes.size, vote.no.size));
+
+        //every vote runs on its own clock, so several can be settled in the same tick
+        for(Vote vote : votes.copy()){
+            //pop that ballot once, when the configured tail of its window starts
+            if(!vote.pushed && now >= vote.pushAt){
+                vote.pushed = true;
+                VoteMenu.pushVote(vote);
+            }
+
+            if(now >= vote.endsAt){
+                Boolean decided = decide(vote);
+                finish(vote, decided != null && decided, decided == null || !decided
+                    ? I18n.get("campaign.vote.expired") : null);
+                continue;
+            }
+
+            if(timeout > 0f && now - vote.lastCastAt >= (long)(timeout * 1000f)){
+                Boolean decided = decide(vote);
+                if(decided == null) decided = fallback(vote);
+                finish(vote, decided, decided ? null : I18n.get("campaign.vote.timeout-no", vote.yes.size, vote.no.size));
+            }
         }
     }
-
     /**
      * @return TRUE to pass, FALSE to fail, NULL while the vote should keep running, according to
      *         {@code voteDecision}.
@@ -483,8 +511,7 @@ public class CampaignVote{
     }
 
     /** @return the player who started the vote, when they are still online. */
-    private static @Nullable Player starter(){
-        Vote vote = current;
+    private static @Nullable Player starter(@Nullable Vote vote){
         if(vote == null) return null;
 
         for(Player player : Groups.player){
@@ -494,10 +521,9 @@ public class CampaignVote{
         return null;
     }
 
-    private static void finish(boolean passed, @Nullable String reason){
-        Vote vote = current;
-        current = null;
+    private static void finish(@Nullable Vote vote, boolean passed, @Nullable String reason){
         if(vote == null) return;
+        votes.remove(vote);
 
         //the cooldown starts when the result is known, not at the planned end of the voting window
         if(vote.starterUuid != null){
@@ -524,7 +550,7 @@ public class CampaignVote{
                 }
                 //the starter picks the core/cargo for a sector that has to be generated, exactly like
                 //vanilla only asks the player who launches
-                SectorService.enter(starter(), sector);
+                SectorService.enter(starter(vote), sector);
             }else if(vote.kind == Kind.planet){
                 Planet planet = SectorService.planetByName(vote.arg);
                 Sector destination = SectorService.targetFor(planet);

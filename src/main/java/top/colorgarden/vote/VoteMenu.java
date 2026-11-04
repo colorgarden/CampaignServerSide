@@ -32,6 +32,10 @@ public class VoteMenu{
     /** Entries per list page: the dialog gets tall fast. */
     private static final int perPage = 6;
 
+    /** Which vote each player is currently answering. */
+    private static final arc.struct.ObjectMap<Player, CampaignVote.Vote> viewing = new arc.struct.ObjectMap<>();
+
+    private static int votesId = -1;
     private static int mainId = -1, listId = -1, confirmId = -1, voteId = -1, searchId = -1;
     private static int difficultyId = -1, rulesId = -1;
     private static boolean available;
@@ -144,27 +148,41 @@ public class VoteMenu{
         Call.followUpMenu(player.con, mainId, I18n.get("campaign.menu.title"), message, options);
     }
 
-    /** Pushes the running-vote ballot to everyone online. */
+    /** Pushes the ballot of every running vote to the players that still have to cast one. */
     public static void pushVote(){
-        CampaignVote.Vote vote = CampaignVote.active();
+        for(CampaignVote.Vote vote : CampaignVote.activeVotes()){
+            pushVote(vote);
+        }
+    }
+
+    /** Pushes one vote's ballot to everyone who has not voted on it yet. */
+    public static void pushVote(CampaignVote.Vote vote){
         if(!available || vote == null) return;
 
         //idle players are not asked; their vote cannot be required anyway
         for(Player player : Groups.player){
-            if(!top.colorgarden.core.ActivityTracker.isAfk(player)) pushVoteTo(player);
+            if(!top.colorgarden.core.ActivityTracker.isAfk(player)) pushVoteTo(player, vote);
         }
     }
 
     /** Pushes the ballot to one player, unless they already voted on it. */
     public static void pushVoteTo(Player player){
-        if(player == null) return;
-        //the ballot is built in the player's own language
-        I18n.withLocale(I18n.localeOf(player), () -> pushVoteToLocalized(player));
+        pushVoteTo(player, CampaignVote.active());
     }
 
-    private static void pushVoteToLocalized(Player player){
-        CampaignVote.Vote vote = CampaignVote.active();
+    public static void pushVoteTo(Player player, @Nullable CampaignVote.Vote vote){
+        if(player == null || vote == null) return;
+
+        //the player answers whichever vote they were shown
+        viewing.put(player, vote);
+        //the ballot is built in the player's own language
+        I18n.withLocale(I18n.localeOf(player), () -> pushVoteToLocalized(player, vote));
+    }
+
+    private static void pushVoteToLocalized(Player player, CampaignVote.Vote vote){
         if(!available || player == null || player.con == null || vote == null) return;
+
+        if(!CampaignVote.activeVotes().contains(vote)) return;
 
         //the starter already counted a yes; re-popping the ballot for them is just noise
         if(vote.yes.contains(player.uuid()) || vote.no.contains(player.uuid())) return;
@@ -183,12 +201,15 @@ public class VoteMenu{
 
     /** Closes the ballot for one player, right after they voted. */
     public static void hideVote(Player player){
+        if(player != null) viewing.remove(player);
         hide(player, voteId);
     }
 
     /** Closes the ballot on every client once the vote is over. */
     public static void hideVote(){
         if(!available) return;
+
+        viewing.clear();
 
         for(Player player : Groups.player){
             if(player != null && player.con != null){
@@ -241,14 +262,7 @@ public class VoteMenu{
                     askConfirm(player, CampaignVote.Kind.abandon, "", I18n.get("campaign.vote.abandon-label", current.name()));
                 }
             }
-            case 8 -> {
-                CampaignVote.Vote vote = CampaignVote.active();
-                if(vote == null){
-                    player.sendMessage(I18n.get("campaign.vote.info-none"));
-                }else{
-                    pushVoteTo(player);
-                }
-            }
+            case 8 -> openVotes(player);
             case 9 -> {
                 if(player.admin) openDifficulty(player);
             }
@@ -457,19 +471,73 @@ public class VoteMenu{
     private static void onVote(Player player, int option){
         if(option < 0) return; //closed with back/ESC
 
-        if(option == 0){
-            String problem = CampaignVote.cast(player, "y");
-            if(problem != null) player.sendMessage("[scarlet]" + problem);
+        CampaignVote.Vote vote = viewing.get(player);
+
+        //the vote may have been settled or cancelled while the ballot was on screen
+        if(vote == null || !CampaignVote.activeVotes().contains(vote)){
+            viewing.remove(player);
             hide(player, voteId);
-        }else if(option == 1){
-            String problem = CampaignVote.cast(player, "n");
-            if(problem != null) player.sendMessage("[scarlet]" + problem);
-            hide(player, voteId);
-        }else{
-            hide(player, voteId);
+            player.sendMessage(I18n.get("campaign.vote.no-vote"));
+            return;
         }
+
+        if(option == 0 || option == 1){
+            String problem = CampaignVote.cast(player, option == 0 ? "y" : "n", vote);
+            if(problem != null) player.sendMessage("[scarlet]" + problem);
+        }
+
+        viewing.remove(player);
+        hide(player, voteId);
     }
 
+    // ---------------------------------------------------------------- running votes
+
+    /** Opens the list of running votes; the list is rebuilt on every click so settled ones vanish. */
+    private static void openVotes(Player player){
+        if(!available || player == null || player.con == null) return;
+
+        Seq<CampaignVote.Vote> running = CampaignVote.activeVotes();
+        if(running.isEmpty()){
+            hide(player, mainId);
+            player.sendMessage(I18n.get("campaign.vote.info-none"));
+            return;
+        }
+
+        Seq<String[]> rows = new Seq<>();
+        for(CampaignVote.Vote vote : running){
+            rows.add(new String[]{I18n.get("campaign.menu.vote-entry", CampaignVote.describe(vote),
+                vote.yes.size, CampaignVote.requiredVotes(), vote.secondsLeft())});
+        }
+        rows.add(new String[]{I18n.get("campaign.menu.show-all"), I18n.get("campaign.menu.close")});
+
+        hide(player, mainId);
+        Call.followUpMenu(player.con, votesId, I18n.get("campaign.menu.vote-list-title"),
+            I18n.get("campaign.menu.vote-list-hint"), rows.toArray(String[].class));
+    }
+
+    private static void onVotes(Player player, int option){
+        if(option < 0) return;
+
+        Seq<CampaignVote.Vote> running = CampaignVote.activeVotes();
+        if(option >= running.size){
+            hide(player, votesId);
+            if(option == running.size) openMain(player);
+            return;
+        }
+
+        CampaignVote.Vote vote = running.get(option);
+
+        //the list may be stale: the vote could have been settled or cancelled meanwhile
+        if(!CampaignVote.activeVotes().contains(vote)){
+            hide(player, votesId);
+            openVotes(player);
+            player.sendMessage(I18n.get("campaign.vote.no-vote"));
+            return;
+        }
+
+        hide(player, votesId);
+        pushVoteTo(player, vote);
+    }
     private static void onSearch(Player player, String text){
         ListState state = listStates.get(player);
         if(state == null) return;
