@@ -423,6 +423,44 @@ public class SectorService{
         return sector.isShielded() ? "shielded" : "locked";
     }
 
+    /**
+     * Clears {@code SectorInfo#spawnPosition} so the next generation picks a spawn marker again.
+     *
+     * @param selector null for the current sector, "all" for every sector of the current planet,
+     *                 otherwise anything {@link #resolve} understands
+     * @return how many sectors were cleared
+     */
+    public static int clearSpawnPositions(@Nullable String selector){
+        int count = 0;
+
+        if(selector == null || selector.trim().isEmpty()){
+            Sector current = current();
+            if(current != null){
+                current.info.spawnPosition = 0;
+                current.saveInfo();
+                count = 1;
+            }
+            return count;
+        }
+
+        Planet planet = planet();
+        if(planet == null) return 0;
+
+        for(Sector sector : planet.sectors){
+            if(sector == null) continue;
+
+            if(!"all".equalsIgnoreCase(selector)){
+                Sector target = resolve(selector);
+                if(target != sector) continue;
+            }
+
+            sector.info.spawnPosition = 0;
+            sector.saveInfo();
+            count ++;
+        }
+
+        return count;
+    }
     // ---------------------------------------------------------------- launch hints
 
     /**

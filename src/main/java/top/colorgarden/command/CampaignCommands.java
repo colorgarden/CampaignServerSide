@@ -534,6 +534,10 @@ public class CampaignCommands{
             }
         });
 
+        handler.register("campaign-respawn", "[sector|all]", "Clear the stored spawn position so the next generation rerolls it.", args -> {
+            int count = SectorService.clearSpawnPositions(args.length > 0 ? args[0] : null);
+            info("campaign.spawn.cleared", count);
+        });
         handler.register("campaign-difficulty", "[name]", "Show or set the campaign difficulty.", args -> {
             mindustry.game.Difficulty current = SectorService.difficulty();
             info("campaign.difficulty.current", I18n.get("campaign.difficulty." + current.name()));
