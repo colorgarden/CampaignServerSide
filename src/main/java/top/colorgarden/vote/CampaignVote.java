@@ -85,7 +85,7 @@ public class CampaignVote{
 
     /** @return how many yes votes are needed right now. */
     public static int requiredVotes(){
-        return requiredVotes(Groups.player.size());
+        return requiredVotes(Math.max(1, top.colorgarden.core.ActivityTracker.activeCount()));
     }
 
     /**
@@ -131,14 +131,14 @@ public class CampaignVote{
                 //vanilla only offers content of the current planet (the tech tree is shared by all)
                 if(!ResearchService.shownOnPlanet(content, planet)) continue;
 
-                if(matches(content.name, content.localizedName, needle)){
+                if(matches(content.name, I18n.content(content), needle)){
                     //locked entries stay in the list, marked with the prerequisite that is missing
                     String blocker = ResearchService.shortBlocker(content);
                     if(!blocker.isEmpty() && !includeBlocked) continue;
 
                     out.add(blocker.isEmpty()
-                        ? content.localizedName + " (" + content.name + ")"
-                        : content.localizedName + " [scarlet]— " + blocker + "[] (" + content.name + ")");
+                        ? I18n.content(content)
+                        : I18n.content(content) + " [scarlet]— " + blocker + "[]");
                 }
                 if(out.size >= limit) break;
             }
@@ -171,8 +171,8 @@ public class CampaignVote{
             if(sector == null || sector == playing) continue;
             if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
 
-            if(matches(preset.name, preset.localizedName, needle) || matches(String.valueOf(sector.id), "", needle)){
-                out.add(preset.localizedName + " (" + currentPlanet.name + ":" + sector.id + ")");
+            if(matches(preset.name, I18n.content(preset), needle) || matches(String.valueOf(sector.id), "", needle)){
+                out.add(I18n.content(preset) + " (" + currentPlanet.name + ":" + sector.id + ")");
             }
             if(out.size >= limit) break;
         }
@@ -209,7 +209,9 @@ public class CampaignVote{
             return I18n.get("campaign.vote.kind-disabled");
         }
         if(current != null) return I18n.get("campaign.vote.in-progress");
-        if(Groups.player.size() < Math.max(1, config.voteMinPlayers)) return I18n.get("campaign.vote.not-enough-players");
+        if(top.colorgarden.core.ActivityTracker.activeCount() < Math.max(1, config.voteMinPlayers)){
+            return I18n.get("campaign.vote.not-enough-players");
+        }
 
         Long until = cooldownUntil.get(starter.uuid());
         if(until != null && Time.millis() < until){
@@ -267,19 +269,19 @@ public class CampaignVote{
         }else{
             UnlockableContent content = ResearchService.find(target);
             if(content == null) return I18n.get("campaign.vote.no-such-content", target) + suggest(kind, target);
-            if(content instanceof SectorPreset) return I18n.get("campaign.research.sector-preset", content.localizedName);
+            if(content instanceof SectorPreset) return I18n.get("campaign.research.sector-preset", I18n.content(content));
             if(ResearchService.autoUnlockable(content.techNode)){
-                return I18n.get("campaign.research.auto", content.localizedName);
+                return I18n.get("campaign.research.auto", I18n.content(content));
             }
             if(!ResearchService.shownOnPlanet(content, SectorService.planet())){
-                return I18n.get("campaign.research.other-planet", content.localizedName);
+                return I18n.get("campaign.research.other-planet", I18n.content(content));
             }
             if(CampaignConfig.data().researchStrict && !content.unlocked()){
                 String blocker = ResearchService.researchBlocker(content);
                 if(blocker != null) return blocker;
             }
             resolved = content.name;
-            label = content.localizedName;
+            label = I18n.content(content);
         }
 
         Vote vote = new Vote();
@@ -293,6 +295,7 @@ public class CampaignVote{
         vote.yes.add(starter.uuid());
 
         current = vote;
+        //placeholder until the vote ends: the real cooldown starts when the result is known
         cooldownUntil.put(starter.uuid(), vote.endsAt + (long)(config.voteCooldown * 1000f));
 
         announce(I18n.get("campaign.vote.started", starter.plainName(), describe(vote), requiredVotes(), Groups.player.size()));
@@ -398,23 +401,28 @@ public class CampaignVote{
      *         {@code voteDecision}.
      */
     private static @Nullable Boolean decide(Vote vote){
-        int online = Math.max(1, Groups.player.size());
+        int online = Math.max(1, top.colorgarden.core.ActivityTracker.activeCount());
         int required = requiredVotes(online);
+
+        int yes = vote.yes.size, no = vote.no.size;
+        int remaining = Math.max(0, online - yes - no);
         String mode = CampaignConfig.data().voteDecision;
 
+        //enough yes votes: the result cannot change any more
+        if(yes >= required) return true;
+        //not even every remaining player voting yes could reach the bar
+        if(yes + remaining < required) return false;
+
         if("veto".equals(mode)){
-            if(!vote.no.isEmpty()) return false;
-            return vote.yes.size >= required ? Boolean.TRUE : null;
+            return no > 0 ? Boolean.FALSE : null;
         }
 
         if("majority".equals(mode)){
-            if(vote.yes.size + vote.no.size >= online) return vote.yes.size > vote.no.size;
-            return null;
+            //everyone who counts has voted
+            return yes + no >= online ? Boolean.valueOf(yes > no) : null;
         }
 
-        if(vote.yes.size >= required) return true;
-        if(vote.no.size >= required) return false;
-        return null;
+        return no >= required ? Boolean.FALSE : null;
     }
 
     /** Resolution when a timed-out vote is still undecided. */
@@ -447,6 +455,12 @@ public class CampaignVote{
         Vote vote = current;
         current = null;
         if(vote == null) return;
+
+        //the cooldown starts when the result is known, not at the planned end of the voting window
+        if(vote.starterUuid != null){
+            cooldownUntil.put(vote.starterUuid,
+                Time.millis() + (long)(CampaignConfig.data().voteCooldown * 1000f));
+        }
 
         if(!passed){
             announce(I18n.get("campaign.vote.failed", describe(vote), reason == null ? I18n.get("campaign.vote.not-enough") : reason));
@@ -509,16 +523,16 @@ public class CampaignVote{
                 if(CampaignConfig.data().researchStrict && !content.unlocked()){
                     UnlockableContent blocker = ResearchService.lockedParent(content);
                     if(blocker != null){
-                        announce(I18n.get("campaign.research.parent-locked", blocker.localizedName));
+                        announce(I18n.get("campaign.research.parent-locked", I18n.content(blocker)));
                         return;
                     }
                 }
                 ResearchService.research(content, true);
                 if(content.unlocked()){
-                    announce(I18n.get("campaign.vote.researched", content.localizedName));
+                    announce(I18n.get("campaign.vote.researched", I18n.content(content)));
                 }else{
                     //partial payment, exactly like vanilla: the missing part stays as progress
-                    announce(I18n.get("campaign.vote.research-partial", content.localizedName,
+                    announce(I18n.get("campaign.vote.research-partial", I18n.content(content),
                         ResearchService.formatStacks(ResearchService.missing(content))));
                 }
             }

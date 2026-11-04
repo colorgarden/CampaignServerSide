@@ -95,13 +95,13 @@ public class VoteMenu{
 
     public static void init(){
         try{
-            mainId = Menus.registerMenu(VoteMenu::onMain);
-            listId = Menus.registerMenu(VoteMenu::onList);
-            confirmId = Menus.registerMenu(VoteMenu::onConfirm);
-            voteId = Menus.registerMenu(VoteMenu::onVote);
-            searchId = Menus.registerTextInput(VoteMenu::onSearch);
-            difficultyId = Menus.registerMenu(VoteMenu::onDifficulty);
-            rulesId = Menus.registerMenu(VoteMenu::onRules);
+            mainId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onMain(p, o)));
+            listId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onList(p, o)));
+            confirmId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onConfirm(p, o)));
+            voteId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onVote(p, o)));
+            searchId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onSearch(p, s)));
+            difficultyId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onDifficulty(p, o)));
+            rulesId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onRules(p, o)));
             available = true;
             Log.info("[CampaignServer] " + I18n.get("campaign.log.menu-ready"));
         }catch(Throwable t){
@@ -147,13 +147,20 @@ public class VoteMenu{
         CampaignVote.Vote vote = CampaignVote.active();
         if(!available || vote == null) return;
 
+        //idle players are not asked; their vote cannot be required anyway
         for(Player player : Groups.player){
-            pushVoteTo(player);
+            if(!top.colorgarden.core.ActivityTracker.isAfk(player)) pushVoteTo(player);
         }
     }
 
     /** Pushes the ballot to one player, unless they already voted on it. */
     public static void pushVoteTo(Player player){
+        if(player == null) return;
+        //the ballot is built in the player's own language
+        I18n.withLocale(I18n.localeOf(player), () -> pushVoteToLocalized(player));
+    }
+
+    private static void pushVoteToLocalized(Player player){
         CampaignVote.Vote vote = CampaignVote.active();
         if(!available || player == null || player.con == null || vote == null) return;
 

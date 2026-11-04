@@ -68,6 +68,7 @@ public class CampaignHooks{
         installUsageHandler();
         installChatBallot();
         CampaignVote.init();
+        top.colorgarden.command.AdminPanel.init();
         AnnounceService.init();
 
         Events.on(ServerLoadEvent.class, event -> onServerLoad());
@@ -80,6 +81,8 @@ public class CampaignHooks{
             if(event.player != null){
                 pendingJoinInfo.remove(event.player);
                 VoteMenu.forget(event.player);
+                ActivityTracker.forget(event.player);
+                top.colorgarden.command.AdminPanel.forget(event.player);
             }
         });
         Events.on(WorldLoadEvent.class, event -> applyLogicRules());
@@ -440,6 +443,7 @@ public class CampaignHooks{
 
     private static void update(){
         flushJoinInfo();
+        top.colorgarden.core.ActivityTracker.update();
 
         //vanilla runs Control#checkAutoUnlocks continuously on the client; a server has to poll it
         autoUnlockTimer += Time.delta;

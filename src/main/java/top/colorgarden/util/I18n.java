@@ -6,6 +6,7 @@ package top.colorgarden.util;
 
 import arc.Core;
 import arc.struct.Seq;
+import arc.util.Nullable;
 import arc.util.Strings;
 import mindustry.ctype.Content;
 import mindustry.ctype.ContentType;
@@ -32,11 +33,16 @@ public class I18n{
     private static final Properties translated = new Properties();
     /** Content display names (game keys such as {@code block.conveyor.name}), see {@link #localizeContent()}. */
     private static final Properties contentNames = new Properties();
+    /** Per-locale message and content-name tables, cached for the languages clients actually use. */
+    private static final arc.struct.ObjectMap<String, Properties> perLocale = new arc.struct.ObjectMap<>();
+    private static final arc.struct.ObjectMap<String, Properties> perLocaleContent = new arc.struct.ObjectMap<>();
+    /** Locale of the player currently being served; null means "use the server language". */
+    private static @Nullable String activeLocale;
     private static boolean loaded;
-    private static String language = "auto";
+    private static String language = "en";
 
     public static void load(String configuredLanguage){
-        language = configuredLanguage == null ? "auto" : configuredLanguage;
+        language = configuredLanguage == null || configuredLanguage.isEmpty() ? "en" : configuredLanguage;
         if(loaded) return;
         loaded = true;
 
@@ -52,6 +58,75 @@ public class I18n{
         if(!code.isEmpty()){
             read("i18n/content_" + code + ".properties", contentNames);
         }
+    }
+
+    /**
+     * Runs {@code body} with messages resolved in this player's language. Everything the plugin sends
+     * while it runs uses that locale, then the previous one is restored.
+     */
+    public static void withLocale(@Nullable String locale, Runnable body){
+        String previous = activeLocale;
+        activeLocale = normalize(locale);
+        try{
+            body.run();
+        }finally{
+            activeLocale = previous;
+        }
+    }
+
+    /** @return the locale code for a player (may be null/unknown, which means English). */
+    public static @Nullable String localeOf(@Nullable mindustry.gen.Player player){
+        return player == null ? null : normalize(player.locale);
+    }
+
+    /** @return the message table for a client locale, English when nothing matches. */
+    private static Properties tableFor(@Nullable String code){
+        Properties table = perLocale.get("default");
+        if(table == null){
+            table = english;
+            perLocale.put("default", table);
+        }
+
+        if(code == null || code.isEmpty()) return table;
+
+        Properties found = perLocale.get(code);
+        if(found != null) return found;
+
+        Properties custom = new Properties();
+        custom.putAll(english);
+        read("bundles/bundle_" + code + ".properties", custom);
+        perLocale.put(code, custom);
+        return custom;
+    }
+
+    /** @return the content-name table for a client locale, English when nothing matches. */
+    private static Properties contentTableFor(@Nullable String code){
+        if(code == null || code.isEmpty()) return contentNames;
+
+        Properties found = perLocaleContent.get(code);
+        if(found != null) return found;
+
+        Properties custom = new Properties();
+        custom.putAll(contentNames);
+        read("i18n/content_" + code + ".properties", custom);
+        perLocaleContent.put(code, custom);
+        return custom;
+    }
+
+    /** @return the localized display name of a content entry for the active locale. */
+    public static String content(@Nullable UnlockableContent value){
+        if(value == null) return "";
+        if(activeLocale == null) return value.localizedName;
+
+        String found = contentTableFor(activeLocale).getProperty(value.getContentType() + "." + value.name + ".name");
+        return found != null ? found : value.localizedName;
+    }
+
+    private static String normalize(@Nullable String locale){
+        if(locale == null) return null;
+        String trimmed = locale.trim().replace('-', '_');
+        if(trimmed.isEmpty() || "default".equalsIgnoreCase(trimmed) || "auto".equalsIgnoreCase(trimmed)) return null;
+        return trimmed;
     }
 
     /**
@@ -90,15 +165,21 @@ public class I18n{
     }
 
     private static String lookup(String key){
-        //1. the language selected for this installation
+        //1. the language of the client currently being served, when there is one
+        if(activeLocale != null){
+            String value = tableFor(activeLocale).getProperty(key);
+            if(value != null) return value;
+        }
+
+        //2. the language selected for this installation
         String value = translated.getProperty(key);
         if(value != null) return value;
 
-        //2. the english fallback that ships with the mod
+        //3. the english fallback that ships with the mod
         value = english.getProperty(key);
         if(value != null) return value;
 
-        //3. the game bundle, which also contains the mod bundle merged by Mindustry on a client
+        //4. the game bundle, which also contains the mod bundle merged by Mindustry on a client
         try{
             if(Core.bundle != null){
                 return Core.bundle.getOrNull(key);

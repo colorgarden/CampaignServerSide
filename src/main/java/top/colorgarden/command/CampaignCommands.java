@@ -284,7 +284,7 @@ public class CampaignCommands{
             }
 
             if(ResearchService.autoUnlockable(unlockable.techNode)){
-                err("campaign.research.auto", unlockable.localizedName);
+                err("campaign.research.auto", I18n.content(unlockable));
                 return;
             }
 
@@ -300,11 +300,11 @@ public class CampaignCommands{
 
             boolean changed = ResearchService.research(unlockable, true);
             if(changed){
-                info("campaign.research.ok", unlockable.localizedName);
+                info("campaign.research.ok", I18n.content(unlockable));
             }else if(!unlockable.unlocked()){
                 err("campaign.research.missing", formatStacks(ResearchService.missing(unlockable)));
             }else{
-                info("campaign.research.already", unlockable.localizedName);
+                info("campaign.research.already", I18n.content(unlockable));
             }
         });
 
@@ -321,7 +321,7 @@ public class CampaignCommands{
             }
 
             ResearchService.relock(unlockable);
-            info("campaign.research.relocked", unlockable.localizedName);
+            info("campaign.research.relocked", I18n.content(unlockable));
         });
 
         handler.register("campaign-relock-all", "Lock every research entry again and clear its cost progress.", args -> {
@@ -332,7 +332,7 @@ public class CampaignCommands{
         handler.register("campaign-unlocked", "List the research entries that are unlocked right now.", args -> {
             Seq<String> names = new Seq<>();
             for(UnlockableContent unlockable : ResearchService.unlockedNow()){
-                names.add(unlockable.localizedName);
+                names.add(I18n.content(unlockable));
             }
             names.sort();
             info("campaign.research.unlocked-list", names.size, names.toString(", "));
@@ -477,7 +477,7 @@ public class CampaignCommands{
                 float exported = exports.get(item, 0f);
                 if(amount <= 0 && produced <= 0f && exported <= 0f) continue;
                 any = true;
-                info("campaign.resources.line", item.localizedName, amount, produced, exported);
+                info("campaign.resources.line", I18n.content(item), amount, produced, exported);
             }
             if(!any) info("campaign.resources.none");
         });
@@ -497,7 +497,7 @@ public class CampaignCommands{
                 float imported = sector.info.getImportRate(sector.planet, item) * 60f;
                 if(amount <= 0 && produced <= 0f && exported <= 0f && imported <= 0f) continue;
                 any = true;
-                info("campaign.sectorinfo.item", item.localizedName, amount, produced, exported, imported);
+                info("campaign.sectorinfo.item", I18n.content(item), amount, produced, exported, imported);
             }
             if(!any) info("campaign.resources.none");
         });
@@ -622,7 +622,8 @@ public class CampaignCommands{
             info("campaign.config.lock", config.enforceSectorUnlock, config.adminBypassLock, config.launchPadLinking);
             info("campaign.config.logic", config.worldProcessors);
             info("campaign.config.pause", config.pauseWhenEmpty);
-            info("campaign.config.votes", config.voteDecision, config.voteTimeout);
+            info("campaign.config.votes", config.voteDecision, config.voteTimeout, config.voteCooldown,
+                config.afkEnabled ? (int)config.afkSeconds : "-");
             info("campaign.config.planet", config.allowPlanetSwitch, config.planetSwitchAdminOnly, config.votePlanet);
             info("campaign.config.research", config.researchCosts, config.researchStrict);
             info("campaign.config.file", CampaignConfig.location() == null ? "-" : CampaignConfig.location().path());
@@ -636,8 +637,24 @@ public class CampaignCommands{
 
     // ---------------------------------------------------------------- in-game
 
+    /**
+     * Registers a player command whose replies are resolved in that player's own language; the
+     * previous language is restored afterwards so the console keeps the server language.
+     */
+    private static void client(CommandHandler handler, String name, String params, String description,
+                               arc.util.CommandHandler.CommandRunner<Player> runner){
+        handler.<Player>register(name, params, description,
+            (args, player) -> I18n.withLocale(I18n.localeOf(player), () -> runner.accept(args, player)));
+    }
+
+    /** Same, for commands without parameters. */
+    private static void client(CommandHandler handler, String name, String description,
+                               arc.util.CommandHandler.CommandRunner<Player> runner){
+        client(handler, name, "", description, runner);
+    }
+
     public static void registerClient(CommandHandler handler){
-        handler.<Player>register("sector", "<name|id>", "[admin] Switch the campaign sector.", (args, player) -> {
+        client(handler, "sector", "<name|id>", "[admin] Switch the campaign sector.", (args, player) -> {
             if(!requirePermission(player, CampaignConfig.data().sectorSwitchAdminOnly)) return;
             if(!CampaignConfig.data().allowSectorSwitch){
                 player.sendMessage(I18n.get("campaign.error.switch-disabled"));
@@ -656,7 +673,7 @@ public class CampaignCommands{
             }
         });
 
-        handler.<Player>register("campaignhelp", "List the campaign chat commands.", (args, player) -> {
+        client(handler, "campaignhelp", "List the campaign chat commands.", (args, player) -> {
             StringBuilder builder = new StringBuilder(I18n.get("campaign.clienthelp.header"));
             for(String key : new String[]{
                 "campaign.clienthelp.sector", "campaign.clienthelp.sectors", "campaign.clienthelp.campaign",
@@ -667,7 +684,7 @@ public class CampaignCommands{
             player.sendMessage(builder.toString());
         });
 
-        handler.<Player>register("planets", "List the planets that take part in the campaign.", (args, player) -> {
+        client(handler, "planets", "List the planets that take part in the campaign.", (args, player) -> {
             Planet currentPlanet = SectorService.planet();
             StringBuilder builder = new StringBuilder(I18n.get("campaign.planets.header"));
             for(Planet planet : SectorService.planets()){
@@ -682,7 +699,7 @@ public class CampaignCommands{
             player.sendMessage(builder.toString());
         });
 
-        handler.<Player>register("planet", "<name>", "[admin] Switch the campaign planet.", (args, player) -> {
+        client(handler, "planet", "<name>", "[admin] Switch the campaign planet.", (args, player) -> {
             if(!requirePermission(player, CampaignConfig.data().planetSwitchAdminOnly)) return;
             if(!CampaignConfig.data().allowPlanetSwitch){
                 player.sendMessage(I18n.get("campaign.error.switch-disabled"));
@@ -709,7 +726,7 @@ public class CampaignCommands{
             }
         });
 
-        handler.<Player>register("sectors", "[planet|page] [page]", "List campaign sectors.", (args, player) -> {
+        client(handler, "sectors", "[planet|page] [page]", "List campaign sectors.", (args, player) -> {
             Planet planet = SectorService.planet();
             String pageArg = args.length > 0 ? args[0] : null;
 
@@ -742,7 +759,7 @@ public class CampaignCommands{
             player.sendMessage(builder.toString());
         });
 
-        handler.<Player>register("research", "<name|all>", "[admin] Unlock research.", (args, player) -> {
+        client(handler, "research", "<name|all>", "[admin] Unlock research.", (args, player) -> {
             if(!requirePermission(player, CampaignConfig.data().researchAdminOnly)) return;
             if(!CampaignConfig.data().allowResearch){
                 player.sendMessage(I18n.get("campaign.error.research-disabled"));
@@ -763,17 +780,17 @@ public class CampaignCommands{
             }
 
             if(!ResearchService.shownOnPlanet(unlockable, SectorService.planet())){
-                player.sendMessage(I18n.get("campaign.research.other-planet", unlockable.localizedName));
+                player.sendMessage(I18n.get("campaign.research.other-planet", I18n.content(unlockable)));
                 return;
             }
 
             if(unlockable instanceof mindustry.type.SectorPreset){
-                player.sendMessage(I18n.get("campaign.research.sector-preset", unlockable.localizedName));
+                player.sendMessage(I18n.get("campaign.research.sector-preset", I18n.content(unlockable)));
                 return;
             }
 
             if(ResearchService.autoUnlockable(unlockable.techNode)){
-                player.sendMessage(I18n.get("campaign.research.auto", unlockable.localizedName));
+                player.sendMessage(I18n.get("campaign.research.auto", I18n.content(unlockable)));
                 return;
             }
 
@@ -784,10 +801,10 @@ public class CampaignCommands{
             }
 
             boolean changed = ResearchService.research(unlockable, true);
-            player.sendMessage(I18n.get(changed ? "campaign.client.research.ok" : "campaign.client.research.already", unlockable.localizedName));
+            player.sendMessage(I18n.get(changed ? "campaign.client.research.ok" : "campaign.client.research.already", I18n.content(unlockable)));
         });
 
-        handler.<Player>register("campaign", "Show campaign status.", (args, player) -> {
+        client(handler, "campaign", "Show campaign status.", (args, player) -> {
             Sector sector = SectorService.current();
             if(sector == null){
                 player.sendMessage(I18n.get("campaign.client.not-campaign"));
@@ -805,7 +822,7 @@ public class CampaignCommands{
                 ResearchService.lockedCount(sector.planet)));
         });
 
-        handler.<Player>register("destination", "<name|clear>", "[admin] Set the launch pad destination of this sector.", (args, player) -> {
+        client(handler, "destination", "<name|clear>", "[admin] Set the launch pad destination of this sector.", (args, player) -> {
             if(!requirePermission(player, true)) return;
 
             Sector sector = SectorService.current();
@@ -836,7 +853,7 @@ public class CampaignCommands{
             }
         });
 
-        handler.<Player>register("redirect", "[admin] Point every exporting sector at this one.", (args, player) -> {
+        client(handler, "redirect", "[admin] Point every exporting sector at this one.", (args, player) -> {
             if(!requirePermission(player, true)) return;
 
             Sector sector = SectorService.current();
@@ -850,7 +867,7 @@ public class CampaignCommands{
             CampaignNetwork.pushInfoToAll();
         });
 
-        handler.<Player>register("resources", "[planet]", "Show the total resources of a planet.", (args, player) -> {
+        client(handler, "resources", "[planet]", "Show the total resources of a planet.", (args, player) -> {
             Planet planet = args.length > 0 ? SectorService.planetByName(args[0]) : SectorService.planet();
             if(planet == null){
                 player.sendMessage(I18n.get("campaign.planet.invalid", args.length > 0 ? args[0] : "-"));
@@ -867,12 +884,12 @@ public class CampaignCommands{
                 float produced = production.get(item, 0f);
                 float exported = exports.get(item, 0f);
                 if(amount <= 0 && produced <= 0f && exported <= 0f) continue;
-                builder.append("\n").append(I18n.get("campaign.resources.line", item.localizedName, amount, produced, exported));
+                builder.append("\n").append(I18n.get("campaign.resources.line", I18n.content(item), amount, produced, exported));
             }
             player.sendMessage(builder.toString());
         });
 
-        handler.<Player>register("sectorinfo", "<sector>", "Show storage, production and transport of a sector.", (args, player) -> {
+        client(handler, "sectorinfo", "<sector>", "Show storage, production and transport of a sector.", (args, player) -> {
             Sector sector = SectorService.resolve(args[0]);
             if(sector == null){
                 player.sendMessage(I18n.get("campaign.msg.no-sector-hint"));
@@ -892,18 +909,18 @@ public class CampaignCommands{
                 float exported = sector.info.export.get(item) == null ? 0f : sector.info.export.get(item).mean * 60f;
                 float imported = sector.info.getImportRate(sector.planet, item) * 60f;
                 if(amount <= 0 && produced <= 0f && exported <= 0f && imported <= 0f) continue;
-                builder.append("\n").append(I18n.get("campaign.sectorinfo.item", item.localizedName, amount, produced, exported, imported));
+                builder.append("\n").append(I18n.get("campaign.sectorinfo.item", I18n.content(item), amount, produced, exported, imported));
             }
             player.sendMessage(builder.toString());
         });
 
-        handler.<Player>register("campaignsave", "Save the current sector.", (args, player) -> {
+        client(handler, "campaignsave", "Save the current sector.", (args, player) -> {
             if(!requirePermission(player, true)) return;
 
             player.sendMessage(I18n.get(SectorService.saveCurrent() ? "campaign.client.save-ok" : "campaign.client.save-failed"));
         });
 
-        handler.<Player>register("capture", "Force-capture the current sector.", (args, player) -> {
+        client(handler, "capture", "Force-capture the current sector.", (args, player) -> {
             if(!requirePermission(player, true)) return;
 
             if(SectorService.current() == null){
@@ -920,17 +937,21 @@ public class CampaignCommands{
             }
         });
 
-        handler.<Player>register("cvote", "[option] [args...]", "Vote to switch sector/planet, unlock research or rewire launch pads.", (args, player) -> handleVote(player, args));
-        handler.<Player>register("cv", "[option] [args...]", "Short form of /cvote.", (args, player) -> handleVote(player, args));
+        client(handler, "cvote", "[option] [args...]", "Vote to switch sector/planet, unlock research or rewire launch pads.", (args, player) -> handleVote(player, args));
+        client(handler, "cv", "[option] [args...]", "Short form of /cvote.", (args, player) -> handleVote(player, args));
 
-        handler.<Player>register("sim", "[pause|resume|toggle]", "[admin] Pause or resume the simulation.", (args, player) -> {
+        //admins: the same actions as the console, plus the dialog panel
+        client(handler, "ca", "[sub] [args...]", "[admin] Admin panel and direct actions.", (args, player) -> handleAdmin(player, args));
+        client(handler, "cadmin", "[sub] [args...]", "[admin] Alias of /ca.", (args, player) -> handleAdmin(player, args));
+
+        client(handler, "sim", "[pause|resume|toggle]", "[admin] Pause or resume the simulation.", (args, player) -> {
             if(!requirePermission(player, true)) return;
 
             boolean pause = toggleSimulation(args.length > 0 ? args[0] : "toggle");
             player.sendMessage(I18n.get(pause ? "campaign.sim.paused" : "campaign.sim.resumed"));
         });
 
-        handler.<Player>register("difficulty", "[name]", "[admin] Show or set the campaign difficulty.", (args, player) -> {
+        client(handler, "difficulty", "[name]", "[admin] Show or set the campaign difficulty.", (args, player) -> {
             if(!requirePermission(player, true)) return;
 
             mindustry.game.Difficulty current = SectorService.difficulty();
@@ -951,7 +972,7 @@ public class CampaignCommands{
                 : I18n.get("campaign.difficulty.set", I18n.get("campaign.difficulty." + applied.name())));
         });
 
-        handler.<Player>register("rule", "[name] [on|off]", "[admin] Show or toggle a campaign rule flag.", (args, player) -> {
+        client(handler, "rule", "[name] [on|off]", "[admin] Show or toggle a campaign rule flag.", (args, player) -> {
             if(!requirePermission(player, true)) return;
 
             if(args.length == 0){
@@ -1077,9 +1098,188 @@ public class CampaignCommands{
         player.sendMessage(I18n.get("campaign.vote.usage"));
     }
 
+    /** Handles both {@code /ca} and {@code /cadmin}. */
+    private static void handleAdmin(Player player, String[] args){
+        if(!requirePermission(player, true)) return;
+
+        java.util.List<String> tokens = new java.util.ArrayList<>();
+        for(int i = 1; i < args.length; i++){
+            if(args[i] == null) continue;
+            for(String part : args[i].trim().split("\\s+")){
+                if(!part.isEmpty()) tokens.add(part);
+            }
+        }
+
+        String sub = args.length == 0 || args[0] == null || args[0].trim().isEmpty() ? "menu" : args[0].toLowerCase();
+        String rest = joinFrom(tokens, 0);
+
+        try{
+            switch(sub){
+                case "menu", "m", "panel" -> AdminPanel.openMain(player);
+
+                case "research", "res" -> {
+                    if(rest.isEmpty()){
+                        player.sendMessage(I18n.get("campaign.admin.usage"));
+                        return;
+                    }
+                    if("all".equalsIgnoreCase(rest)){
+                        int count = ResearchService.researchAll(SectorService.planet());
+                        player.sendMessage(I18n.get("campaign.client.research.all", count));
+                        return;
+                    }
+                    UnlockableContent content = ResearchService.find(rest);
+                    if(content == null){
+                        player.sendMessage(I18n.get("campaign.research.unknown", rest));
+                        return;
+                    }
+                    boolean changed = ResearchService.research(content, true);
+                    player.sendMessage(I18n.get(changed
+                        ? "campaign.client.research.ok" : "campaign.client.research.already", I18n.content(content)));
+                }
+
+                case "sector", "s" -> {
+                    Sector sector = requireSector(rest);
+                    SectorService.enter(sector, false, true);
+                }
+
+                case "planet", "p" -> {
+                    Planet planet = SectorService.planetByName(rest);
+                    Sector target = planet == null ? null : SectorService.targetFor(planet);
+                    if(target == null){
+                        player.sendMessage(I18n.get("campaign.planet.empty", rest));
+                        return;
+                    }
+                    SectorService.enter(target, false, true);
+                }
+
+                case "destination", "dest", "pad" -> {
+                    Sector current = SectorService.current();
+                    if(current == null){
+                        player.sendMessage(I18n.get("campaign.client.no-sector"));
+                        return;
+                    }
+                    if(rest.isEmpty() || "clear".equalsIgnoreCase(rest)){
+                        SectorService.setDestination(current, null);
+                        player.sendMessage(I18n.get("campaign.destination.cleared", current.name()));
+                        return;
+                    }
+                    Sector destination = requireSector(rest);
+                    SectorService.setDestination(current, destination);
+                    player.sendMessage(I18n.get("campaign.destination.set", current.name(), destination.name()));
+                }
+
+                case "redirect" -> {
+                    Sector current = SectorService.current();
+                    if(current == null){
+                        player.sendMessage(I18n.get("campaign.client.no-sector"));
+                        return;
+                    }
+                    int count = SectorService.redirectAllExports(current);
+                    player.sendMessage(I18n.get("campaign.destination.redirected", count, current.name()));
+                }
+
+                case "pause", "sim" -> {
+                    boolean paused = toggleSimulation(rest.isEmpty() ? "toggle" : rest);
+                    player.sendMessage(I18n.get(paused ? "campaign.sim.paused" : "campaign.sim.resumed"));
+                }
+
+                case "difficulty", "diff" -> {
+                    mindustry.game.Difficulty applied = rest.isEmpty() ? null : SectorService.setDifficulty(rest);
+                    if(rest.isEmpty()){
+                        player.sendMessage(I18n.get("campaign.difficulty.current",
+                            I18n.get("campaign.difficulty." + SectorService.difficulty().name())));
+                    }else{
+                        player.sendMessage(applied == null
+                            ? I18n.get("campaign.difficulty.unknown", rest)
+                            : I18n.get("campaign.difficulty.set", I18n.get("campaign.difficulty." + applied.name())));
+                    }
+                }
+
+                case "rule" -> {
+                    if(rest.isEmpty() || !SectorService.isRule(tokens.get(0))){
+                        StringBuilder builder = new StringBuilder(I18n.get("campaign.rule.header"));
+                        for(String rule : new String[]{"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled"}){
+                            builder.append("\n").append(I18n.get("campaign.rule.name." + rule))
+                                .append(" = ").append(SectorService.currentRule(rule));
+                        }
+                        player.sendMessage(builder.toString());
+                        return;
+                    }
+
+                    Boolean force = tokens.size() > 1
+                        ? Boolean.valueOf(!("off".equalsIgnoreCase(tokens.get(1)) || "0".equals(tokens.get(1)))) : null;
+                    Boolean value = SectorService.toggleRule(tokens.get(0), force);
+                    player.sendMessage(value == null
+                        ? I18n.get("campaign.rule.unknown", tokens.get(0))
+                        : I18n.get("campaign.rule.set", tokens.get(0), value));
+                }
+
+                case "vote" -> handleVoteConfig(player, tokens);
+
+                case "save" -> player.sendMessage(I18n.get(SectorService.saveCurrent()
+                    ? "campaign.client.save-ok" : "campaign.client.save-failed"));
+
+                case "capture" -> {
+                    mindustry.core.Logic.sectorCapture();
+                    player.sendMessage(I18n.get("campaign.client.capture-ok"));
+                }
+
+                default -> player.sendMessage(I18n.get("campaign.admin.usage"));
+            }
+        }catch(CampaignException e){
+            player.sendMessage("[scarlet]" + e.getMessage());
+        }catch(Throwable t){
+            Log.err(t);
+            player.sendMessage(I18n.get("campaign.error.unexpected", Strings.getSimpleMessage(t)));
+        }
+    }
+
+    /** {@code /ca vote <key> <value>} — the same numbers the panel adjusts. */
+    private static void handleVoteConfig(Player player, java.util.List<String> tokens){
+        CampaignConfig config = CampaignConfig.data();
+
+        if(tokens.isEmpty()){
+            player.sendMessage(I18n.get("campaign.admin.vote-state",
+                (int)config.voteDuration, (int)config.voteTimeout, (int)config.voteCooldown,
+                (int)(config.votePercent * 100), config.voteMinPlayers, config.voteDecision));
+            return;
+        }
+
+        String key = tokens.get(0).toLowerCase();
+
+        if(tokens.size() < 2){
+            player.sendMessage(I18n.get("campaign.admin.usage"));
+            return;
+        }
+
+        String raw = tokens.get(1);
+        try{
+            switch(key){
+                case "window", "duration" -> config.voteDuration = Float.parseFloat(raw);
+                case "timeout" -> config.voteTimeout = Float.parseFloat(raw);
+                case "cooldown" -> config.voteCooldown = Float.parseFloat(raw);
+                case "percent" -> config.votePercent = Float.parseFloat(raw) > 1f
+                    ? Float.parseFloat(raw) / 100f : Float.parseFloat(raw);
+                case "minplayers", "min" -> config.voteMinPlayers = Integer.parseInt(raw);
+                case "decision" -> config.voteDecision = raw.toLowerCase();
+                default -> {
+                    player.sendMessage(I18n.get("campaign.admin.usage"));
+                    return;
+                }
+            }
+        }catch(NumberFormatException e){
+            player.sendMessage(I18n.get("campaign.admin.usage"));
+            return;
+        }
+
+        CampaignConfig.save();
+        player.sendMessage(I18n.get("campaign.admin.vote-state",
+            (int)config.voteDuration, (int)config.voteTimeout, (int)config.voteCooldown,
+            (int)(config.votePercent * 100), config.voteMinPlayers, config.voteDecision));
+    }
+
     /** Joins the tokens from {@code start} with single spaces (names may contain spaces). */
-    private static String joinFrom(java.util.List<String> tokens, int start){
-        StringBuilder builder = new StringBuilder();
+    private static String joinFrom(java.util.List<String> tokens, int start){        StringBuilder builder = new StringBuilder();
         for(int i = start; i < tokens.size(); i++){
             if(builder.length() > 0) builder.append(' ');
             builder.append(tokens.get(i));
@@ -1159,7 +1359,7 @@ public class CampaignCommands{
         StringBuilder builder = new StringBuilder();
         for(ItemStack stack : stacks){
             if(builder.length() > 0) builder.append(", ");
-            builder.append(stack.item.localizedName).append(" x").append(stack.amount);
+            builder.append(I18n.content(stack.item)).append(" x").append(stack.amount);
         }
         return builder.toString();
     }
@@ -1217,7 +1417,7 @@ public class CampaignCommands{
         };
 
         return color + I18n.get("campaign.sectors.line",
-            sector == null ? "?" : sector.id, preset.localizedName, status, preset.captureWave);
+            sector == null ? "?" : sector.id, I18n.content(preset), status, preset.captureWave);
     }
 
     //the console has no color codes, so markers are stripped for log output

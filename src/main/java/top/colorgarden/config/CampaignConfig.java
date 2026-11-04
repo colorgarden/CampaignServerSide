@@ -128,7 +128,7 @@ public class CampaignConfig{
     /** Minimum online players needed to start a vote. */
     public int voteMinPlayers = 2;
     /** How long a vote stays open, in seconds. */
-    public float voteDuration = 60f;
+    public float voteDuration = 15f;
     /**
      * How a vote is decided.
      * <ul>
@@ -143,8 +143,12 @@ public class CampaignConfig{
     /** Seconds without a new vote before the vote resolves; <= 0 disables the idle timeout. */
     public float voteTimeout = 10f;
 
-    /** Cooldown before the same player can start another vote, in seconds. */
-    public float voteCooldown = 30f;
+    /** Cooldown before the same player can start another vote, in seconds (measured from the result). */
+    public float voteCooldown = 2f;
+    /** Players who did not move for {@link #afkSeconds} are ignored for vote quorums. */
+    public boolean afkEnabled = true;
+    /** How long a player may stand still before being treated as AFK, in seconds. */
+    public float afkSeconds = 60f;
 
     // --- misc ---
 

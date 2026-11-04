@@ -70,6 +70,8 @@ public class ResearchService{
             if(unlockable == null) continue;
             if(unlockable.name.equalsIgnoreCase(raw)) return unlockable;
             if(unlockable.localizedName != null && unlockable.localizedName.equalsIgnoreCase(raw)) return unlockable;
+            //display names now follow the client language, so match those as well
+            if(I18n.content(unlockable).equalsIgnoreCase(raw)) return unlockable;
         }
 
         for(SectorPreset preset : content.sectors()){
