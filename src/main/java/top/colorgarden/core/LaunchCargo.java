@@ -115,6 +115,39 @@ public class LaunchCargo{
         }
     }
 
+    /**
+     * @return how much of this item the origin sector can actually give right now; vanilla's max
+     *         button is limited by what the launching sector stores, not only by the core capacity.
+     */
+    public static int available(Item item){
+        try{
+            mindustry.type.Sector origin = SectorService.current();
+            if(origin == null || origin.info == null) return capacity();
+            return Math.max(0, origin.info.items.get(item));
+        }catch(Throwable ignored){
+            return capacity();
+        }
+    }
+
+    /** @return what the selected blueprint itself costs to build. */
+    public static mindustry.type.ItemSeq requirements(){
+        try{
+            CoreBlueprints.Entry entry = CoreBlueprints.selectedEntry();
+            return entry == null ? new mindustry.type.ItemSeq() : entry.schematic.requirements();
+        }catch(Throwable ignored){
+            return new mindustry.type.ItemSeq();
+        }
+    }
+
+    /**
+     * @return the real maximum for one item, mirroring vanilla's max button:
+     *         {@code clamp(localStock - blueprintCost, 0, capacity)}.
+     */
+    public static int maxFor(Item item){
+        int cap = capacity();
+        int usable = Math.max(0, available(item) - requirements().get(item));
+        return cap > 0 ? Math.min(cap, usable) : usable;
+    }
     /** @return the amount clamped to the launch capacity. */
     public static int clamp(int amount){
         int cap = capacity();
@@ -136,7 +169,9 @@ public class LaunchCargo{
         if(cap <= 0) return;
 
         for(Item item : mindustry.Vars.content.items()){
-            if(item.unlocked()) next.add(new ItemStack(item, cap));
+            if(!item.unlocked()) continue;
+            int max = maxFor(item);
+            if(max > 0) next.add(new ItemStack(item, max));
         }
 
         persist(next);
@@ -144,7 +179,7 @@ public class LaunchCargo{
     /** Adds (or subtracts) an item amount and stores the result; 0 removes the entry. */
     public static void addAmount(Item item, int delta){
         Seq<ItemStack> existing = current();
-        int amount = clamp(amount(item) + delta);
+        int amount = Math.max(0, Math.min(maxFor(item), amount(item) + delta));
 
         Seq<ItemStack> next = new Seq<>();
         for(ItemStack stack : existing){
