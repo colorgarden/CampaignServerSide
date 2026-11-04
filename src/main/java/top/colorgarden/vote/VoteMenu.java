@@ -57,6 +57,11 @@ public class VoteMenu{
         CampaignVote.Kind kind;
         String target;
         String label;
+        /** True when the confirm was opened from a target list, so it can return there. */
+        boolean fromList;
+        String query = "";
+        int page;
+        boolean showAll;
     }
 
     /**
@@ -193,7 +198,7 @@ public class VoteMenu{
 
         String[][] options = {
             {I18n.get("campaign.menu.vote-yes"), I18n.get("campaign.menu.vote-no")},
-            {I18n.get("campaign.menu.close")}
+            {I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")}
         };
 
         Call.followUpMenu(player.con, voteId, I18n.get("campaign.menu.vote-title"), message, options);
@@ -392,8 +397,6 @@ public class VoteMenu{
                 rows.add(new String[]{found.get(i)});
             }
         }
-        //a visual separator between the targets and the control buttons
-        rows.add(new String[]{I18n.get("campaign.menu.separator")});
         rows.add(new String[]{I18n.get("campaign.menu.prev"), I18n.get("campaign.menu.next")});
         rows.add(new String[]{I18n.get("campaign.menu.search"),
             I18n.get(showAll ? "campaign.menu.show-ready" : "campaign.menu.show-all")});
@@ -429,19 +432,16 @@ public class VoteMenu{
             return;
         }
 
-        //option == shown is the separator row; clicking it just re-draws the page
         if(option == shown){
-            showList(player, state.kind, state.query, state.page, state.showAll);
-        }else if(option == shown + 1){
             showList(player, state.kind, state.query, state.page - 1, state.showAll);
-        }else if(option == shown + 2){
+        }else if(option == shown + 1){
             showList(player, state.kind, state.query, state.page + 1, state.showAll);
-        }else if(option == shown + 3){
+        }else if(option == shown + 2){
             Call.textInput(player.con, searchId, I18n.get("campaign.menu.search-title"),
                 I18n.get("campaign.menu.search-message"), 32, state.query, false);
-        }else if(option == shown + 4){
+        }else if(option == shown + 3){
             showList(player, state.kind, state.query, 0, !state.showAll);
-        }else if(option == shown + 5){
+        }else if(option == shown + 4){
             hide(player, listId);
             openMain(player);
         }else{
@@ -460,6 +460,16 @@ public class VoteMenu{
         entry.kind = kind;
         entry.target = target;
         entry.label = label;
+
+        //remember where the player came from, so confirming or cancelling returns there
+        ListState origin = listStates.get(player);
+        if(origin != null){
+            entry.fromList = origin.kind == kind;
+            entry.query = origin.query;
+            entry.page = origin.page;
+            entry.showAll = origin.showAll;
+        }
+
         pending.put(player, entry);
 
         String message = I18n.get("campaign.menu.confirm-message", label,
@@ -478,12 +488,28 @@ public class VoteMenu{
         Pending entry = pending.remove(player);
         hide(player, confirmId);
 
-        if(entry == null || option != 0) return;
+        if(entry == null) return;
+
+        if(option != 0){
+            //cancel: back to where the player came from instead of leaving them with no dialog
+            reopen(player, entry);
+            return;
+        }
 
         String problem = CampaignVote.start(player, entry.kind, entry.target);
         if(problem != null) player.sendMessage("[scarlet]" + problem);
+
+        reopen(player, entry);
     }
 
+    /** Returns the player to the list they picked from, or to the vote main menu. */
+    private static void reopen(Player player, Pending entry){
+        if(entry.fromList){
+            showList(player, entry.kind, entry.query, entry.page, entry.showAll);
+        }else{
+            openMain(player);
+        }
+    }
     private static void onVote(Player player, int option){
         if(option < 0) return; //closed with back/ESC
 
@@ -500,6 +526,18 @@ public class VoteMenu{
         if(option == 0 || option == 1){
             String problem = CampaignVote.cast(player, option == 0 ? "y" : "n", vote);
             if(problem != null) player.sendMessage("[scarlet]" + problem);
+
+            viewing.remove(player);
+            hide(player, voteId);
+            return;
+        }
+
+        if(option == 2){
+            //back to the running-vote list
+            viewing.remove(player);
+            hide(player, voteId);
+            openVotes(player);
+            return;
         }
 
         viewing.remove(player);
@@ -524,7 +562,7 @@ public class VoteMenu{
             rows.add(new String[]{I18n.get("campaign.menu.vote-entry", CampaignVote.describe(vote),
                 vote.yes.size, CampaignVote.requiredVotes(), vote.secondsLeft())});
         }
-        rows.add(new String[]{I18n.get("campaign.menu.show-all"), I18n.get("campaign.menu.close")});
+        rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
 
         hide(player, mainId);
         Call.followUpMenu(player.con, votesId, I18n.get("campaign.menu.vote-list-title"),
