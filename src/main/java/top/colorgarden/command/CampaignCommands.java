@@ -1440,6 +1440,25 @@ public class CampaignCommands{
     private static final arc.struct.ObjectMap<String, Long> waveSkipUntil = new arc.struct.ObjectMap<>();
 
     /**
+     * Mirrors {@code HudFragment#canSkipWave}: waves have to be enabled and sending, no enemy may be
+     * alive and the spawner must not be busy. Skipping past the sector's win wave is refused as well,
+     * because the capture check would resolve the sector immediately.
+     *
+     * @return null when skipping is allowed, otherwise the reason shown to the player.
+     */
+    static @Nullable String skipBlocked(){
+        if(!mindustry.Vars.state.rules.waves) return I18n.get("campaign.wave.no-waves");
+        if(!mindustry.Vars.state.rules.waveSending) return I18n.get("campaign.wave.sending-off");
+        if(mindustry.Vars.state.enemies > 0) return I18n.get("campaign.wave.enemies-left", mindustry.Vars.state.enemies);
+        if(mindustry.Vars.spawner != null && mindustry.Vars.spawner.isSpawning()) return I18n.get("campaign.wave.spawning");
+
+        if(mindustry.Vars.state.rules.winWave > 0 && mindustry.Vars.state.wave >= mindustry.Vars.state.rules.winWave){
+            return I18n.get("campaign.wave.at-limit", mindustry.Vars.state.rules.winWave);
+        }
+
+        return null;
+    }
+    /**
      * Skips exactly one wave with the vanilla routine ({@code Logic#skipWave}, the same call the
      * campaign's skip-wave button makes), honouring {@code skipWaveCooldown}.
      *
@@ -1455,6 +1474,10 @@ public class CampaignCommands{
         }
 
         if(!state.isGame()) return I18n.get("campaign.msg.not-playing");
+
+        //same conditions as vanilla's skip button (HudFragment#canSkipWave)
+        String blocked = skipBlocked();
+        if(blocked != null) return blocked;
 
         mindustry.Vars.logic.skipWave();
         waveSkipUntil.put(key, now + (long)(CampaignConfig.data().skipWaveCooldown * 1000f));
