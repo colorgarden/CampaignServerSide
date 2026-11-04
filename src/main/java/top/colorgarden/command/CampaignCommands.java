@@ -733,7 +733,7 @@ public class CampaignCommands{
 
             try{
                 player.sendMessage(I18n.get("campaign.client.planet-switching", planet.localizedName, target.name()));
-                SectorService.enter(target, false, canBypass(player));
+                SectorService.enter(player, target, false, canBypass(player));
             }catch(CampaignException e){
                 player.sendMessage("[scarlet]" + e.getMessage());
             }
@@ -1178,7 +1178,7 @@ public class CampaignCommands{
                         player.sendMessage(I18n.get("campaign.planet.empty", rest));
                         return;
                     }
-                    SectorService.enter(target, false, true);
+                    SectorService.enter(player, target, false, true);
                 }
 
                 case "destination", "dest", "pad" -> {

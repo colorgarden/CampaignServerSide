@@ -515,6 +515,11 @@ public class SectorService{
         enter(null, sector, fresh, force);
     }
 
+    /** Convenience overload for player-triggered launches (prompt applies). */
+    public static void enter(@Nullable Player initiator, @Nullable Sector sector) throws CampaignException{
+        enter(initiator, sector, false, false);
+    }
+
     /** A launch that waits for the player to confirm the core/cargo in the launch dialog. */
     public static class PendingLaunch{
         public final Sector sector;

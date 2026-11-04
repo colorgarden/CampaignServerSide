@@ -481,6 +481,18 @@ public class CampaignVote{
         return I18n.get(key, vote.label);
     }
 
+    /** @return the player who started the vote, when they are still online. */
+    private static @Nullable Player starter(){
+        Vote vote = current;
+        if(vote == null) return null;
+
+        for(Player player : Groups.player){
+            if(player.uuid().equals(vote.starterUuid)) return player;
+        }
+
+        return null;
+    }
+
     private static void finish(boolean passed, @Nullable String reason){
         Vote vote = current;
         current = null;
@@ -509,7 +521,9 @@ public class CampaignVote{
                     announce(I18n.get("campaign.vote.sector-gone"));
                     return;
                 }
-                SectorService.enter(sector);
+                //the starter picks the core/cargo for a sector that has to be generated, exactly like
+                //vanilla only asks the player who launches
+                SectorService.enter(starter(), sector);
             }else if(vote.kind == Kind.planet){
                 Planet planet = SectorService.planetByName(vote.arg);
                 Sector destination = SectorService.targetFor(planet);
