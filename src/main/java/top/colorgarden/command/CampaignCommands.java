@@ -1143,6 +1143,15 @@ public class CampaignCommands{
     private static void handleAdmin(Player player, String[] args){
         if(!requirePermission(player, true)) return;
 
+        //"help" and "?" print the subcommand list
+        for(int i = 1; i < args.length; i++){
+            if(args[i] == null) continue;
+            if("help".equalsIgnoreCase(args[i].trim()) || "?".equals(args[i].trim())){
+                player.sendMessage(I18n.get("campaign.admin.help"));
+                return;
+            }
+        }
+
         java.util.List<String> tokens = new java.util.ArrayList<>();
         for(int i = 1; i < args.length; i++){
             if(args[i] == null) continue;
