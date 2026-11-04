@@ -631,7 +631,9 @@ public class CampaignVote{
                 }
                 //the starter picks the core/cargo for a sector that has to be generated, exactly like
                 //vanilla only asks the player who launches
-                SectorService.enter(starter(vote), sector);
+                //the launch setup was already confirmed before the vote started, so this entry must
+                //not ask for it again
+                SectorService.enter(sector);
             }else if(vote.kind == Kind.planet){
                 Planet planet = SectorService.planetByName(vote.arg);
                 Sector destination = SectorService.targetFor(planet);
