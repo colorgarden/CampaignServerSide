@@ -378,8 +378,19 @@ public class VoteMenu{
         int end = Math.min(found.size, start + perPage);
 
         Seq<String[]> rows = new Seq<>();
-        for(int i = start; i < end; i++){
-            rows.add(new String[]{found.get(i)});
+
+        //research has hundreds of entries, so it is laid out two per row; the flat button order stays
+        //the same (row-major), which is why onList can still index entries directly
+        if(kind == CampaignVote.Kind.research){
+            for(int i = start; i < end; i += 2){
+                String left = found.get(i);
+                String right = i + 1 < end ? found.get(i + 1) : "";
+                rows.add(right.isEmpty() ? new String[]{left} : new String[]{left, right});
+            }
+        }else{
+            for(int i = start; i < end; i++){
+                rows.add(new String[]{found.get(i)});
+            }
         }
         rows.add(new String[]{I18n.get("campaign.menu.prev"), I18n.get("campaign.menu.next")});
         rows.add(new String[]{I18n.get("campaign.menu.search"),
