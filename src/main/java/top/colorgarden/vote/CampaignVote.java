@@ -167,7 +167,7 @@ public class CampaignVote{
             for(Sector sector : current.planet.sectors){
                 if(sector == null || sector == current || !sector.hasBase()) continue;
                 if(matches(sector.name(), String.valueOf(sector.id), needle)){
-                    out.add(sector.name() + " " + sectorStatus(sector));
+                    out.add(sector.name() + currentSuffix(sector) + " " + sectorStatus(sector));
                 }
                 if(out.size >= limit) break;
             }
@@ -183,11 +183,11 @@ public class CampaignVote{
 
         for(SectorPreset preset : SectorService.presets(currentPlanet)){
             Sector sector = preset.sector;
-            if(sector == null || sector == playing) continue;
+            if(sector == null) continue;
             if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
 
             if(matches(preset.name, I18n.content(preset), needle) || matches(String.valueOf(sector.id), "", needle)){
-                out.add(I18n.content(preset) + " " + sectorStatus(sector));
+                out.add(I18n.content(preset) + currentSuffix(sector) + " " + sectorStatus(sector));
             }
             if(out.size >= limit) break;
         }
@@ -195,15 +195,20 @@ public class CampaignVote{
         //numbered sectors have no preset: their terrain is generated procedurally, so no map asset is
         //needed. Vanilla only lets you land on one next to a sector that has a base (allowLanding).
         for(Sector sector : currentPlanet.sectors){
-            if(sector == null || sector == playing || sector.preset != null) continue;
+            if(sector == null || sector.preset != null) continue;
             if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
 
             if(matches(String.valueOf(sector.id), "", needle)){
-                out.add("#" + sector.id + " " + sectorStatus(sector));
+                out.add("#" + sector.id + currentSuffix(sector) + " " + sectorStatus(sector));
             }
             if(out.size >= limit) break;
         }
         return out;
+    }
+
+    /** @return "此区块" when this is the sector being played, otherwise an empty string. */
+    private static String currentSuffix(Sector sector){
+        return sector == SectorService.current() ? " " + I18n.get("campaign.sector.current") : "";
     }
 
     /** @return the sector state shown next to its name: captured, launched or not launched. */

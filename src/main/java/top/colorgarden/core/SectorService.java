@@ -208,8 +208,8 @@ public class SectorService{
         String raw = Strings.stripColors(query).trim();
 
         //menus append the sector state, e.g. "遗迹海岸 已占领"
-        for(String key : new String[]{"captured", "launched", "unlaunched"}){
-            String suffix = I18n.get("campaign.sector.status." + key);
+        for(String key : new String[]{"current", "captured", "launched", "unlaunched"}){
+            String suffix = "current".equals(key) ? I18n.get("campaign.sector.current") : I18n.get("campaign.sector.status." + key);
             if(suffix != null && !suffix.isEmpty() && raw.endsWith(suffix)){
                 raw = raw.substring(0, raw.length() - suffix.length()).trim();
                 break;
