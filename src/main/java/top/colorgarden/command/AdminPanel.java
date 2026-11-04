@@ -81,7 +81,6 @@ public class AdminPanel{
             {I18n.get("campaign.menu.wip-redirect"), I18n.get("campaign.admin.pause")},
             {I18n.get("campaign.admin.skipwave"), I18n.get("campaign.admin.vote")},
             {I18n.get("campaign.admin.difficulty"), I18n.get("campaign.admin.rules"), I18n.get("campaign.admin.abandon")},
-            {I18n.get("campaign.admin.coretype"), I18n.get("campaign.admin.core")},
             {I18n.get("campaign.menu.close")}
         };
 
@@ -114,9 +113,6 @@ public class AdminPanel{
             case 8 -> openDifficulty(player);
             case 9 -> openRules(player);
             case 10 -> askAbandon(player);
-            case 11 -> openCoreTypes(player);
-            case 12 -> Call.textInput(player.con, coreId, I18n.get("campaign.admin.core"),
-                I18n.get("campaign.admin.core-hint"), 20000, "", false);
             default -> hide(player, mainId);
         }
     }
