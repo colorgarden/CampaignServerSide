@@ -34,6 +34,8 @@ public class LaunchPanel{
     private static boolean available;
 
     private static final ObjectMap<Player, SectorService.PendingLaunch> pending = new ObjectMap<>();
+    /** Set when the dialog was opened to prepare a vote instead of an immediate launch. */
+    private static final ObjectMap<Player, Runnable> voteAction = new ObjectMap<>();
     private static final ObjectMap<Player, Integer> listPage = new ObjectMap<>();
     private static final ObjectMap<Player, Integer> cargoPage = new ObjectMap<>();
 
@@ -67,7 +69,25 @@ public class LaunchPanel{
         pending.put(player, launch);
         listPage.put(player, 0);
         cargoPage.put(player, 0);
-        openMain(player);
+        //the dialog is built in the player's own language, not the server default
+        I18n.withLocale(I18n.localeOf(player), () -> openMain(player));
+    }
+
+    /**
+     * Opens the setup dialog before a vote is started, so the city is configured up front instead of
+     * after the vote already passed.
+     */
+    public static void showForVote(Player player, SectorService.PendingLaunch launch, Runnable onConfirm){
+        if(!available || player == null || player.con == null){
+            onConfirm.run();
+            return;
+        }
+
+        pending.put(player, launch);
+        voteAction.put(player, onConfirm);
+        listPage.put(player, 0);
+        cargoPage.put(player, 0);
+        I18n.withLocale(I18n.localeOf(player), () -> openMain(player));
     }
 
     public static void forget(@Nullable Player player){
@@ -107,11 +127,18 @@ public class LaunchPanel{
             case 1 -> openCargo(player, 0);
             case 2 -> {
                 SectorService.PendingLaunch launch = pending.remove(player);
+                Runnable action = voteAction.remove(player);
                 hide(player, mainId);
-                if(launch != null) SectorService.enterNow(launch);
+
+                if(action != null){
+                    action.run();
+                }else if(launch != null){
+                    SectorService.enterNow(launch);
+                }
             }
             default -> {
                 pending.remove(player);
+                voteAction.remove(player);
                 hide(player, mainId);
                 player.sendMessage(I18n.get("campaign.launch.cancelled"));
             }

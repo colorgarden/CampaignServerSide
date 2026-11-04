@@ -47,6 +47,8 @@ public class CampaignVote{
     private static final Seq<Vote> votes = new Seq<>();
     /** Cooldown end time per player uuid. */
     private static final ObjectMap<String, Long> cooldownUntil = new ObjectMap<>();
+    /** Targets whose launch setup was already confirmed, so the vote can go ahead. */
+    private static final ObjectSet<String> setupDone = new ObjectSet<>();
 
     public static void init(){
         Events.on(ResetEvent.class, event -> votes.clear());
@@ -269,6 +271,19 @@ public class CampaignVote{
                 if(!hint.isEmpty()) return I18n.get("campaign.vote.sector-locked", sector.name()) + "\n" + hint;
                 return I18n.get("campaign.vote.sector-locked", sector.name());
             }
+            //a sector that has no base yet is configured before the vote starts, not after it passed
+            String setupKey = starter.uuid() + "|" + sector.planet.name + ":" + sector.id;
+            if(!sector.hasBase() && !setupDone.remove(setupKey)){
+                final String rawTarget = target;
+                top.colorgarden.command.LaunchPanel.showForVote(starter,
+                    new SectorService.PendingLaunch(sector, false, true),
+                    () -> {
+                        setupDone.add(setupKey);
+                        start(starter, kind, rawTarget);
+                    });
+                return null;
+            }
+
             resolved = sector.planet.name + ":" + sector.id;
             label = sector.name();
         }else if(kind == Kind.planet){
