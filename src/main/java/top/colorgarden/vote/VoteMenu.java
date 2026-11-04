@@ -392,6 +392,8 @@ public class VoteMenu{
                 rows.add(new String[]{found.get(i)});
             }
         }
+        //a visual separator between the targets and the control buttons
+        rows.add(new String[]{I18n.get("campaign.menu.separator")});
         rows.add(new String[]{I18n.get("campaign.menu.prev"), I18n.get("campaign.menu.next")});
         rows.add(new String[]{I18n.get("campaign.menu.search"),
             I18n.get(showAll ? "campaign.menu.show-ready" : "campaign.menu.show-all")});
@@ -427,16 +429,19 @@ public class VoteMenu{
             return;
         }
 
+        //option == shown is the separator row; clicking it just re-draws the page
         if(option == shown){
-            showList(player, state.kind, state.query, state.page - 1, state.showAll);
+            showList(player, state.kind, state.query, state.page, state.showAll);
         }else if(option == shown + 1){
-            showList(player, state.kind, state.query, state.page + 1, state.showAll);
+            showList(player, state.kind, state.query, state.page - 1, state.showAll);
         }else if(option == shown + 2){
+            showList(player, state.kind, state.query, state.page + 1, state.showAll);
+        }else if(option == shown + 3){
             Call.textInput(player.con, searchId, I18n.get("campaign.menu.search-title"),
                 I18n.get("campaign.menu.search-message"), 32, state.query, false);
-        }else if(option == shown + 3){
-            showList(player, state.kind, state.query, 0, !state.showAll);
         }else if(option == shown + 4){
+            showList(player, state.kind, state.query, 0, !state.showAll);
+        }else if(option == shown + 5){
             hide(player, listId);
             openMain(player);
         }else{
