@@ -209,7 +209,7 @@ public class SectorService{
 
         //menus append the sector state, e.g. "遗迹海岸 已占领"
         for(String key : new String[]{"current", "captured", "launched", "unlaunched"}){
-            String suffix = "current".equals(key) ? I18n.get("campaign.sector.current") : I18n.get("campaign.sector.status." + key);
+            String suffix = Strings.stripColors("current".equals(key) ? I18n.get("campaign.sector.current") : I18n.get("campaign.sector.status." + key));
             if(suffix != null && !suffix.isEmpty() && raw.endsWith(suffix)){
                 raw = raw.substring(0, raw.length() - suffix.length()).trim();
                 break;
@@ -573,6 +573,22 @@ public class SectorService{
         }
     }
 
+    /** Copies the sector save aside before it is regenerated, so a lost base can be recovered. */
+    private static void preserveSave(Sector sector){
+        try{
+            if(sector == null || sector.save == null || sector.save.file == null) return;
+            if(!sector.save.file.exists()) return;
+
+            String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss").format(new java.util.Date());
+            arc.files.Fi copy = sector.save.file.parent().child(sector.save.file.nameWithoutExtension() + ".lost-" + stamp + ".msav");
+            sector.save.file.copyTo(copy);
+
+            Log.info("[CampaignServer] " + I18n.get("campaign.log.save-preserved", copy.name()));
+        }catch(Throwable t){
+            Log.err("[CampaignServer] " + I18n.get("campaign.core.save-failed", Strings.getSimpleMessage(t)));
+        }
+    }
+
     /** @return true when entering this sector would generate it instead of loading a save. */
     public static boolean needsGeneration(@Nullable Sector sector){
         if(sector == null) return false;
@@ -663,6 +679,8 @@ public class SectorService{
         //a sector whose core is gone cannot continue; vanilla restarts it with a fresh core
         if(loaded && state.rules.defaultTeam.cores().isEmpty()){
             Log.info("[CampaignServer] " + I18n.get("campaign.log.sector-no-core", sector.name()));
+            //keep the abandoned save instead of letting the regeneration overwrite it silently
+            preserveSave(sector);
             logic.reset();
             loaded = false;
         }
