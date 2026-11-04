@@ -31,7 +31,7 @@ import mindustry.ui.Menus;
 public class AdminPanel{
     private static final int perPage = 6;
 
-    private static int mainId = -1, listId = -1, settingsId = -1, difficultyId = -1, rulesId = -1, searchId = -1, coreId = -1;
+    private static int mainId = -1, listId = -1, settingsId = -1, difficultyId = -1, rulesId = -1, searchId = -1, coreId = -1, coreTypeId = -1;
     private static boolean available;
 
     private enum Purpose{ research, sector, planet, pad }
@@ -53,6 +53,7 @@ public class AdminPanel{
             rulesId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onRules(p, o)));
             searchId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onSearch(p, s)));
             coreId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onCoreInput(p, s)));
+            coreTypeId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onCoreType(p, o)));
             available = true;
         }catch(Throwable t){
             available = false;
@@ -79,7 +80,8 @@ public class AdminPanel{
             {I18n.get("campaign.admin.redirect"), I18n.get("campaign.admin.pause")},
             {I18n.get("campaign.admin.skipwave"), I18n.get("campaign.admin.vote")},
             {I18n.get("campaign.admin.difficulty"), I18n.get("campaign.admin.rules")},
-            {I18n.get("campaign.admin.core"), I18n.get("campaign.menu.close")}
+            {I18n.get("campaign.admin.coretype"), I18n.get("campaign.admin.core")},
+            {I18n.get("campaign.menu.close")}
         };
 
         Call.followUpMenu(player.con, mainId, I18n.get("campaign.admin.title"), message, options);
@@ -118,7 +120,8 @@ public class AdminPanel{
             case 7 -> openSettings(player);
             case 8 -> openDifficulty(player);
             case 9 -> openRules(player);
-            case 10 -> Call.textInput(player.con, coreId, I18n.get("campaign.admin.core"),
+            case 10 -> openCoreTypes(player);
+            case 11 -> Call.textInput(player.con, coreId, I18n.get("campaign.admin.core"),
                 I18n.get("campaign.admin.core-hint"), 20000, "", false);
             default -> hide(player, mainId);
         }
@@ -461,5 +464,45 @@ public class AdminPanel{
     /** Drops per-player state. */
     public static void forget(@Nullable Player player){
         if(player != null) states.remove(player);
+    }
+
+    // ---------------------------------------------------------------- core type
+
+    private static void openCoreTypes(Player player){
+        if(!available || player == null || player.con == null || !player.admin) return;
+        hide(player, mainId);
+
+        var cores = top.colorgarden.core.CoreBlueprints.unlockedCores(SectorService.planet());
+
+        Seq<String[]> rows = new Seq<>();
+        for(var core : cores){
+            rows.add(new String[]{core.localizedName + " (" + core.name + ")"});
+        }
+        rows.add(new String[]{I18n.get("campaign.core.type-reset"), I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
+
+        Call.followUpMenu(player.con, coreTypeId, I18n.get("campaign.admin.coretype"),
+            top.colorgarden.core.CoreBlueprints.describeCore(), rows.toArray(String[].class));
+    }
+
+    private static void onCoreType(Player player, int option){
+        if(option < 0 || !player.admin) return;
+
+        var cores = top.colorgarden.core.CoreBlueprints.unlockedCores(SectorService.planet());
+        int count = cores.size;
+
+        if(option < count){
+            top.colorgarden.core.CoreBlueprints.setCore(cores.get(option).name);
+            player.sendMessage(I18n.get("campaign.core.type-set", top.colorgarden.core.CoreBlueprints.describeCore()));
+            openCoreTypes(player);
+        }else if(option == count){
+            top.colorgarden.core.CoreBlueprints.setCore("");
+            player.sendMessage(I18n.get("campaign.core.type-set", top.colorgarden.core.CoreBlueprints.describeCore()));
+            openCoreTypes(player);
+        }else if(option == count + 1){
+            hide(player, coreTypeId);
+            openMain(player);
+        }else{
+            hide(player, coreTypeId);
+        }
     }
 }

@@ -1238,6 +1238,36 @@ public class CampaignCommands{
 
                                 case "vote" -> handleVoteConfig(player, tokens);
 
+                case "coretype", "coreblock" -> {
+                    if(rest.isEmpty()){
+                        player.sendMessage(top.colorgarden.core.CoreBlueprints.describeCore());
+                        StringBuilder list = new StringBuilder(I18n.get("campaign.core.type-list"));
+                        for(var core : top.colorgarden.core.CoreBlueprints.unlockedCores(SectorService.planet())){
+                            list.append("\n  ").append(core.name).append(" - ").append(core.localizedName);
+                        }
+                        player.sendMessage(list.toString());
+                        return;
+                    }
+
+                    boolean ok = "clear".equalsIgnoreCase(rest) || "default".equalsIgnoreCase(rest)
+                        ? top.colorgarden.core.CoreBlueprints.setCore("")
+                        : top.colorgarden.core.CoreBlueprints.setCore(rest);
+
+                    player.sendMessage(ok
+                        ? I18n.get("campaign.core.type-set", top.colorgarden.core.CoreBlueprints.describeCore())
+                        : I18n.get("campaign.core.type-invalid", rest));
+                }
+                case "cargo", "loadout" -> {
+                    if(rest.isEmpty()){
+                        player.sendMessage(top.colorgarden.core.LaunchCargo.describe());
+                        return;
+                    }
+
+                    String problem = top.colorgarden.core.LaunchCargo.set("clear".equalsIgnoreCase(rest) ? "" : rest);
+                    player.sendMessage(problem != null
+                        ? "[scarlet]" + problem
+                        : I18n.get("campaign.cargo.set", top.colorgarden.core.LaunchCargo.describe()));
+                }
                 case "core", "schematic", "blueprint" -> {
                     if(rest.isEmpty()){
                         player.sendMessage(top.colorgarden.core.CoreBlueprints.describe());

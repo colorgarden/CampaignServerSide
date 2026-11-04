@@ -689,20 +689,51 @@ public class SectorService{
      * registers the new core. The spawn position is updated so the player lands on the new core.</p>
      */
     private static void applyCoreBlueprint(Sector sector){
-        mindustry.game.Schematic schematic = CoreBlueprints.current();
-        if(schematic == null) return;
-
         try{
-            mindustry.gen.Building core = state.rules.defaultTeam.core();
-            if(core == null || core.tile == null) return;
+            mindustry.gen.Building coreBuild = state.rules.defaultTeam.core();
+            mindustry.game.Schematic schematic = CoreBlueprints.current();
 
-            int x = core.tile.x, y = core.tile.y;
-            mindustry.game.Schematics.placeLoadout(schematic, x, y, state.rules.defaultTeam, true);
+            if(schematic != null){
+                if(coreBuild == null || coreBuild.tile == null) return;
+
+                int x = coreBuild.tile.x, y = coreBuild.tile.y;
+                mindustry.game.Schematics.placeLoadout(schematic, x, y, state.rules.defaultTeam, true);
+
+                sector.info.spawnPosition = arc.math.geom.Point2.pack(x, y);
+                Log.info("[CampaignServer] " + I18n.get("campaign.core.applied", sector.name(), schematic.width, schematic.height));
+                applyCargo();
+                return;
+            }
+
+            //no blueprint: honour the chosen single core block when it is an upgrade
+            mindustry.world.blocks.storage.CoreBlock chosen = CoreBlueprints.selectedCore();
+            if(chosen == null || coreBuild == null || coreBuild.tile == null) return;
+            if(coreBuild.block == chosen) return;
+            if(!chosen.unlocked()) return;
+
+            int x = coreBuild.tile.x, y = coreBuild.tile.y;
+            coreBuild.tile.setBlock(chosen, state.rules.defaultTeam);
+            if(coreBuild.tile.build instanceof mindustry.world.blocks.storage.CoreBlock.CoreBuild cb){
+                state.teams.registerCore(cb);
+            }
 
             sector.info.spawnPosition = arc.math.geom.Point2.pack(x, y);
-            Log.info("[CampaignServer] " + I18n.get("campaign.core.applied", sector.name(), schematic.width, schematic.height));
+            Log.info("[CampaignServer] " + I18n.get("campaign.core.applied-core", sector.name(), chosen.localizedName));
+            applyCargo();
         }catch(Throwable t){
             Log.err("[CampaignServer] " + I18n.get("campaign.core.apply-failed", Strings.getSimpleMessage(t)));
+        }
+    }
+    /** Adds the configured launch cargo to the core that was just placed. */
+    private static void applyCargo(){
+        try{
+            mindustry.gen.Building core = state.rules.defaultTeam.core();
+            if(core == null) return;
+
+            int capacity = core.block instanceof mindustry.world.blocks.storage.CoreBlock cb ? cb.itemCapacity : 0;
+            LaunchCargo.apply(core.items, capacity);
+        }catch(Throwable t){
+            Log.err("[CampaignServer] " + I18n.get("campaign.cargo.apply-failed", Strings.getSimpleMessage(t)));
         }
     }
 

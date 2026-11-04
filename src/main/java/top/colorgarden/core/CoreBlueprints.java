@@ -125,4 +125,68 @@ public class CoreBlueprints{
         return I18n.get("campaign.core.current", schematic.width, schematic.height,
             core == null ? "-" : core.localizedName);
     }
-}
+
+    /** File that remembers which single core block a launched sector should use. */
+    private static Fi coreFile(){
+        Fi folder = dataDirectory.child("campaign");
+        folder.mkdirs();
+        return folder.child("core-block.txt");
+    }
+
+    /** @return the core block chosen for new sectors, or null when the planet default is used. */
+    public static @Nullable CoreBlock selectedCore(){
+        try{
+            Fi file = coreFile();
+            if(!file.exists()) return null;
+
+            String name = file.readString("UTF-8").trim();
+            if(name.isEmpty()) return null;
+
+            var block = mindustry.Vars.content.block(name);
+            if(block instanceof CoreBlock core) return core;
+        }catch(Throwable ignored){
+            //fall back to the planet default
+        }
+        return null;
+    }
+
+    /** Stores the chosen core block by name; an empty name clears the choice. */
+    public static boolean setCore(@Nullable String name){
+        try{
+            Fi file = coreFile();
+            if(name == null || name.isEmpty()){
+                if(file.exists()) file.delete();
+                return true;
+            }
+
+            var block = mindustry.Vars.content.block(name);
+            if(!(block instanceof CoreBlock core) || !core.unlocked()) return false;
+
+            file.writeString(core.name, false, "UTF-8");
+            return true;
+        }catch(Throwable t){
+            Log.err("[CampaignServer] " + I18n.get("campaign.core.save-failed", String.valueOf(t)));
+            return false;
+        }
+    }
+
+    /** @return every core block that is unlocked and belongs to the planet, in tier order. */
+    public static arc.struct.Seq<CoreBlock> unlockedCores(mindustry.type.Planet planet){
+        arc.struct.Seq<CoreBlock> out = new arc.struct.Seq<>();
+
+        for(var block : mindustry.Vars.content.blocks()){
+            if(!(block instanceof CoreBlock core)) continue;
+            if(!core.unlocked()) continue;
+            if(planet != null && !core.shownPlanets.isEmpty() && !core.shownPlanets.contains(planet)) continue;
+            out.add(core);
+        }
+
+        out.sortComparing(core -> core.itemCapacity);
+        return out;
+    }
+
+    /** @return a short description of the chosen core for messages. */
+    public static String describeCore(){
+        CoreBlock core = selectedCore();
+        return I18n.get("campaign.core.current-core", core == null ? "-" : core.localizedName);
+    }}
