@@ -65,12 +65,22 @@ public class CampaignVote{
         return votes.copy();
     }
 
-    /** @return true when a vote of this kind is already running. */
-    public static boolean running(Kind kind){
-        for(Vote vote : votes){
-            if(vote.kind == kind) return true;
+    /** @return the vote of this kind that is still running, dropping ones that clearly expired. */
+    public static @Nullable Vote running(Kind kind){
+        long now = Time.millis();
+
+        for(Vote vote : votes.copy()){
+            //a vote that should have settled but never did would block this kind forever
+            if(vote.endsAt + 5000L < now){
+                Log.warn("[CampaignServer] dropping stale vote @ (@).", vote.kind, vote.label);
+                votes.remove(vote);
+                continue;
+            }
+
+            if(vote.kind == kind) return vote;
         }
-        return false;
+
+        return null;
     }
 
     /**
@@ -257,7 +267,8 @@ public class CampaignVote{
         if(!votingEnabled(kind)){
             return I18n.get("campaign.vote.kind-disabled");
         }
-        if(votes.size > 0 && running(kind)) return I18n.get("campaign.vote.in-progress");
+        Vote blocking = running(kind);
+        if(blocking != null) return I18n.get("campaign.vote.in-progress-which", describe(blocking));
         if(top.colorgarden.core.ActivityTracker.activeCount() < Math.max(1, config.voteMinPlayers)){
             return I18n.get("campaign.vote.not-enough-players");
         }
