@@ -527,7 +527,10 @@ public class CampaignVote{
                 continue;
             }
 
-            if(timeout > 0f && now - vote.lastCastAt >= (long)(timeout * 1000f)){
+            //idle timeout only counts once the ballot was actually shown; otherwise the vote
+            //would settle before anyone was ever asked (window tail vs idle timeout collision)
+            long idleFrom = Math.max(vote.lastCastAt, vote.pushAt);
+            if(vote.pushed && timeout > 0f && now - idleFrom >= (long)(timeout * 1000f)){
                 Boolean decided = decide(vote);
                 if(decided == null) decided = fallback(vote);
                 finish(vote, decided, decided ? null : I18n.get("campaign.vote.timeout-no", vote.yes.size, vote.no.size));
