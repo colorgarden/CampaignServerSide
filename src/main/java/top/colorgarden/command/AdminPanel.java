@@ -77,8 +77,8 @@ public class AdminPanel{
 
         String[][] options = {
             {I18n.get("campaign.admin.research"), I18n.get("campaign.admin.sector")},
-            {I18n.get("campaign.admin.planet"), I18n.get("campaign.admin.pad")},
-            {I18n.get("campaign.admin.redirect"), I18n.get("campaign.admin.pause")},
+            {I18n.get("campaign.admin.planet"), I18n.get("campaign.menu.wip-destination")},
+            {I18n.get("campaign.menu.wip-redirect"), I18n.get("campaign.admin.pause")},
             {I18n.get("campaign.admin.skipwave"), I18n.get("campaign.admin.vote")},
             {I18n.get("campaign.admin.difficulty"), I18n.get("campaign.admin.rules"), I18n.get("campaign.admin.abandon")},
             {I18n.get("campaign.admin.coretype"), I18n.get("campaign.admin.core")},
@@ -97,16 +97,8 @@ public class AdminPanel{
                 I18n.get("campaign.admin.research-hint"), 32, "", false);
             case 1 -> showList(player, Purpose.sector, 0);
             case 2 -> showList(player, Purpose.planet, 0);
-            case 3 -> showList(player, Purpose.pad, 0);
-            case 4 -> {
-                Sector current = SectorService.current();
-                if(current == null){
-                    player.sendMessage(I18n.get("campaign.msg.not-playing"));
-                    return;
-                }
-                int count = SectorService.redirectAllExports(current);
-                player.sendMessage(I18n.get("campaign.destination.redirected", count, current.name()));
-            }
+            case 3 -> player.sendMessage(I18n.get("campaign.menu.wip-message"));
+            case 4 -> player.sendMessage(I18n.get("campaign.menu.wip-message"));
             case 5 -> {
                 boolean pause = !mindustry.Vars.state.isPaused();
                 mindustry.Vars.state.set(pause ? GameState.State.paused : GameState.State.playing);

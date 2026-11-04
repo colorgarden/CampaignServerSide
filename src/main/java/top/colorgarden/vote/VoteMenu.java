@@ -136,8 +136,8 @@ public class VoteMenu{
         //difficulty and the campaign rules live in /ca now, so the vote menu is the same for everyone
         String[][] options = {
             {I18n.get("campaign.menu.sector"), I18n.get("campaign.menu.research")},
-            {I18n.get("campaign.menu.planet"), I18n.get("campaign.menu.destination")},
-            {I18n.get("campaign.menu.redirect"), I18n.get("campaign.menu.pause")},
+            {I18n.get("campaign.menu.planet"), I18n.get("campaign.menu.wip-destination")},
+            {I18n.get("campaign.menu.wip-redirect"), I18n.get("campaign.menu.pause")},
             {I18n.get("campaign.menu.wave"), I18n.get("campaign.menu.abandon")},
             {I18n.get("campaign.menu.info")},
             {I18n.get("campaign.menu.close")}
@@ -238,8 +238,8 @@ public class VoteMenu{
             case 0 -> showList(player, CampaignVote.Kind.sector, "", 0);
             case 1 -> showList(player, CampaignVote.Kind.research, "", 0);
             case 2 -> showList(player, CampaignVote.Kind.planet, "", 0);
-            case 3 -> showList(player, CampaignVote.Kind.destination, "", 0);
-            case 4 -> askConfirm(player, CampaignVote.Kind.redirect, "", I18n.get("campaign.vote.kind.redirect"));
+            case 3 -> player.sendMessage(I18n.get("campaign.menu.wip-message"));
+            case 4 -> player.sendMessage(I18n.get("campaign.menu.wip-message"));
             case 5 -> {
                 mindustry.core.GameState state = mindustry.Vars.state;
                 String label = I18n.get(state.isPaused() ? "campaign.pause.resume" : "campaign.pause.pause");
