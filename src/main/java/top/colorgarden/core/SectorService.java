@@ -856,7 +856,7 @@ public class SectorService{
         sector.info.destination = link ? origin : null;
         sector.info.attempts ++;
 
-        applyCoreBlueprint(sector);
+        applyCoreBlueprint(sector, origin);
 
         logic.play();
         saveSector(sector);
@@ -872,7 +872,7 @@ public class SectorService{
      * it anchors the schematic's own core tile at the given position, clears whatever is in the way and
      * registers the new core. The spawn position is updated so the player lands on the new core.</p>
      */
-    private static void applyCoreBlueprint(Sector sector){
+    private static void applyCoreBlueprint(Sector sector, @Nullable Sector origin){
         try{
             mindustry.gen.Building coreBuild = state.rules.defaultTeam.core();
             CoreBlueprints.Entry entry = CoreBlueprints.selectedEntry();
@@ -886,7 +886,7 @@ public class SectorService{
 
                 sector.info.spawnPosition = arc.math.geom.Point2.pack(x, y);
                 Log.info("[CampaignServer] " + I18n.get("campaign.core.applied", sector.name(), schematic.width, schematic.height));
-                applyCargo();
+                applyCargo(origin);
                 return;
             }
 
@@ -904,19 +904,19 @@ public class SectorService{
 
             sector.info.spawnPosition = arc.math.geom.Point2.pack(x, y);
             Log.info("[CampaignServer] " + I18n.get("campaign.core.applied-core", sector.name(), chosen.localizedName));
-            applyCargo();
+            applyCargo(origin);
         }catch(Throwable t){
             Log.err("[CampaignServer] " + I18n.get("campaign.core.apply-failed", Strings.getSimpleMessage(t)));
         }
     }
     /** Adds the configured launch cargo to the core that was just placed. */
-    private static void applyCargo(){
+    private static void applyCargo(@Nullable Sector origin){
         try{
             mindustry.gen.Building core = state.rules.defaultTeam.core();
             if(core == null) return;
 
             int capacity = core.block instanceof mindustry.world.blocks.storage.CoreBlock cb ? cb.itemCapacity : 0;
-            LaunchCargo.apply(core.items, capacity);
+            LaunchCargo.apply(core.items, capacity, origin);
         }catch(Throwable t){
             Log.err("[CampaignServer] " + I18n.get("campaign.cargo.apply-failed", Strings.getSimpleMessage(t)));
         }

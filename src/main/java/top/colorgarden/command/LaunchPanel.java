@@ -208,7 +208,7 @@ public class LaunchPanel{
             rows.add(new String[]{item.localizedName + ": " + amount, "-50", "+50", I18n.get("campaign.launch.max")});
         }
 
-        rows.add(new String[]{I18n.get("campaign.launch.clear-cargo"), I18n.get("campaign.launch.back")});
+        rows.add(new String[]{I18n.get("campaign.launch.max-all"), I18n.get("campaign.launch.clear-cargo"), I18n.get("campaign.launch.back")});
         rows.add(new String[]{I18n.get("campaign.menu.prev"), I18n.get("campaign.menu.next"),
             I18n.get("campaign.menu.close")});
 
@@ -239,15 +239,19 @@ public class LaunchPanel{
         int rest = option - visible * 4;
         switch(rest){
             case 0 -> {
-                LaunchCargo.set("");
+                LaunchCargo.maxAll();
                 openCargo(player, page);
             }
             case 1 -> {
+                LaunchCargo.set("");
+                openCargo(player, page);
+            }
+            case 2 -> {
                 hide(player, cargoId);
                 openMain(player);
             }
-            case 2 -> openCargo(player, page - 1);
-            case 3 -> openCargo(player, page + 1);
+            case 3 -> openCargo(player, page - 1);
+            case 4 -> openCargo(player, page + 1);
             default -> hide(player, cargoId);
         }
     }

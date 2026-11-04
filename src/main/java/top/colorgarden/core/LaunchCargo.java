@@ -129,6 +129,18 @@ public class LaunchCargo{
         return 0;
     }
 
+    /** Fills every unlocked item to the launch capacity. */
+    public static void maxAll(){
+        Seq<ItemStack> next = new Seq<>();
+        int cap = capacity();
+        if(cap <= 0) return;
+
+        for(Item item : mindustry.Vars.content.items()){
+            if(item.unlocked()) next.add(new ItemStack(item, cap));
+        }
+
+        persist(next);
+    }
     /** Adds (or subtracts) an item amount and stores the result; 0 removes the entry. */
     public static void addAmount(Item item, int delta){
         Seq<ItemStack> existing = current();
@@ -174,19 +186,47 @@ public class LaunchCargo{
      *
      * @param capacity storage of the core, so the sum can be capped like vanilla does
      */
-    public static void apply(@Nullable mindustry.world.modules.ItemModule coreItems, int capacity){
+    /**
+     * Takes the configured cargo out of the origin sector's stored items, like vanilla's launch does.
+     *
+     * @return the stacks that were actually carried (item, amount)
+     */
+    public static Seq<ItemStack> takeFrom(@Nullable mindustry.type.Sector origin, int capacity){
+        Seq<ItemStack> carried = new Seq<>();
+        if(origin == null) return carried;
+
+        for(ItemStack stack : current()){
+            int have = origin.info == null ? 0 : origin.info.items.get(stack.item);
+            int take = Math.max(0, Math.min(stack.amount, Math.min(have, capacity)));
+            if(take <= 0) continue;
+
+            origin.info.items.remove(stack.item, take);
+            carried.add(new ItemStack(stack.item, take));
+        }
+
+        return carried;
+    }
+    public static void apply(@Nullable mindustry.world.modules.ItemModule coreItems, int capacity, @Nullable mindustry.type.Sector origin){
         Seq<ItemStack> cargo = current();
         if(cargo.isEmpty()) return;
 
+        //the launch carries what the origin sector already stores, never more
+        Seq<ItemStack> carried = takeFrom(origin, capacity);
+        if(carried.isEmpty() && origin != null){
+            Log.info("[CampaignServer] " + I18n.get("campaign.cargo.empty-origin", origin.name()));
+            return;
+        }
+        if(carried.isEmpty()) carried.addAll(cargo);
+
         if(state.rules != null){
             Seq<ItemStack> loadout = new Seq<>();
-            loadout.addAll(cargo);
+            loadout.addAll(carried);
             state.rules.loadout = loadout;
         }
 
         if(coreItems == null) return;
 
-        for(ItemStack stack : cargo){
+        for(ItemStack stack : carried){
             coreItems.add(stack.item, Math.min(stack.amount, Math.max(0, capacity - coreItems.get(stack.item))));
         }
     }
