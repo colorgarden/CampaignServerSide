@@ -302,6 +302,7 @@ public class AdminPanel{
 
         String[][] options = {
             {I18n.get("campaign.admin.window", (int)config.voteDuration), "-5", "+5"},
+            {I18n.get("campaign.admin.push", (int)config.votePushSeconds), "-1", "+1"},
             {I18n.get("campaign.admin.timeout", (int)config.voteTimeout, (int)config.votePushSeconds, maxTimeout()), "-1", "+1"},
             {I18n.get("campaign.admin.cooldown", (int)config.voteCooldown), "-1", "+1"},
             {I18n.get("campaign.admin.percent", (int)(config.votePercent * 100)), "-10", "+10"},
@@ -323,32 +324,34 @@ public class AdminPanel{
 
         switch(option){
             //the label cells are dead keys; re-pushing keeps the dialog open
-            case 0, 3, 6, 9, 12, 15, 18 -> changed = false;
+            case 0, 3, 6, 9, 12, 15, 18, 21 -> changed = false;
             case 1 -> config.voteDuration = clamp(config.voteDuration - 5f, 5f, 300f);
             case 2 -> config.voteDuration = clamp(config.voteDuration + 5f, 5f, 300f);
-            case 4 -> config.voteTimeout = clamp(config.voteTimeout - 1f, 0f, maxTimeout());
-            case 5 -> config.voteTimeout = clamp(config.voteTimeout + 1f, 0f, maxTimeout());
-            case 7 -> config.voteCooldown = clamp(config.voteCooldown - 1f, 0f, 300f);
-            case 8 -> config.voteCooldown = clamp(config.voteCooldown + 1f, 0f, 300f);
-            case 10 -> config.votePercent = clamp(config.votePercent - 0.1f, 0.1f, 1f);
-            case 11 -> config.votePercent = clamp(config.votePercent + 0.1f, 0.1f, 1f);
-            case 13 -> config.voteMinPlayers = Math.max(1, config.voteMinPlayers - 1);
-            case 14 -> config.voteMinPlayers = Math.min(100, config.voteMinPlayers + 1);
-            case 16 -> config.skipWaveCooldown = clamp(config.skipWaveCooldown - 5f, 0f, 600f);
-            case 17 -> config.skipWaveCooldown = clamp(config.skipWaveCooldown + 5f, 0f, 600f);
-            case 19 -> config.afkSeconds = clamp(config.afkSeconds - 10f, 10f, 600f);
-            case 20 -> config.afkSeconds = clamp(config.afkSeconds + 10f, 10f, 600f);
-            case 21 -> changed = false;
-            case 22 -> changed = false;
+            case 4 -> config.votePushSeconds = clamp(config.votePushSeconds - 1f, 0f, Math.max(0f, config.voteDuration - 1f));
+            case 5 -> config.votePushSeconds = clamp(config.votePushSeconds + 1f, 0f, Math.max(0f, config.voteDuration - 1f));
+            case 7 -> config.voteTimeout = clamp(config.voteTimeout - 1f, 0f, maxTimeout());
+            case 8 -> config.voteTimeout = clamp(config.voteTimeout + 1f, 0f, maxTimeout());
+            case 10 -> config.voteCooldown = clamp(config.voteCooldown - 1f, 0f, 300f);
+            case 11 -> config.voteCooldown = clamp(config.voteCooldown + 1f, 0f, 300f);
+            case 13 -> config.votePercent = clamp(config.votePercent - 0.1f, 0.1f, 1f);
+            case 14 -> config.votePercent = clamp(config.votePercent + 0.1f, 0.1f, 1f);
+            case 16 -> config.voteMinPlayers = Math.max(1, config.voteMinPlayers - 1);
+            case 17 -> config.voteMinPlayers = Math.min(100, config.voteMinPlayers + 1);
+            case 19 -> config.skipWaveCooldown = clamp(config.skipWaveCooldown - 5f, 0f, 600f);
+            case 20 -> config.skipWaveCooldown = clamp(config.skipWaveCooldown + 5f, 0f, 600f);
+            case 22 -> config.afkSeconds = clamp(config.afkSeconds - 10f, 10f, 600f);
+            case 23 -> config.afkSeconds = clamp(config.afkSeconds + 10f, 10f, 600f);
+            case 24 -> changed = false;
+            case 25 -> changed = false;
             default -> changed = false;
         }
 
         if(changed) CampaignConfig.save();
 
-        if(option == 21){
+        if(option == 24){
             hide(player, settingsId);
             openMain(player);
-        }else if(option == 22){
+        }else if(option == 25){
             hide(player, settingsId);
         }else{
             openSettings(player);
