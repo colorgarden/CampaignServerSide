@@ -128,14 +128,14 @@ public class VoteMenu{
             {I18n.get("campaign.menu.sector"), I18n.get("campaign.menu.research")},
             {I18n.get("campaign.menu.planet"), I18n.get("campaign.menu.destination")},
             {I18n.get("campaign.menu.redirect"), I18n.get("campaign.menu.pause")},
-            {I18n.get("campaign.menu.info"), I18n.get("campaign.menu.difficulty")},
-            {I18n.get("campaign.menu.rules")},
+            {I18n.get("campaign.menu.info"), I18n.get("campaign.menu.abandon")},
+            {I18n.get("campaign.menu.difficulty"), I18n.get("campaign.menu.rules")},
             {I18n.get("campaign.menu.close")}
         } : new String[][]{
             {I18n.get("campaign.menu.sector"), I18n.get("campaign.menu.research")},
             {I18n.get("campaign.menu.planet"), I18n.get("campaign.menu.destination")},
             {I18n.get("campaign.menu.redirect"), I18n.get("campaign.menu.pause")},
-            {I18n.get("campaign.menu.info")},
+            {I18n.get("campaign.menu.info"), I18n.get("campaign.menu.abandon")},
             {I18n.get("campaign.menu.close")}
         };
 
@@ -206,6 +206,13 @@ public class VoteMenu{
     private static void onMain(Player player, int option){
         if(option < 0) return; //closed with back/ESC
 
+        //the close button is the last cell; admins have one extra row in front of it
+        int close = player.admin ? 10 : 8;
+        if(option == close){
+            hide(player, mainId);
+            return;
+        }
+
         switch(option){
             case 0 -> showList(player, CampaignVote.Kind.sector, "", 0);
             case 1 -> showList(player, CampaignVote.Kind.research, "", 0);
@@ -225,8 +232,20 @@ public class VoteMenu{
                     pushVoteTo(player);
                 }
             }
-            case 7 -> openDifficulty(player);
-            case 8 -> openRules(player);
+            case 7 -> {
+                mindustry.type.Sector current = top.colorgarden.core.SectorService.current();
+                if(current == null){
+                    player.sendMessage(I18n.get("campaign.msg.not-playing"));
+                }else{
+                    askConfirm(player, CampaignVote.Kind.abandon, "", I18n.get("campaign.vote.abandon-label", current.name()));
+                }
+            }
+            case 8 -> {
+                if(player.admin) openDifficulty(player);
+            }
+            case 9 -> {
+                if(player.admin) openRules(player);
+            }
             default -> hide(player, mainId);
         }
     }
