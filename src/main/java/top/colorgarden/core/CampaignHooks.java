@@ -112,11 +112,14 @@ public class CampaignHooks{
             if(player == null || message == null) return message;
             if(CampaignVote.active() == null) return message;
 
+            //"1" / "0" cast the only running vote; "1 2" / "0 2" pick one when several are running
             String trimmed = message.trim();
-            if(!trimmed.equals("0") && !trimmed.equals("1")) return message;
-
-            boolean yes = trimmed.equals("1");
-            String problem = CampaignVote.cast(player, yes ? "y" : "n");
+            String[] parts = trimmed.split("\\s+");
+            if(parts.length == 0 || parts.length > 2) return message;
+            if(!parts[0].equals("0") && !parts[0].equals("1")) return message;
+            if(parts.length == 2 && !parts[1].matches("\\d+")) return message;
+            boolean yes = parts[0].equals("1");
+            String problem = CampaignVote.cast(player, yes ? "y" : "n", parts.length == 2 ? parts[1] : null);
             player.sendMessage(problem == null
                 ? I18n.get("campaign.vote.ballot-counted", I18n.get(yes ? "campaign.vote.yes" : "campaign.vote.no"))
                 : "[scarlet]" + problem);

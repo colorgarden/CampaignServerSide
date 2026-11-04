@@ -1091,7 +1091,7 @@ public class CampaignCommands{
         if("yes".equalsIgnoreCase(option) || "y".equalsIgnoreCase(option)
             || "no".equalsIgnoreCase(option) || "n".equalsIgnoreCase(option)
             || "cancel".equalsIgnoreCase(option)){
-            String problem = CampaignVote.cast(player, option);
+            String problem = CampaignVote.cast(player, option, tokens.isEmpty() ? null : tokens.get(0));
             if(problem != null) player.sendMessage("[scarlet]" + problem);
             return;
         }

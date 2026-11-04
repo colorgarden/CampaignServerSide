@@ -403,6 +403,52 @@ public class CampaignVote{
         return cast(player, choice, active());
     }
 
+    /**
+     * Casts a vote chosen by chat, where several votes may be running at once.
+     *
+     * @param index 1-based vote number, or null to use the only running vote; with more than one
+     *              running vote and no index the numbered list is sent instead of guessing
+     * @return null when the vote was cast or the player was asked to pick a number
+     */
+    public static @Nullable String cast(Player player, String choice, @Nullable String index){
+        Seq<Vote> running = activeVotes();
+        if(running.isEmpty()) return I18n.get("campaign.vote.no-vote");
+
+        if(index != null && !index.trim().isEmpty()){
+            int number = -1;
+            try{
+                number = Integer.parseInt(index.trim());
+            }catch(NumberFormatException ignored){
+                //fall through to the invalid-index message
+            }
+
+            if(number < 1 || number > running.size){
+                return I18n.get("campaign.vote.index-invalid", number < 1 ? index : String.valueOf(number), running.size) + "\n" + list(running);
+            }
+
+            return cast(player, choice, running.get(number - 1));
+        }
+
+        if(running.size > 1){
+            player.sendMessage(I18n.get("campaign.vote.pick-number", list(running)));
+            return null;
+        }
+
+        return cast(player, choice, running.first());
+    }
+
+    /** @return a numbered list of the running votes, one per line. */
+    public static String list(Seq<Vote> running){
+        StringBuilder builder = new StringBuilder();
+        for(int i = 0; i < running.size; i++){
+            Vote vote = running.get(i);
+            if(builder.length() > 0) builder.append('\n');
+            builder.append("[accent]").append(i + 1).append("[] ").append(describe(vote))
+                .append(" [white]").append(vote.yes.size).append('/').append(requiredVotes())
+                .append(" [accent]").append(vote.secondsLeft()).append("s[]");
+        }
+        return builder.toString();
+    }
     /** Casts a vote on one specific vote (needed while several run in parallel). */
     public static @Nullable String cast(Player player, String choice, @Nullable Vote vote){
         if(vote == null) return I18n.get("campaign.vote.no-vote");
