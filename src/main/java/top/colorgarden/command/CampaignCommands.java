@@ -593,6 +593,8 @@ public class CampaignCommands{
             String reason = SectorService.lockReason(sector);
             info("campaign.why.header", sector.name(), sector.id, sector.planet.name, status);
             info("campaign.why.result", SectorService.canEnter(sector), reason.isEmpty() ? "-" : reason);
+            String hint = SectorService.launchHint(sector);
+            if(!hint.isEmpty()) info("campaign.why.hint", hint);
 
             //raw data behind the decision, so the vanilla rule can be checked instead of guessed
             mindustry.type.SectorPreset preset = sector.preset;

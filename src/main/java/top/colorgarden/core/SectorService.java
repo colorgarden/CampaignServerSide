@@ -423,6 +423,38 @@ public class SectorService{
         return sector.isShielded() ? "shielded" : "locked";
     }
 
+    // ---------------------------------------------------------------- launch hints
+
+    /**
+     * @return the sector a player has to launch from to reach this one, or null when there is none.
+     *         Vanilla pads reach a numbered sector from a neighbouring sector that has a base, so when
+     *         none has one yet the hint points at the unlocked neighbour to play first.
+     */
+    public static @Nullable Sector launchSource(@Nullable Sector target){
+        if(target == null || target.planet == null) return null;
+
+        for(Sector near : target.near()){
+            if(near != null && near != target && near.hasBase()) return near;
+        }
+
+        for(Sector near : target.near()){
+            if(near == null || near == target) continue;
+            if(near.preset == null) continue;
+            if(canEnter(near)) return near;
+        }
+
+        return null;
+    }
+
+    /** @return a localized "switch to X first" hint for a locked sector, or "" when there is none. */
+    public static String launchHint(@Nullable Sector target){
+        if(target == null || canEnter(target)) return "";
+
+        Sector source = launchSource(target);
+        return source == null ? I18n.get("campaign.hint.no-launcher")
+            : I18n.get("campaign.hint.launcher", source.name());
+    }
+
     // ---------------------------------------------------------------- life cycle
 
     /** Saves the current sector (if any), then loads or generates the given one and hosts it. */

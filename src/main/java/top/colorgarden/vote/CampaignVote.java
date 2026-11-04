@@ -238,6 +238,8 @@ public class CampaignVote{
             if(sector == null) return I18n.get("campaign.vote.no-such-sector", target) + suggest(kind, target);
             if(sector == SectorService.current()) return I18n.get("campaign.vote.already-there", sector.name());
             if(CampaignConfig.data().enforceSectorUnlock && !SectorService.canEnter(sector)){
+                String hint = SectorService.launchHint(sector);
+                if(!hint.isEmpty()) return I18n.get("campaign.vote.sector-locked", sector.name()) + "\n" + hint;
                 return I18n.get("campaign.vote.sector-locked", sector.name());
             }
             resolved = sector.planet.name + ":" + sector.id;
