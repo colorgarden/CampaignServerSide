@@ -79,7 +79,7 @@ public class LaunchCargo{
                 if(!item.unlocked()) return I18n.get("campaign.cargo.locked-item", item.localizedName);
                 if(!Strings.canParsePositiveInt(parts[i + 1])) return I18n.get("campaign.cargo.bad-amount", parts[i + 1]);
 
-                parsed.add(new ItemStack(item, Math.min(99999, Strings.parseInt(parts[i + 1]))));
+                parsed.add(new ItemStack(item, Math.min(clamp(Strings.parseInt(parts[i + 1])), 99999)));
             }
         }
 
@@ -97,6 +97,30 @@ public class LaunchCargo{
         }
     }
 
+    /**
+     * @return how much one resource may carry, mirroring the vanilla launch dialog:
+     *         {@code planet.launchCapacityMultiplier * core.itemCapacity}.
+     */
+    public static int capacity(){
+        try{
+            mindustry.type.Planet planet = SectorService.planet();
+            if(planet == null) return 0;
+
+            mindustry.world.blocks.storage.CoreBlock core = CoreBlueprints.selectedCore();
+            if(core == null && planet.defaultCore instanceof mindustry.world.blocks.storage.CoreBlock dc) core = dc;
+
+            return Math.max(0, (int)(planet.launchCapacityMultiplier * core.itemCapacity));
+        }catch(Throwable ignored){
+            return 0;
+        }
+    }
+
+    /** @return the amount clamped to the launch capacity. */
+    public static int clamp(int amount){
+        int cap = capacity();
+        int max = cap > 0 ? cap : 99999;
+        return Math.max(0, Math.min(max, amount));
+    }
     /** @return the configured amount of one item. */
     public static int amount(Item item){
         for(ItemStack stack : current()){
@@ -108,7 +132,7 @@ public class LaunchCargo{
     /** Adds (or subtracts) an item amount and stores the result; 0 removes the entry. */
     public static void addAmount(Item item, int delta){
         Seq<ItemStack> existing = current();
-        int amount = Math.max(0, Math.min(99999, amount(item) + delta));
+        int amount = clamp(amount(item) + delta);
 
         Seq<ItemStack> next = new Seq<>();
         for(ItemStack stack : existing){

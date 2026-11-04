@@ -205,7 +205,7 @@ public class LaunchPanel{
         for(int i = current * PER_PAGE; i < Math.min(items.size, (current + 1) * PER_PAGE); i++){
             Item item = items.get(i);
             int amount = LaunchCargo.amount(item);
-            rows.add(new String[]{item.localizedName + ": " + amount, "-50", "+50"});
+            rows.add(new String[]{item.localizedName + ": " + amount, "-50", "+50", I18n.get("campaign.launch.max")});
         }
 
         rows.add(new String[]{I18n.get("campaign.launch.clear-cargo"), I18n.get("campaign.launch.back")});
@@ -213,7 +213,7 @@ public class LaunchPanel{
             I18n.get("campaign.menu.close")});
 
         Call.followUpMenu(player.con, cargoId, I18n.get("campaign.launch.cargo-title"),
-            I18n.get("campaign.launch.cargo-hint", current + 1, pages), rows.toArray(String[].class));
+            I18n.get("campaign.launch.cargo-hint", current + 1, pages, LaunchCargo.capacity()), rows.toArray(String[].class));
     }
 
     private static void onCargo(Player player, int option){
@@ -224,18 +224,19 @@ public class LaunchPanel{
         int from = page * PER_PAGE;
         int visible = Math.min(items.size, from + PER_PAGE) - from;
 
-        if(option < visible * 3){
-            Item item = items.get(from + option / 3);
-            int cell = option % 3;
+        if(option < visible * 4){
+            Item item = items.get(from + option / 4);
+            int cell = option % 4;
 
             if(cell == 1) LaunchCargo.addAmount(item, -50);
             if(cell == 2) LaunchCargo.addAmount(item, 50);
+            if(cell == 3) LaunchCargo.addAmount(item, LaunchCargo.capacity() - LaunchCargo.amount(item));
 
             openCargo(player, page);
             return;
         }
 
-        int rest = option - visible * 3;
+        int rest = option - visible * 4;
         switch(rest){
             case 0 -> {
                 LaunchCargo.set("");
