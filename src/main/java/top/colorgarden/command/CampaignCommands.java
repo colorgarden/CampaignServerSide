@@ -1236,7 +1236,28 @@ public class CampaignCommands{
                         : I18n.get("campaign.rule.set", tokens.get(0), value));
                 }
 
-                case "vote" -> handleVoteConfig(player, tokens);
+                                case "vote" -> handleVoteConfig(player, tokens);
+
+                case "core", "schematic", "blueprint" -> {
+                    if(rest.isEmpty()){
+                        player.sendMessage(top.colorgarden.core.CoreBlueprints.describe());
+                        return;
+                    }
+                    if("clear".equalsIgnoreCase(rest)){
+                        top.colorgarden.core.CoreBlueprints.clear();
+                        player.sendMessage(top.colorgarden.core.CoreBlueprints.describe());
+                        return;
+                    }
+
+                    String problem = top.colorgarden.core.CoreBlueprints.check(rest);
+                    if(problem != null){
+                        player.sendMessage("[scarlet]" + problem);
+                        return;
+                    }
+
+                    top.colorgarden.core.CoreBlueprints.save(rest);
+                    player.sendMessage(I18n.get("campaign.core.saved-message", top.colorgarden.core.CoreBlueprints.describe()));
+                }
 
                 case "save" -> player.sendMessage(I18n.get(SectorService.saveCurrent()
                     ? "campaign.client.save-ok" : "campaign.client.save-failed"));

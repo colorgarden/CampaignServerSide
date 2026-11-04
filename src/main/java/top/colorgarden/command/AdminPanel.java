@@ -31,7 +31,7 @@ import mindustry.ui.Menus;
 public class AdminPanel{
     private static final int perPage = 6;
 
-    private static int mainId = -1, listId = -1, settingsId = -1, difficultyId = -1, rulesId = -1, searchId = -1;
+    private static int mainId = -1, listId = -1, settingsId = -1, difficultyId = -1, rulesId = -1, searchId = -1, coreId = -1;
     private static boolean available;
 
     private enum Purpose{ research, sector, planet, pad }
@@ -52,6 +52,7 @@ public class AdminPanel{
             difficultyId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onDifficulty(p, o)));
             rulesId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onRules(p, o)));
             searchId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onSearch(p, s)));
+            coreId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onCoreInput(p, s)));
             available = true;
         }catch(Throwable t){
             available = false;
@@ -78,7 +79,7 @@ public class AdminPanel{
             {I18n.get("campaign.admin.redirect"), I18n.get("campaign.admin.pause")},
             {I18n.get("campaign.admin.skipwave"), I18n.get("campaign.admin.vote")},
             {I18n.get("campaign.admin.difficulty"), I18n.get("campaign.admin.rules")},
-            {I18n.get("campaign.menu.close")}
+            {I18n.get("campaign.admin.core"), I18n.get("campaign.menu.close")}
         };
 
         Call.followUpMenu(player.con, mainId, I18n.get("campaign.admin.title"), message, options);
@@ -117,8 +118,24 @@ public class AdminPanel{
             case 7 -> openSettings(player);
             case 8 -> openDifficulty(player);
             case 9 -> openRules(player);
+            case 10 -> Call.textInput(player.con, coreId, I18n.get("campaign.admin.core"),
+                I18n.get("campaign.admin.core-hint"), 20000, "", false);
             default -> hide(player, mainId);
         }
+    }
+
+    /** Text input for the base64 core blueprint. */
+    private static void onCoreInput(Player player, String text){
+        if(player == null || !player.admin) return;
+
+        String problem = top.colorgarden.core.CoreBlueprints.check(text);
+        if(problem != null){
+            player.sendMessage("[scarlet]" + problem);
+            return;
+        }
+
+        top.colorgarden.core.CoreBlueprints.save(text);
+        player.sendMessage(I18n.get("campaign.core.saved-message", top.colorgarden.core.CoreBlueprints.describe()));
     }
 
     // ---------------------------------------------------------------- lists
