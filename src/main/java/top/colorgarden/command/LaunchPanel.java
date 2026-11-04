@@ -44,6 +44,7 @@ public class LaunchPanel{
             cargoId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onCargo(p, o)));
             uploadId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onUpload(p, s)));
             available = true;
+            Log.info("[CampaignServer] launch panel registered.");
         }catch(Throwable t){
             available = false;
             Log.warn("[CampaignServer] " + I18n.get("campaign.log.menu-unavailable", String.valueOf(t)));
@@ -55,7 +56,10 @@ public class LaunchPanel{
     }
 
     public static void show(Player player, SectorService.PendingLaunch launch){
+        Log.info("[CampaignServer] launch dialog: player=@ available=@ con=@ sector=@", player == null ? "-" : player.plainName(), available, player != null && player.con != null, launch == null ? "-" : launch.sector.name());
+
         if(!available || player == null || player.con == null){
+            Log.warn("[CampaignServer] launch dialog skipped, generating immediately.");
             SectorService.enterNow(launch);
             return;
         }
