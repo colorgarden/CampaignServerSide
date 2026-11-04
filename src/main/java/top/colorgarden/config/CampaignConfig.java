@@ -153,6 +153,8 @@ public class CampaignConfig{
 
     /** Cooldown before the same player can start another vote, in seconds (measured from the result). */
     public float voteCooldown = 2f;
+    /** Seconds before the end of the window at which the ballot dialog is pushed. */
+    public float votePushSeconds = 5f;
     /** Players who did not move for {@link #afkSeconds} are ignored for vote quorums. */
     public boolean afkEnabled = true;
     /** How long a player may stand still before being treated as AFK, in seconds. */

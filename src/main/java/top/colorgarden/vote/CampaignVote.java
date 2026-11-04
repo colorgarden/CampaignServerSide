@@ -322,6 +322,7 @@ public class CampaignVote{
         vote.starterUuid = starter.uuid();
         vote.startedAt = Time.millis();
         vote.endsAt = vote.startedAt + (long)(config.voteDuration * 1000f);
+        vote.pushAt = vote.endsAt - (long)(Math.max(0f, config.votePushSeconds) * 1000f);
         vote.yes.add(starter.uuid());
 
         current = vote;
@@ -623,6 +624,10 @@ public class CampaignVote{
         public String starterName = "";
         public String starterUuid = "";
         public long startedAt, endsAt;
+        /** When the ballot dialog should pop up (near the end of the window). */
+        public long pushAt;
+        /** Whether the ballot was already pushed to the players. */
+        public boolean pushed;
         public final ObjectSet<String> yes = new ObjectSet<>();
         public final ObjectSet<String> no = new ObjectSet<>();
 
