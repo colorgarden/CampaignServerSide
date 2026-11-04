@@ -432,9 +432,7 @@ public class VoteMenu{
             if(state.kind == CampaignVote.Kind.sector){
                 String problem = CampaignVote.start(player, state.kind, target);
                 if(problem != null) player.sendMessage("[scarlet]" + problem);
-                if(!top.colorgarden.command.LaunchPanel.isWaiting(player)){
-                    showList(player, state.kind, state.query, state.page, state.showAll);
-                }
+                //the vote is running now; the picker that started it closes
                 return;
             }
 
@@ -507,9 +505,9 @@ public class VoteMenu{
 
         if(option != 0){
             //cancel: back to where the player came from instead of leaving them with no dialog
-        //a sector launch opened the setup dialog; re-opening the picker would cover it
-        if(top.colorgarden.command.LaunchPanel.isWaiting(player)) return;
+        //starting a vote closes the picker; only cancelling returns to the previous level
 
+        if(option == 0) return; //vote started: leave the menus closed
             reopen(player, entry);
             return;
         }
@@ -517,9 +515,9 @@ public class VoteMenu{
         String problem = CampaignVote.start(player, entry.kind, entry.target);
         if(problem != null) player.sendMessage("[scarlet]" + problem);
 
-        //a sector launch opened the setup dialog; re-opening the picker would cover it
-        if(top.colorgarden.command.LaunchPanel.isWaiting(player)) return;
+        //starting a vote closes the picker; only cancelling returns to the previous level
 
+        if(option == 0) return; //vote started: leave the menus closed
         reopen(player, entry);
     }
 
