@@ -303,7 +303,7 @@ public class AdminPanel{
         String[][] options = {
             {I18n.get("campaign.admin.window", (int)config.voteDuration), "-5", "+5"},
             {I18n.get("campaign.admin.push", (int)config.votePushSeconds), "-1", "+1"},
-            {I18n.get("campaign.admin.timeout", (int)config.voteTimeout, (int)config.votePushSeconds, maxTimeout()), "-1", "+1"},
+            {I18n.get("campaign.admin.timeout", (int)config.voteTimeout), "-1", "+1"},
             {I18n.get("campaign.admin.cooldown", (int)config.voteCooldown), "-1", "+1"},
             {I18n.get("campaign.admin.percent", (int)(config.votePercent * 100)), "-10", "+10"},
             {I18n.get("campaign.admin.minplayers", config.voteMinPlayers), "-1", "+1"},
