@@ -428,6 +428,16 @@ public class VoteMenu{
             //entries are "显示名 (id)"; the id inside the parentheses is what the resolver accepts
             String target = inside(label);
             hide(player, listId);
+            //sector launches are confirmed by the launch setup itself, so no extra confirm page
+            if(state.kind == CampaignVote.Kind.sector){
+                String problem = CampaignVote.start(player, state.kind, target);
+                if(problem != null) player.sendMessage("[scarlet]" + problem);
+                if(!top.colorgarden.command.LaunchPanel.isWaiting(player)){
+                    showList(player, state.kind, state.query, state.page, state.showAll);
+                }
+                return;
+            }
+
             askConfirm(player, state.kind, target, label);
             return;
         }
