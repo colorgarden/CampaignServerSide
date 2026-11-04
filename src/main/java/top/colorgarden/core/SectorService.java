@@ -748,10 +748,21 @@ public class SectorService{
         logic.reset();
 
         boolean loaded = !fresh && loadSectorSave(sector);
+        Log.info("[CampaignServer] enter @: loaded=@ cores=@", sector.name(), loaded, loaded ? state.rules.defaultTeam.cores().size : -1);
 
         //a sector whose core is gone cannot continue; vanilla restarts it with a fresh core
         if(loaded && state.rules.defaultTeam.cores().isEmpty() && restoreFromBackup(sector)){
             loaded = loadSectorSave(sector);
+            Log.info("[CampaignServer] enter @ after backup: loaded=@ cores=@", sector.name(), loaded, loaded ? state.rules.defaultTeam.cores().size : -1);
+        }
+
+        if(loaded && state.rules.defaultTeam.cores().isEmpty() && !CampaignConfig.data().regenerateLostSector){
+            //keep the world instead of silently rebuilding it
+            Log.warn("[CampaignServer] " + I18n.get("campaign.log.sector-no-core-kept", sector.name()));
+            sector.info.hasCore = false;
+            sector.saveInfo();
+            state.set(State.playing);
+            return;
         }
 
         if(loaded && state.rules.defaultTeam.cores().isEmpty()){

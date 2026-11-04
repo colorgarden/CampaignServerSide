@@ -55,6 +55,8 @@ public class CampaignConfig{
     public boolean saveOnExit = true;
     /** Delete the sector save when the sector is lost (matches the client's "clear sector on loss" rule). */
     public boolean clearSectorOnLose = false;
+    /** Rebuild a sector whose save has no core left; false keeps the world as it was found. */
+    public boolean regenerateLostSector = false;
 
     // --- permissions ---
 
