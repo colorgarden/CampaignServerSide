@@ -634,6 +634,29 @@ public class SectorService{
             throw new CampaignException(I18n.get("campaign.cargo.insufficient", Strings.join(", ", missing)));
         }
     }
+    /**
+     * A save without a core is normally a lost sector, but it can also be a save that was written
+     * after a bad regeneration. Before throwing the world away, try the rotated backup: if it still
+     * has cores, put it back as the canonical save.
+     *
+     * @return true when the backup was restored and the world should be reloaded
+     */
+    private static boolean restoreFromBackup(Sector sector){
+        try{
+            Fi canonical = sectorFile(sector);
+            Fi backup = canonical.parent().child(canonical.nameWithoutExtension() + ".msav-backup.msav");
+            if(!backup.exists() || backup.length() == 0) return false;
+
+            preserveSave(sector);
+            backup.copyTo(canonical);
+
+            Log.warn("[CampaignServer] " + I18n.get("campaign.log.backup-restored", sector.name(), backup.name()));
+            return true;
+        }catch(Throwable t){
+            Log.err("[CampaignServer] backup restore failed: " + Strings.getSimpleMessage(t));
+            return false;
+        }
+    }
     /** @return true when entering this sector would generate it instead of loading a save. */
     public static boolean needsGeneration(@Nullable Sector sector){
         if(sector == null) return false;
@@ -727,6 +750,10 @@ public class SectorService{
         boolean loaded = !fresh && loadSectorSave(sector);
 
         //a sector whose core is gone cannot continue; vanilla restarts it with a fresh core
+        if(loaded && state.rules.defaultTeam.cores().isEmpty() && restoreFromBackup(sector)){
+            loaded = loadSectorSave(sector);
+        }
+
         if(loaded && state.rules.defaultTeam.cores().isEmpty()){
             Log.info("[CampaignServer] " + I18n.get("campaign.log.sector-no-core", sector.name()));
             //keep the abandoned save instead of letting the regeneration overwrite it silently
