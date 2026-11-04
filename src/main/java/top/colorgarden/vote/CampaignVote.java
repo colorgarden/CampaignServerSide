@@ -130,7 +130,9 @@ public class CampaignVote{
 
                 Sector target = SectorService.targetFor(planet);
                 if(target == null) continue;
-                if(config.enforceSectorUnlock && !SectorService.canEnter(target)) continue;
+                //a planet is switchable when the planet itself is accessible; the sector inside it is
+                //picked afterwards and may still need its own unlock
+                if(config.enforceSectorUnlock && !planet.accessible) continue;
 
                 if(matches(planet.name, planet.localizedName, needle)){
                     out.add(planet.localizedName);
