@@ -660,13 +660,14 @@ public class SectorService{
         //vanilla switches maps through a WorldReloader: it clears the units, sends worldDataBegin to
         //every client before the load and world+assets afterwards. Doing it by hand leaves clients on
         //the old map (no world begin packet, no unit reset), so use the vanilla object itself.
+        //a launch that has to build a new base costs the configured cargo; refuse it when the origin
+        //sector cannot pay, instead of silently arriving empty-handed
+        requireCargo(previous, sector);
+
         boolean syncClients = net.server() && Groups.player.size() > 0 && CampaignConfig.data().resyncClients;
         mindustry.net.WorldReloader reloader = syncClients ? new mindustry.net.WorldReloader() : null;
         if(reloader != null) reloader.begin();
 
-        //a launch that has to build a new base costs the configured cargo; refuse it when the origin
-        //sector cannot pay, instead of silently arriving empty-handed
-        requireCargo(previous, sector);
 
         if(previous != null && !(fresh && previous == sector)){
             saveCurrent();
