@@ -224,6 +224,12 @@ public class SectorService{
             lower = lower.substring(3);
         }
 
+        //menus show numbered sectors as "#175"
+        if(lower.startsWith("#")){
+            lower = lower.substring(1);
+            raw = raw.substring(1);
+        }
+
         SectorPreset preset = content.sector(lower);
         if(preset != null && preset.planet == planet && preset.sector != null){
             return preset.sector;
@@ -238,6 +244,8 @@ public class SectorService{
 
         for(SectorPreset other : presets(planet)){
             if(other.localizedName != null && other.localizedName.equalsIgnoreCase(raw)) return other.sector;
+            //menu labels follow the client language, so match that too
+            if(I18n.content(other).equalsIgnoreCase(raw)) return other.sector;
             if(other.name.equalsIgnoreCase(raw)) return other.sector;
         }
 
@@ -252,7 +260,7 @@ public class SectorService{
         int hits = 0;
         for(SectorPreset other : presets(planet)){
             if(other.sector == null) continue;
-            if(contains(other.name, lower) || contains(other.localizedName, lower)){
+            if(contains(other.name, lower) || contains(other.localizedName, lower) || contains(I18n.content(other), lower)){
                 partial = other.sector;
                 if(++hits > 1) return null;
             }

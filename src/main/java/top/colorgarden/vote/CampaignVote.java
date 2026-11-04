@@ -126,7 +126,7 @@ public class CampaignVote{
                 if(config.enforceSectorUnlock && !SectorService.canEnter(target)) continue;
 
                 if(matches(planet.name, planet.localizedName, needle)){
-                    out.add(planet.localizedName + " (" + planet.name + ")");
+                    out.add(planet.localizedName);
                 }
                 if(out.size >= limit) break;
             }
@@ -167,7 +167,7 @@ public class CampaignVote{
             for(Sector sector : current.planet.sectors){
                 if(sector == null || sector == current || !sector.hasBase()) continue;
                 if(matches(sector.name(), String.valueOf(sector.id), needle)){
-                    out.add(sector.name() + " (" + current.planet.name + ":" + sector.id + ")");
+                    out.add(sector.name());
                 }
                 if(out.size >= limit) break;
             }
@@ -187,7 +187,7 @@ public class CampaignVote{
             if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
 
             if(matches(preset.name, I18n.content(preset), needle) || matches(String.valueOf(sector.id), "", needle)){
-                out.add(I18n.content(preset) + " (" + currentPlanet.name + ":" + sector.id + ")");
+                out.add(I18n.content(preset));
             }
             if(out.size >= limit) break;
         }
@@ -199,7 +199,7 @@ public class CampaignVote{
             if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
 
             if(matches(String.valueOf(sector.id), "", needle)){
-                out.add("#" + sector.id + " (" + currentPlanet.name + ":" + sector.id + ")");
+                out.add("#" + sector.id);
             }
             if(out.size >= limit) break;
         }
