@@ -1040,7 +1040,8 @@ public class CampaignCommands{
     private static boolean isVoteKind(String option){
         return "sector".equals(option) || "planet".equals(option) || "research".equals(option)
             || "destination".equals(option) || "redirect".equals(option) || "pause".equals(option)
-            || "wave".equals(option) || "skipwave".equals(option) || "cj".equals(option);
+            || "wave".equals(option) || "skipwave".equals(option) || "cj".equals(option)
+            || "abandon".equals(option);
     }
 
     /** Handles both {@code /cvote} and its short form {@code /cv}. */

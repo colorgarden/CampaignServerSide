@@ -40,7 +40,7 @@ import mindustry.type.SectorPreset;
  */
 public class CampaignVote{
     public enum Kind{
-        sector, research, planet, destination, redirect, pause, wave
+        sector, research, planet, destination, redirect, pause, wave, abandon
     }
 
     /** The vote that is currently running, if any. */
@@ -75,6 +75,7 @@ public class CampaignVote{
             case redirect -> config.voteRedirect && config.allowSectorSwitch;
             case pause -> config.votePause;
             case wave -> config.voteWave;
+            case abandon -> config.voteAbandon;
         };
     }
 
@@ -101,7 +102,7 @@ public class CampaignVote{
         String needle = query == null ? "" : query.trim().toLowerCase();
         CampaignConfig config = CampaignConfig.data();
 
-        if(kind == Kind.redirect || kind == Kind.pause || kind == Kind.wave) return out;
+        if(kind == Kind.redirect || kind == Kind.pause || kind == Kind.wave || kind == Kind.abandon) return out;
 
         if(kind == Kind.planet){
             for(Planet planet : SectorService.planets()){
@@ -281,6 +282,14 @@ public class CampaignVote{
 
             resolved = paused ? "resume" : "pause";
             label = I18n.get(paused ? "campaign.pause.resume" : "campaign.pause.pause");
+        }else if(kind == Kind.abandon){
+            if(!mindustry.Vars.state.isGame()) return I18n.get("campaign.msg.not-playing");
+
+            Sector playingSector = SectorService.current();
+            if(playingSector == null) return I18n.get("campaign.msg.not-playing");
+
+            resolved = playingSector.name();
+            label = I18n.get("campaign.vote.abandon-label", playingSector.name());
         }else if(kind == Kind.wave){
             if(!mindustry.Vars.state.isGame()) return I18n.get("campaign.msg.not-playing");
 
@@ -467,6 +476,7 @@ public class CampaignVote{
             case redirect -> "campaign.vote.describe-redirect";
             case pause -> "campaign.vote.describe-pause";
             case wave -> "campaign.vote.describe-wave";
+            case abandon -> "campaign.vote.describe-abandon";
         };
         return I18n.get(key, vote.label);
     }
@@ -534,6 +544,13 @@ public class CampaignVote{
                     : mindustry.core.GameState.State.playing);
 
                 announce(I18n.get(pause ? "campaign.vote.paused" : "campaign.vote.resumed"));
+            }else if(vote.kind == Kind.abandon){
+                //vanilla PlanetDialog#abandonSectorConfirm: destroying every core ends the run
+                for(mindustry.gen.Building core : mindustry.Vars.state.rules.defaultTeam.cores().copy()){
+                    core.kill();
+                }
+
+                announce(I18n.get("campaign.vote.abandoned", vote.arg));
             }else if(vote.kind == Kind.wave){
                 if(mindustry.Vars.state.isGame()){
                     mindustry.Vars.logic.skipWave();
