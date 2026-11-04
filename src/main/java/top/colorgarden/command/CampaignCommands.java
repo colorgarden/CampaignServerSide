@@ -1272,53 +1272,6 @@ public class CampaignCommands{
 
                                 case "vote" -> handleVoteConfig(player, tokens);
 
-                case "coretype", "coreblock", "blueprint", "core", "schematic" -> {
-                    if(rest.isEmpty()){
-                        player.sendMessage(top.colorgarden.core.CoreBlueprints.describe());
-                        StringBuilder list = new StringBuilder(I18n.get("campaign.core.type-list"));
-                        for(var entry : top.colorgarden.core.CoreBlueprints.entries()){
-                            list.append("\n  ").append(entry.name).append(entry.singleCore ? " *" : "");
-                        }
-                        player.sendMessage(list.toString());
-                        return;
-                    }
-
-                    if("clear".equalsIgnoreCase(rest) || "default".equalsIgnoreCase(rest)){
-                        top.colorgarden.core.CoreBlueprints.select(null);
-                        player.sendMessage(I18n.get("campaign.core.type-set", top.colorgarden.core.CoreBlueprints.describe()));
-                        return;
-                    }
-
-                    //a name selects from the library, anything else is a base64 upload
-                    if(rest.length() > 40){
-                        String problem = top.colorgarden.core.CoreBlueprints.check(rest);
-                        if(problem != null){
-                            player.sendMessage("[scarlet]" + problem);
-                            return;
-                        }
-
-                        String name = top.colorgarden.core.CoreBlueprints.add(rest);
-                        if(name != null) top.colorgarden.core.CoreBlueprints.select(name);
-                        player.sendMessage(I18n.get("campaign.core.saved-message", top.colorgarden.core.CoreBlueprints.describe()));
-                        return;
-                    }
-
-                    top.colorgarden.core.CoreBlueprints.select(rest);
-                    player.sendMessage(I18n.get("campaign.core.type-set", top.colorgarden.core.CoreBlueprints.describe()));
-                }
-                case "cargo", "loadout" -> {
-                    if(rest.isEmpty()){
-                        player.sendMessage(top.colorgarden.core.LaunchCargo.describe());
-                        return;
-                    }
-
-                    String problem = top.colorgarden.core.LaunchCargo.set("clear".equalsIgnoreCase(rest) ? "" : rest);
-                    player.sendMessage(problem != null
-                        ? "[scarlet]" + problem
-                        : I18n.get("campaign.cargo.set", top.colorgarden.core.LaunchCargo.describe()));
-                }
-
-
                 case "save" -> player.sendMessage(I18n.get(SectorService.saveCurrent()
                     ? "campaign.client.save-ok" : "campaign.client.save-failed"));
 

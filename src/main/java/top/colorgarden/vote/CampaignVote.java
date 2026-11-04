@@ -372,7 +372,7 @@ public class CampaignVote{
 
         Log.info("[CampaignServer] @ started a @ vote for '@'.", starter.plainName(), kind, label);
         push();
-        VoteMenu.pushVote();
+        //the ballot is pushed later, when the configured tail of the window starts
 
         //a ballot that is already decided (a lone player, or everyone has voted) should not wait for
         //the idle timeout; resolve on the next frame so the world is not reloaded inside a command
