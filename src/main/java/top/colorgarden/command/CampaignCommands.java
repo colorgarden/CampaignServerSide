@@ -526,6 +526,11 @@ public class CampaignCommands{
             info(pause ? "campaign.sim.paused" : "campaign.sim.resumed");
         });
 
+        handler.register("campaign-skipwave", "[count]", "Skip waves immediately (vanilla Logic#skipWave).", args -> {
+            int count = skipWaves(args.length > 0 ? args[0] : "1");
+            info("campaign.wave.skipped", count, state.wave);
+        });
+
         handler.register("campaign-difficulty", "[name]", "Show or set the campaign difficulty.", args -> {
             mindustry.game.Difficulty current = SectorService.difficulty();
             info("campaign.difficulty.current", I18n.get("campaign.difficulty." + current.name()));
@@ -951,6 +956,16 @@ public class CampaignCommands{
             player.sendMessage(I18n.get(pause ? "campaign.sim.paused" : "campaign.sim.resumed"));
         });
 
+        arc.util.CommandHandler.CommandRunner<Player> skip = (args, player) -> {
+            if(!requirePermission(player, true)) return;
+
+            int count = skipWaves(args.length > 0 ? args[0] : "1");
+            player.sendMessage(I18n.get("campaign.wave.skipped", count, state.wave));
+        };
+
+        client(handler, "cj", "[count]", "[admin] Skip waves.", skip);
+        client(handler, "cjump", "[count]", "[admin] Skip waves (alias).", skip);
+
         client(handler, "difficulty", "[name]", "[admin] Show or set the campaign difficulty.", (args, player) -> {
             if(!requirePermission(player, true)) return;
 
@@ -1007,13 +1022,15 @@ public class CampaignCommands{
             case "destination" -> CampaignVote.Kind.destination;
             case "redirect" -> CampaignVote.Kind.redirect;
             case "pause" -> CampaignVote.Kind.pause;
+            case "wave", "skipwave", "cj" -> CampaignVote.Kind.wave;
             default -> CampaignVote.Kind.research;
         };
     }
 
     private static boolean isVoteKind(String option){
         return "sector".equals(option) || "planet".equals(option) || "research".equals(option)
-            || "destination".equals(option) || "redirect".equals(option) || "pause".equals(option);
+            || "destination".equals(option) || "redirect".equals(option) || "pause".equals(option)
+            || "wave".equals(option) || "skipwave".equals(option) || "cj".equals(option);
     }
 
     /** Handles both {@code /cvote} and its short form {@code /cv}. */
@@ -1077,8 +1094,9 @@ public class CampaignCommands{
             CampaignVote.Kind kind = voteKind(option);
 
             //these two take no target
-            if(kind == CampaignVote.Kind.pause || kind == CampaignVote.Kind.redirect){
-                String problem = CampaignVote.start(player, kind, "");
+            if(kind == CampaignVote.Kind.pause || kind == CampaignVote.Kind.redirect
+                || kind == CampaignVote.Kind.wave){
+                String problem = CampaignVote.start(player, kind, tokens.isEmpty() ? "" : joinFrom(tokens, 0));
                 if(problem != null) player.sendMessage("[scarlet]" + problem);
                 return;
             }
@@ -1333,7 +1351,29 @@ public class CampaignCommands{
         return pause;
     }
 
-    private static Sector requireSector(String query) throws CampaignException{        Sector sector = SectorService.resolve(query);
+    /**
+     * Skips waves with the vanilla routine ({@code Logic#skipWave}, the same call the campaign's
+     * "skip wave" button makes).
+     *
+     * @return how many waves were requested (capped at 50).
+     */
+    private static int skipWaves(String raw){
+        int count = 1;
+
+        if(raw != null && Strings.canParsePositiveInt(raw)){
+            count = Math.max(1, Math.min(50, Strings.parseInt(raw)));
+        }
+
+        for(int i = 0; i < count; i++){
+            if(!state.isGame()) break;
+            mindustry.Vars.logic.skipWave();
+        }
+
+        return count;
+    }
+
+    private static Sector requireSector(String query) throws CampaignException{
+        Sector sector = SectorService.resolve(query);
         if(sector == null){
             throw new CampaignException(I18n.get("campaign.error.no-such-sector", query));
         }

@@ -106,6 +106,8 @@ public class CampaignConfig{
     public boolean voteRedirect = true;
     /** Allow votes that pause or resume the simulation. */
     public boolean votePause = true;
+    /** Allow votes that skip the next wave. */
+    public boolean voteWave = true;
 
     // --- campaign rules (the same dialog the vanilla campaign offers) ---
 

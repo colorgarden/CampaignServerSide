@@ -40,7 +40,7 @@ import mindustry.type.SectorPreset;
  */
 public class CampaignVote{
     public enum Kind{
-        sector, research, planet, destination, redirect, pause
+        sector, research, planet, destination, redirect, pause, wave
     }
 
     /** The vote that is currently running, if any. */
@@ -74,6 +74,7 @@ public class CampaignVote{
             case destination -> config.voteDestination && config.allowSectorSwitch;
             case redirect -> config.voteRedirect && config.allowSectorSwitch;
             case pause -> config.votePause;
+            case wave -> config.voteWave;
         };
     }
 
@@ -100,7 +101,7 @@ public class CampaignVote{
         String needle = query == null ? "" : query.trim().toLowerCase();
         CampaignConfig config = CampaignConfig.data();
 
-        if(kind == Kind.redirect || kind == Kind.pause) return out;
+        if(kind == Kind.redirect || kind == Kind.pause || kind == Kind.wave) return out;
 
         if(kind == Kind.planet){
             for(Planet planet : SectorService.planets()){
@@ -266,6 +267,16 @@ public class CampaignVote{
 
             resolved = paused ? "resume" : "pause";
             label = I18n.get(paused ? "campaign.pause.resume" : "campaign.pause.pause");
+        }else if(kind == Kind.wave){
+            if(!mindustry.Vars.state.isGame()) return I18n.get("campaign.msg.not-playing");
+
+            int count = 1;
+            if(target != null && !target.trim().isEmpty() && arc.util.Strings.canParsePositiveInt(target.trim())){
+                count = Math.max(1, Math.min(20, arc.util.Strings.parseInt(target.trim())));
+            }
+
+            resolved = Integer.toString(count);
+            label = I18n.get("campaign.wave.skip-label", count);
         }else{
             UnlockableContent content = ResearchService.find(target);
             if(content == null) return I18n.get("campaign.vote.no-such-content", target) + suggest(kind, target);
@@ -295,8 +306,6 @@ public class CampaignVote{
         vote.yes.add(starter.uuid());
 
         current = vote;
-        //placeholder until the vote ends: the real cooldown starts when the result is known
-        cooldownUntil.put(starter.uuid(), vote.endsAt + (long)(config.voteCooldown * 1000f));
 
         announce(I18n.get("campaign.vote.started", starter.plainName(), describe(vote), requiredVotes(), Groups.player.size()));
 
@@ -447,6 +456,7 @@ public class CampaignVote{
             case destination -> "campaign.vote.describe-destination";
             case redirect -> "campaign.vote.describe-redirect";
             case pause -> "campaign.vote.describe-pause";
+            case wave -> "campaign.vote.describe-wave";
         };
         return I18n.get(key, vote.label);
     }
@@ -514,6 +524,18 @@ public class CampaignVote{
                     : mindustry.core.GameState.State.playing);
 
                 announce(I18n.get(pause ? "campaign.vote.paused" : "campaign.vote.resumed"));
+            }else if(vote.kind == Kind.wave){
+                int count = 1;
+                if(arc.util.Strings.canParsePositiveInt(vote.arg)){
+                    count = Math.max(1, Math.min(20, arc.util.Strings.parseInt(vote.arg)));
+                }
+
+                for(int i = 0; i < count; i++){
+                    if(!mindustry.Vars.state.isGame()) break;
+                    mindustry.Vars.logic.skipWave();
+                }
+
+                announce(I18n.get("campaign.vote.wave-skipped", count, mindustry.Vars.state.wave));
             }else{
                 UnlockableContent content = ResearchService.find(vote.arg);
                 if(content == null){
