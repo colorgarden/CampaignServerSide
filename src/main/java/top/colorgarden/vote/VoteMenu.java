@@ -190,7 +190,7 @@ public class VoteMenu{
         if(vote.yes.contains(player.uuid()) || vote.no.contains(player.uuid())) return;
 
         String message = I18n.get("campaign.menu.vote-message", CampaignVote.describe(vote),
-            vote.yes.size, CampaignVote.requiredVotes(), vote.no.size, vote.secondsLeft())
+            vote.yes.size, vote.required(), vote.no.size, vote.secondsLeft())
             + costBlock(vote.kind, vote.arg);
 
         String[][] options = {
@@ -486,7 +486,7 @@ public class VoteMenu{
         pending.put(player, entry);
 
         String message = I18n.get("campaign.menu.confirm-message", label,
-            CampaignVote.requiredVotes(), Groups.player.size()) + costBlock(kind, target);
+            Math.max(1, top.colorgarden.core.ActivityTracker.activeCount())) + costBlock(kind, target);
 
         String[][] options = {
             {I18n.get("campaign.menu.confirm"), I18n.get("campaign.menu.cancel")}
@@ -579,7 +579,7 @@ public class VoteMenu{
         Seq<String[]> rows = new Seq<>();
         for(CampaignVote.Vote vote : running){
             rows.add(new String[]{I18n.get("campaign.menu.vote-entry", CampaignVote.describe(vote),
-                vote.yes.size, CampaignVote.requiredVotes(), vote.secondsLeft())});
+                vote.yes.size, vote.required(), vote.secondsLeft())});
         }
         rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
 

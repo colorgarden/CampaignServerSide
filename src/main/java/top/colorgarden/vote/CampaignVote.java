@@ -390,9 +390,13 @@ public class CampaignVote{
         vote.pushAt = vote.endsAt - (long)(Math.max(0f, config.votePushSeconds) * 1000f);
         vote.yes.add(starter.uuid());
 
+        //freeze the quorum at start: the bar must not move while the vote runs
+        vote.onlineAtStart = Math.max(1, top.colorgarden.core.ActivityTracker.activeCount());
+        vote.requiredAtStart = requiredVotes(vote.onlineAtStart);
+
         votes.add(vote);
 
-        announce(I18n.get("campaign.vote.started", starter.plainName(), describe(vote), requiredVotes(), Groups.player.size()));
+        announce(I18n.get("campaign.vote.started", starter.plainName(), describe(vote), vote.required(), vote.onlineAtStart));
 
         Log.info("[CampaignServer] @ started a @ vote for '@'.", starter.plainName(), kind, label);
         push();
@@ -461,7 +465,7 @@ public class CampaignVote{
             Vote vote = running.get(i);
             if(builder.length() > 0) builder.append('\n');
             builder.append("[accent]").append(i + 1).append("[] ").append(describe(vote))
-                .append(" [white]").append(vote.yes.size).append('/').append(requiredVotes())
+                .append(" [white]").append(vote.yes.size).append('/').append(vote.required())
                 .append(" [accent]").append(vote.secondsLeft()).append("s[]");
         }
         return builder.toString();
@@ -496,7 +500,7 @@ public class CampaignVote{
         }
 
         announce(I18n.get("campaign.vote.cast", player.plainName(), I18n.get(yes ? "campaign.vote.yes" : "campaign.vote.no"),
-            describe(vote), vote.yes.size, requiredVotes()));
+            describe(vote), vote.yes.size, vote.required()));
 
         Boolean decided = decide(vote);
         if(decided == null){
@@ -559,8 +563,8 @@ public class CampaignVote{
      *         {@code voteDecision}.
      */
     private static @Nullable Boolean decide(Vote vote){
-        int online = Math.max(1, top.colorgarden.core.ActivityTracker.activeCount());
-        int required = requiredVotes(online);
+        int online = vote.onlineAtStart > 0 ? vote.onlineAtStart : Math.max(1, top.colorgarden.core.ActivityTracker.activeCount());
+        int required = vote.required();
 
         int yes = vote.yes.size, no = vote.no.size;
         int remaining = Math.max(0, online - yes - no);
@@ -753,6 +757,12 @@ public class CampaignVote{
         public String starterName = "";
         public String starterUuid = "";
         public long startedAt, endsAt;
+        /** Quorum frozen when the vote started, so displays never disagree. */
+        public int onlineAtStart = 1, requiredAtStart = 1;
+
+        public int required(){
+            return requiredAtStart > 0 ? requiredAtStart : CampaignVote.requiredVotes();
+        }
         /** When the ballot dialog should pop up (near the end of the window). */
         public long pushAt;
         /** Whether the ballot was already pushed to the players. */
