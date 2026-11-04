@@ -1049,7 +1049,8 @@ public class SectorService{
         for(Fi file : saveDirectory.list()){
             if(!file.name().startsWith("sector-") || !file.extEquals(saveExtension)) continue;
             //backups share the sector- prefix but must not be picked as the primary slot
-            if(file.name().contains("backup")) continue;
+            //backups, lost copies and the preserve copies share the prefix but are not the slot
+            if(file.name().contains("backup") || file.name().contains(".lost-")) continue;
 
             try{
                 SaveMeta meta = SaveIO.getMeta(file);
