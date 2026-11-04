@@ -1047,6 +1047,18 @@ public class CampaignCommands{
             || "abandon".equals(option);
     }
 
+    /** @return true when any token is {@code help} or {@code ?}; arc puts the first one in args[0]. */
+    private static boolean isHelp(String[] args){
+        if(args == null) return false;
+
+        for(String arg : args){
+            if(arg == null) continue;
+            String value = arg.trim();
+            if("help".equalsIgnoreCase(value) || "?".equals(value)) return true;
+        }
+
+        return false;
+    }
     /** Handles both {@code /cvote} and its short form {@code /cv}. */
     private static void handleVote(Player player, String[] args){
         if(!CampaignHooks.enabled){
@@ -1055,12 +1067,9 @@ public class CampaignCommands{
         }
 
         //"help" and "?" print the usage instead of an unknown-kind error
-        for(int i = 1; i < args.length; i++){
-            if(args[i] == null) continue;
-            if("help".equalsIgnoreCase(args[i].trim()) || "?".equals(args[i].trim())){
-                player.sendMessage(I18n.get("campaign.vote.help"));
-                return;
-            }
+        if(isHelp(args)){
+            player.sendMessage(I18n.get("campaign.vote.help"));
+            return;
         }
 
         //arc hands the tail over as one string ("list research 钻"), so split it back into tokens
@@ -1144,12 +1153,9 @@ public class CampaignCommands{
         if(!requirePermission(player, true)) return;
 
         //"help" and "?" print the subcommand list
-        for(int i = 1; i < args.length; i++){
-            if(args[i] == null) continue;
-            if("help".equalsIgnoreCase(args[i].trim()) || "?".equals(args[i].trim())){
-                player.sendMessage(I18n.get("campaign.admin.help"));
-                return;
-            }
+        if(isHelp(args)){
+            player.sendMessage(I18n.get("campaign.admin.help"));
+            return;
         }
 
         java.util.List<String> tokens = new java.util.ArrayList<>();
