@@ -34,6 +34,8 @@ public class VoteMenu{
 
     /** Which vote each player is currently answering. */
     private static final arc.struct.ObjectMap<Player, CampaignVote.Vote> viewing = new arc.struct.ObjectMap<>();
+    /** Per player: whether numbered sectors are listed in the sector picker. */
+    private static final arc.struct.ObjectMap<Player, Boolean> numberedView = new arc.struct.ObjectMap<>();
 
     private static int votesId = -1;
     private static int mainId = -1, listId = -1, confirmId = -1, voteId = -1, searchId = -1;
@@ -49,6 +51,8 @@ public class VoteMenu{
         String query = "";
         int page;
         boolean showAll;
+        /** Sector picker only: list numbered sectors as well. */
+        boolean numbered;
         Seq<String> entries = new Seq<>();
     }
 
@@ -349,7 +353,8 @@ public class VoteMenu{
         //the category picker stays open underneath otherwise
         hide(player, mainId);
 
-        Seq<String> found = CampaignVote.search(kind, query, 200, showAll);
+        boolean numbered = kind == CampaignVote.Kind.sector && numberedView.get(player, false);
+        Seq<String> found = CampaignVote.search(kind, query, 200, showAll, numbered);
         if(found.isEmpty()){
             player.sendMessage(I18n.get("campaign.menu.no-target", I18n.get("campaign.vote.kind." + kind.name())));
             return;
@@ -363,6 +368,7 @@ public class VoteMenu{
         state.query = query;
         state.page = current;
         state.showAll = showAll;
+        state.numbered = numbered;
         state.entries = found;
         listStates.put(player, state);
 
@@ -384,6 +390,13 @@ public class VoteMenu{
                 rows.add(new String[]{found.get(i)});
             }
         }
+        //sector picker only: a per-player filter for the numbered sectors, like the ready/all switch
+        int extra = 0;
+        if(kind == CampaignVote.Kind.sector){
+            rows.add(new String[]{I18n.get(numbered ? "campaign.menu.hide-numbered" : "campaign.menu.show-numbered")});
+            extra = 1;
+        }
+
         rows.add(new String[]{I18n.get("campaign.menu.prev"), I18n.get("campaign.menu.next")});
         rows.add(new String[]{I18n.get("campaign.menu.search"),
             I18n.get(showAll ? "campaign.menu.show-ready" : "campaign.menu.show-all")});
@@ -419,16 +432,21 @@ public class VoteMenu{
             return;
         }
 
-        if(option == shown){
+        int extra = state.kind == CampaignVote.Kind.sector ? 1 : 0;
+
+        if(extra > 0 && option == shown){
+            numberedView.put(player, !state.numbered);
+            showList(player, state.kind, state.query, 0, state.showAll);
+        }else if(option == shown + extra){
             showList(player, state.kind, state.query, state.page - 1, state.showAll);
-        }else if(option == shown + 1){
+        }else if(option == shown + extra + 1){
             showList(player, state.kind, state.query, state.page + 1, state.showAll);
-        }else if(option == shown + 2){
+        }else if(option == shown + extra + 2){
             Call.textInput(player.con, searchId, I18n.get("campaign.menu.search-title"),
                 I18n.get("campaign.menu.search-message"), 32, state.query, false);
-        }else if(option == shown + 3){
+        }else if(option == shown + extra + 3){
             showList(player, state.kind, state.query, 0, !state.showAll);
-        }else if(option == shown + 4){
+        }else if(option == shown + extra + 4){
             hide(player, listId);
             openMain(player);
         }else{

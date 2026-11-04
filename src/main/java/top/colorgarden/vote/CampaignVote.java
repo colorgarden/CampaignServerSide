@@ -113,6 +113,11 @@ public class CampaignVote{
      * @return up to {@code limit} {@code localized (id)} strings
      */
     public static Seq<String> search(Kind kind, @Nullable String query, int limit, boolean includeBlocked){
+        return search(kind, query, limit, includeBlocked, CampaignConfig.data().showNumberedSectors);
+    }
+
+    /** @param includeNumbered also list sectors that have no preset (the "#175" entries). */
+    public static Seq<String> search(Kind kind, @Nullable String query, int limit, boolean includeBlocked, boolean includeNumbered){
         Seq<String> out = new Seq<>();
         String needle = query == null ? "" : query.trim().toLowerCase();
         CampaignConfig config = CampaignConfig.data();
@@ -196,7 +201,7 @@ public class CampaignVote{
 
         //numbered sectors have no preset: their terrain is generated procedurally, so no map asset is
         //needed. Vanilla only lets you land on one next to a sector that has a base (allowLanding).
-        if(config.showNumberedSectors) for(Sector sector : currentPlanet.sectors){
+        if(includeNumbered) for(Sector sector : currentPlanet.sectors){
             if(sector == null || sector.preset != null) continue;
             if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
 
