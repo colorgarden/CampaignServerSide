@@ -458,6 +458,13 @@ public class SectorService{
             }
         }
 
+        //vanilla switches maps through a WorldReloader: it clears the units, sends worldDataBegin to
+        //every client before the load and world+assets afterwards. Doing it by hand leaves clients on
+        //the old map (no world begin packet, no unit reset), so use the vanilla object itself.
+        boolean syncClients = net.server() && Groups.player.size() > 0 && CampaignConfig.data().resyncClients;
+        mindustry.net.WorldReloader reloader = syncClients ? new mindustry.net.WorldReloader() : null;
+        if(reloader != null) reloader.begin();
+
         if(previous != null && !(fresh && previous == sector)){
             saveCurrent();
         }
@@ -500,8 +507,9 @@ public class SectorService{
 
         if(!net.server()){
             netServer.openServer();
-        }else if(Groups.player.size() > 0 && CampaignConfig.data().resyncClients){
-            resyncAll();
+        }else if(reloader != null){
+            //sends the new world (and its assets) to every player and respawns their units
+            reloader.end();
         }
 
         //tell API clients (client mods) about the new sector

@@ -48,7 +48,6 @@ public class CampaignHooks{
     private static float autoUnlockTimer;
 
     /** True while the simulation is paused only because no player is online. */
-    private static boolean pausedForEmpty;
 
     /** Live execution probe state. */
     private static boolean logicProbeActive;
@@ -248,20 +247,7 @@ public class CampaignHooks{
         return sum;
     }
 
-    /** @return true while the simulation is paused only because the server is empty. */
-    public static boolean isPausedForEmpty(){
-        return pausedForEmpty;
-    }
-
-    /** Resumes the simulation if it was stopped by the empty-server pause. */
-    public static void resumeIfEmptyPaused(){
-        if(pausedForEmpty){
-            pausedForEmpty = false;
-            if(state.isPaused()) state.set(State.playing);
-            Log.info("[CampaignServer] " + I18n.get("campaign.log.resumed"));
-        }
-    }
-
+    
     /** Starts sampling the logic accumulators; sampled from the tick hook so pausing cannot stall it. */
     public static void startLogicProbe(){
         logicProbeActive = true;
@@ -291,26 +277,6 @@ public class CampaignHooks{
         }
 
         Log.info("[CampaignServer] " + I18n.get("campaign.logic.probe.result", builder.toString(), max, state.isPaused()));
-    }
-
-    /** Pauses the simulation while nobody is online, and resumes as soon as a player joins. */
-    private static void handleEmptyPause(){
-        if(!enabled || !CampaignConfig.data().pauseWhenEmpty || !state.isCampaign()) return;
-
-        if(Groups.player.size() > 0){
-            if(pausedForEmpty){
-                pausedForEmpty = false;
-                if(state.isPaused()) state.set(State.playing);
-                Log.info("[CampaignServer] " + I18n.get("campaign.log.resumed"));
-            }
-            return;
-        }
-
-        if(state.isPlaying() && !state.isPaused()){
-            state.set(State.paused);
-            pausedForEmpty = true;
-            Log.info("[CampaignServer] " + I18n.get("campaign.log.paused-empty"));
-        }
     }
 
     private static void onSectorCapture(Sector sector){
@@ -459,7 +425,6 @@ public class CampaignHooks{
             AnnounceService.scan(currentSector == null ? null : currentSector.planet);
         }
         updateLogicProbe();
-        handleEmptyPause();
 
         CampaignConfig config = CampaignConfig.data();
         if(!config.autosave || !state.isCampaign() || state.isPaused()){

@@ -164,9 +164,7 @@ public class CampaignConfig{
      */
     public boolean worldProcessors = true;
 
-    /** Pause the simulation while no player is online, and resume when someone joins. */
-    public boolean pauseWhenEmpty = true;
-
+    
     /** Send a short notice with the command hints to every player that joins. */
     public boolean joinInfo = true;
 

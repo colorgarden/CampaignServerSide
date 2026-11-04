@@ -503,17 +503,15 @@ public class CampaignCommands{
             if(!any) info("campaign.resources.none");
         });
 
-        handler.register("campaign-pause", "[on|off]", "Pause the simulation while nobody is online.", args -> {
-            CampaignConfig config = CampaignConfig.data();
+        //empty-server pausing is vanilla's own setting (Administration.Config.autoPause)
+        handler.register("campaign-autopause", "[on|off]", "Show or set vanilla autoPause (pause while nobody is online).", args -> {
+            mindustry.net.Administration.Config autoPause = mindustry.net.Administration.Config.autoPause;
 
             if(args.length > 0){
-                config.pauseWhenEmpty = !"off".equalsIgnoreCase(args[0]);
-                CampaignConfig.save();
-                if(!config.pauseWhenEmpty) CampaignHooks.resumeIfEmptyPaused();
-                info("campaign.pause.set", config.pauseWhenEmpty);
+                autoPause.set(!"off".equalsIgnoreCase(args[0]) && !"false".equalsIgnoreCase(args[0]));
             }
 
-            info("campaign.pause.state", config.pauseWhenEmpty, state.isPaused(), CampaignHooks.isPausedForEmpty());
+            info("campaign.pause.state", autoPause.bool(), state.isPaused());
         });
 
         handler.register("campaign-uncapture", "<sector>", "Clear the captured flag of a sector.", args -> {
@@ -631,7 +629,6 @@ public class CampaignCommands{
             info("campaign.config.misc", config.joinInfo, config.announce, config.resyncClients);
             info("campaign.config.lock", config.enforceSectorUnlock, config.adminBypassLock, config.launchPadLinking);
             info("campaign.config.logic", config.worldProcessors);
-            info("campaign.config.pause", config.pauseWhenEmpty);
             info("campaign.config.votes", config.voteDecision, config.voteTimeout, config.voteCooldown,
                 config.afkEnabled ? (int)config.afkSeconds : "-");
             info("campaign.config.planet", config.allowPlanetSwitch, config.planetSwitchAdminOnly, config.votePlanet);
