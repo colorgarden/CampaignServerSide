@@ -267,8 +267,6 @@ public class CampaignVote{
         if(!votingEnabled(kind)){
             return I18n.get("campaign.vote.kind-disabled");
         }
-        Vote blocking = running(kind);
-        if(blocking != null) return I18n.get("campaign.vote.in-progress-which", describe(blocking));
         if(top.colorgarden.core.ActivityTracker.activeCount() < Math.max(1, config.voteMinPlayers)){
             return I18n.get("campaign.vote.not-enough-players");
         }
@@ -371,6 +369,14 @@ public class CampaignVote{
             }
             resolved = content.name;
             label = I18n.content(content);
+        }
+
+        //only an identical vote (same kind and same target) blocks a new one; different targets
+        //of the same kind may run side by side
+        for(Vote running : votes){
+            if(running.kind == kind && running.arg != null && running.arg.equals(resolved)){
+                return I18n.get("campaign.vote.in-progress-which", describe(running));
+            }
         }
 
         Vote vote = new Vote();
