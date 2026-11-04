@@ -302,7 +302,7 @@ public class AdminPanel{
 
         String[][] options = {
             {I18n.get("campaign.admin.window", (int)config.voteDuration), "-5", "+5"},
-            {I18n.get("campaign.admin.timeout", (int)config.voteTimeout), "-1", "+1"},
+            {I18n.get("campaign.admin.timeout", (int)config.voteTimeout, (int)config.votePushSeconds, maxTimeout()), "-1", "+1"},
             {I18n.get("campaign.admin.cooldown", (int)config.voteCooldown), "-1", "+1"},
             {I18n.get("campaign.admin.percent", (int)(config.votePercent * 100)), "-10", "+10"},
             {I18n.get("campaign.admin.minplayers", config.voteMinPlayers), "-1", "+1"},
@@ -326,8 +326,8 @@ public class AdminPanel{
             case 0, 3, 6, 9, 12, 15, 18 -> changed = false;
             case 1 -> config.voteDuration = clamp(config.voteDuration - 5f, 5f, 300f);
             case 2 -> config.voteDuration = clamp(config.voteDuration + 5f, 5f, 300f);
-            case 4 -> config.voteTimeout = clamp(config.voteTimeout - 1f, 0f, 120f);
-            case 5 -> config.voteTimeout = clamp(config.voteTimeout + 1f, 0f, 120f);
+            case 4 -> config.voteTimeout = clamp(config.voteTimeout - 1f, 0f, maxTimeout());
+            case 5 -> config.voteTimeout = clamp(config.voteTimeout + 1f, 0f, maxTimeout());
             case 7 -> config.voteCooldown = clamp(config.voteCooldown - 1f, 0f, 300f);
             case 8 -> config.voteCooldown = clamp(config.voteCooldown + 1f, 0f, 300f);
             case 10 -> config.votePercent = clamp(config.votePercent - 0.1f, 0.1f, 1f);
@@ -355,6 +355,15 @@ public class AdminPanel{
         }
     }
 
+    /**
+     * @return the longest idle timeout that can still take effect: the ballot is pushed at
+     *         {@code voteDuration - votePushSeconds}, so a longer timeout would always be cut off by
+     *         the end of the window and the setting would look dead.
+     */
+    private static float maxTimeout(){
+        CampaignConfig config = CampaignConfig.data();
+        return Math.max(0f, config.voteDuration - Math.max(0f, config.votePushSeconds));
+    }
     private static float clamp(float value, float min, float max){
         return Math.max(min, Math.min(max, value));
     }
