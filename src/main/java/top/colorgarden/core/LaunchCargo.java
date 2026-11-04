@@ -197,7 +197,7 @@ public class LaunchCargo{
 
         for(ItemStack stack : current()){
             int have = origin.info == null ? 0 : origin.info.items.get(stack.item);
-            int take = Math.max(0, Math.min(stack.amount, Math.min(have, capacity)));
+            int take = Math.max(0, Math.min(stack.amount, capacity));
             if(take <= 0) continue;
 
             origin.info.items.remove(stack.item, take);
@@ -212,10 +212,6 @@ public class LaunchCargo{
 
         //the launch carries what the origin sector already stores, never more
         Seq<ItemStack> carried = takeFrom(origin, capacity);
-        if(carried.isEmpty() && origin != null){
-            Log.info("[CampaignServer] " + I18n.get("campaign.cargo.empty-origin", origin.name()));
-            return;
-        }
         if(carried.isEmpty()) carried.addAll(cargo);
 
         if(state.rules != null){

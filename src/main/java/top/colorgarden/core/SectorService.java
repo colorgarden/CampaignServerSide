@@ -614,6 +614,26 @@ public class SectorService{
         return fallback;
     }
 
+    /** Throws when the origin sector cannot supply the configured launch cargo. */
+    private static void requireCargo(@Nullable Sector origin, Sector target) throws CampaignException{
+        if(origin == null || origin == target) return;
+        if(!needsGeneration(target) && target.hasBase()) return;
+
+        arc.struct.Seq<mindustry.type.ItemStack> cargo = LaunchCargo.current();
+        if(cargo.isEmpty()) return;
+
+        Seq<String> missing = new Seq<>();
+        for(mindustry.type.ItemStack stack : cargo){
+            int have = origin.info == null ? 0 : origin.info.items.get(stack.item);
+            if(have < stack.amount){
+                missing.add(stack.item.localizedName + " " + have + "/" + stack.amount);
+            }
+        }
+
+        if(!missing.isEmpty()){
+            throw new CampaignException(I18n.get("campaign.cargo.insufficient", Strings.join(", ", missing)));
+        }
+    }
     /** @return true when entering this sector would generate it instead of loading a save. */
     public static boolean needsGeneration(@Nullable Sector sector){
         if(sector == null) return false;
@@ -643,6 +663,10 @@ public class SectorService{
         boolean syncClients = net.server() && Groups.player.size() > 0 && CampaignConfig.data().resyncClients;
         mindustry.net.WorldReloader reloader = syncClients ? new mindustry.net.WorldReloader() : null;
         if(reloader != null) reloader.begin();
+
+        //a launch that has to build a new base costs the configured cargo; refuse it when the origin
+        //sector cannot pay, instead of silently arriving empty-handed
+        requireCargo(previous, sector);
 
         if(previous != null && !(fresh && previous == sector)){
             saveCurrent();
