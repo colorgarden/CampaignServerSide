@@ -338,6 +338,12 @@ public class CampaignHooks{
             SectorService.saveCurrent();
         }
 
+        //the sector has no standing base any more, so the next entry asks for a launch setup again
+        if(sector != null){
+            sector.info.hasCore = false;
+            sector.saveInfo();
+        }
+
         //stop the simulation; the campaign expects a decision about what happens next
         state.set(State.paused);
 
