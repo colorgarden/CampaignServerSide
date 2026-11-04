@@ -68,6 +68,7 @@ public class CampaignHooks{
         installChatBallot();
         CampaignVote.init();
         top.colorgarden.command.AdminPanel.init();
+        top.colorgarden.command.LaunchPanel.init();
         AnnounceService.init();
 
         Events.on(ServerLoadEvent.class, event -> onServerLoad());

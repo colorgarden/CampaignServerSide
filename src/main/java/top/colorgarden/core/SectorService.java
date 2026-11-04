@@ -512,6 +512,52 @@ public class SectorService{
      *              {@code adminBypassLock} is enabled.
      */
     public static void enter(@Nullable Sector sector, boolean fresh, boolean force) throws CampaignException{
+        enter(null, sector, fresh, force);
+    }
+
+    /** A launch that waits for the player to confirm the core/cargo in the launch dialog. */
+    public static class PendingLaunch{
+        public final Sector sector;
+        public final boolean fresh, force;
+
+        public PendingLaunch(Sector sector, boolean fresh, boolean force){
+            this.sector = sector;
+            this.fresh = fresh;
+            this.force = force;
+        }
+    }
+
+    /**
+     * Entry point with the player that triggered it. When the sector has no save yet it will be
+     * generated, so the initiator is asked for the launch configuration first (vanilla shows
+     * {@code LaunchLoadoutDialog} at this point); the generation runs from
+     * {@link top.colorgarden.command.LaunchPanel} once confirmed.
+     */
+    public static void enter(@Nullable Player initiator, @Nullable Sector sector, boolean fresh, boolean force) throws CampaignException{
+        if(initiator != null && CampaignConfig.data().promptLaunch && sector != null && needsGeneration(sector)){
+            top.colorgarden.command.LaunchPanel.show(initiator, new PendingLaunch(sector, fresh, force));
+            return;
+        }
+
+        enterInternal(sector, fresh, force);
+    }
+
+    /** Runs a launch that was confirmed in the dialog. */
+    public static void enterNow(PendingLaunch launch){
+        try{
+            enterInternal(launch.sector, launch.fresh, launch.force);
+        }catch(CampaignException e){
+            Call.sendMessage("[scarlet]" + e.getMessage());
+        }
+    }
+
+    /** @return true when entering this sector would generate it instead of loading a save. */
+    public static boolean needsGeneration(@Nullable Sector sector){
+        if(sector == null) return false;
+        return sector.save == null || sector.save.file == null || !sector.save.file.exists();
+    }
+
+    private static void enterInternal(@Nullable Sector sector, boolean fresh, boolean force) throws CampaignException{
         if(net.client()){
             throw new CampaignException(I18n.get("campaign.msg.server-only"));
         }

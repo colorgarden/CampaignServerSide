@@ -106,6 +106,8 @@ public class CampaignConfig{
     public boolean voteRedirect = true;
     /** Allow votes that pause or resume the simulation. */
     public boolean votePause = true;
+    /** Ask the initiating player for the core/cargo before a sector is generated. */
+    public boolean promptLaunch = true;
     /** Allow votes that skip the next wave. */
     public boolean voteWave = true;
     /** Seconds to wait before the same player may skip another wave. */

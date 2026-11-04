@@ -677,7 +677,7 @@ public class CampaignCommands{
             try{
                 Sector sector = requireSector(args[0]);
                 player.sendMessage(I18n.get("campaign.client.switching", sector.name()));
-                SectorService.enter(sector, false, canBypass(player));
+                SectorService.enter(player, sector, false, canBypass(player));
             }catch(CampaignException e){
                 player.sendMessage("[scarlet]" + e.getMessage());
             }catch(Throwable t){
@@ -1167,7 +1167,7 @@ public class CampaignCommands{
 
                 case "sector", "s" -> {
                     Sector sector = requireSector(rest);
-                    SectorService.enter(sector, false, true);
+                    SectorService.enter(player, sector, false, true);
                 }
 
                 case "planet", "p" -> {

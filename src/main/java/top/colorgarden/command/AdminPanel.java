@@ -31,7 +31,7 @@ import mindustry.ui.Menus;
 public class AdminPanel{
     private static final int perPage = 6;
 
-    private static int mainId = -1, listId = -1, settingsId = -1, difficultyId = -1, rulesId = -1, searchId = -1, coreId = -1, coreTypeId = -1;
+    private static int mainId = -1, listId = -1, settingsId = -1, difficultyId = -1, rulesId = -1, searchId = -1, coreId = -1, coreTypeId = -1, abandonId = -1;
     private static boolean available;
 
     private enum Purpose{ research, sector, planet, pad }
@@ -54,6 +54,7 @@ public class AdminPanel{
             searchId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onSearch(p, s)));
             coreId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onCoreInput(p, s)));
             coreTypeId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onCoreType(p, o)));
+            abandonId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onAbandon(p, o)));
             available = true;
         }catch(Throwable t){
             available = false;
@@ -79,7 +80,7 @@ public class AdminPanel{
             {I18n.get("campaign.admin.planet"), I18n.get("campaign.admin.pad")},
             {I18n.get("campaign.admin.redirect"), I18n.get("campaign.admin.pause")},
             {I18n.get("campaign.admin.skipwave"), I18n.get("campaign.admin.vote")},
-            {I18n.get("campaign.admin.difficulty"), I18n.get("campaign.admin.rules")},
+            {I18n.get("campaign.admin.difficulty"), I18n.get("campaign.admin.rules"), I18n.get("campaign.admin.abandon")},
             {I18n.get("campaign.admin.coretype"), I18n.get("campaign.admin.core")},
             {I18n.get("campaign.menu.close")}
         };
@@ -120,8 +121,9 @@ public class AdminPanel{
             case 7 -> openSettings(player);
             case 8 -> openDifficulty(player);
             case 9 -> openRules(player);
-            case 10 -> openCoreTypes(player);
-            case 11 -> Call.textInput(player.con, coreId, I18n.get("campaign.admin.core"),
+            case 10 -> askAbandon(player);
+            case 11 -> openCoreTypes(player);
+            case 12 -> Call.textInput(player.con, coreId, I18n.get("campaign.admin.core"),
                 I18n.get("campaign.admin.core-hint"), 20000, "", false);
             default -> hide(player, mainId);
         }
@@ -503,6 +505,54 @@ public class AdminPanel{
             openMain(player);
         }else{
             hide(player, coreTypeId);
+        }
+    }
+
+    // ---------------------------------------------------------------- abandon
+
+    private static void askAbandon(Player player){
+        if(!available || player == null || player.con == null || !player.admin) return;
+        hide(player, mainId);
+
+        Sector current = SectorService.current();
+        if(current == null){
+            player.sendMessage(I18n.get("campaign.msg.not-playing"));
+            return;
+        }
+
+        String message = I18n.get("campaign.admin.abandon-confirm", current.name())
+            + "\n" + I18n.get("campaign.admin.abandon-hint");
+
+        String[][] options = {
+            {I18n.get("campaign.admin.abandon-yes"), I18n.get("campaign.menu.cancel")}
+        };
+
+        Call.followUpMenu(player.con, abandonId, I18n.get("campaign.admin.abandon"), message, options);
+    }
+
+    /**
+     * Abandons the current sector the way vanilla does: killing every core ends the game, and the
+     * game-over handler decides whether the sector is cleared. Nothing else is touched.
+     */
+    private static void onAbandon(Player player, int option){
+        if(option < 0 || !player.admin) return;
+        hide(player, abandonId);
+        if(option != 0) return;
+
+        Sector current = SectorService.current();
+        if(current == null || !mindustry.Vars.state.isGame()){
+            player.sendMessage(I18n.get("campaign.msg.not-playing"));
+            return;
+        }
+
+        player.sendMessage(I18n.get("campaign.admin.abandoning", current.name()));
+
+        try{
+            for(mindustry.gen.Building core : mindustry.Vars.state.rules.defaultTeam.cores().copy()){
+                core.kill();
+            }
+        }catch(Throwable t){
+            player.sendMessage("[scarlet]" + I18n.get("campaign.admin.abandon-failed", String.valueOf(t.getMessage())));
         }
     }
 }
