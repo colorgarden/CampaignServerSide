@@ -76,8 +76,9 @@ public class AdminPanel{
             {I18n.get("campaign.admin.research"), I18n.get("campaign.admin.sector")},
             {I18n.get("campaign.admin.planet"), I18n.get("campaign.admin.pad")},
             {I18n.get("campaign.admin.redirect"), I18n.get("campaign.admin.pause")},
-            {I18n.get("campaign.admin.vote"), I18n.get("campaign.admin.difficulty")},
-            {I18n.get("campaign.admin.rules"), I18n.get("campaign.menu.close")}
+            {I18n.get("campaign.admin.skipwave"), I18n.get("campaign.admin.vote")},
+            {I18n.get("campaign.admin.difficulty"), I18n.get("campaign.admin.rules")},
+            {I18n.get("campaign.menu.close")}
         };
 
         Call.followUpMenu(player.con, mainId, I18n.get("campaign.admin.title"), message, options);
@@ -107,9 +108,15 @@ public class AdminPanel{
                 mindustry.Vars.state.set(pause ? GameState.State.paused : GameState.State.playing);
                 player.sendMessage(I18n.get(pause ? "campaign.sim.paused" : "campaign.sim.resumed"));
             }
-            case 6 -> openSettings(player);
-            case 7 -> openDifficulty(player);
-            case 8 -> openRules(player);
+            case 6 -> {
+                String problem = CampaignCommands.skipOneWave(player);
+                player.sendMessage(problem != null
+                    ? "[scarlet]" + problem
+                    : I18n.get("campaign.wave.skipped", 1, mindustry.Vars.state.wave));
+            }
+            case 7 -> openSettings(player);
+            case 8 -> openDifficulty(player);
+            case 9 -> openRules(player);
             default -> hide(player, mainId);
         }
     }
@@ -289,6 +296,8 @@ public class AdminPanel{
             {I18n.get("campaign.admin.cooldown", (int)config.voteCooldown), "-1", "+1"},
             {I18n.get("campaign.admin.percent", (int)(config.votePercent * 100)), "-10", "+10"},
             {I18n.get("campaign.admin.minplayers", config.voteMinPlayers), "-1", "+1"},
+            {I18n.get("campaign.admin.skipcd", (int)config.skipWaveCooldown), "-5", "+5"},
+            {I18n.get("campaign.admin.afk", (int)config.afkSeconds), "-10", "+10"},
             {I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")}
         };
 
@@ -303,26 +312,33 @@ public class AdminPanel{
         boolean changed = true;
 
         switch(option){
-            case 0, 3, 6 -> hide(player, settingsId);
+            //the label cells are dead keys; re-pushing keeps the dialog open
+            case 0, 3, 6, 9, 12, 15, 18 -> changed = false;
             case 1 -> config.voteDuration = clamp(config.voteDuration - 5f, 5f, 300f);
             case 2 -> config.voteDuration = clamp(config.voteDuration + 5f, 5f, 300f);
             case 4 -> config.voteTimeout = clamp(config.voteTimeout - 1f, 0f, 120f);
             case 5 -> config.voteTimeout = clamp(config.voteTimeout + 1f, 0f, 120f);
             case 7 -> config.voteCooldown = clamp(config.voteCooldown - 1f, 0f, 300f);
             case 8 -> config.voteCooldown = clamp(config.voteCooldown + 1f, 0f, 300f);
-            case 9 -> config.votePercent = clamp(config.votePercent - 0.1f, 0.1f, 1f);
-            case 10 -> config.votePercent = clamp(config.votePercent + 0.1f, 0.1f, 1f);
-            case 11 -> config.voteMinPlayers = Math.max(1, config.voteMinPlayers - 1);
-            case 12 -> config.voteMinPlayers = Math.min(100, config.voteMinPlayers + 1);
+            case 10 -> config.votePercent = clamp(config.votePercent - 0.1f, 0.1f, 1f);
+            case 11 -> config.votePercent = clamp(config.votePercent + 0.1f, 0.1f, 1f);
+            case 13 -> config.voteMinPlayers = Math.max(1, config.voteMinPlayers - 1);
+            case 14 -> config.voteMinPlayers = Math.min(100, config.voteMinPlayers + 1);
+            case 16 -> config.skipWaveCooldown = clamp(config.skipWaveCooldown - 5f, 0f, 600f);
+            case 17 -> config.skipWaveCooldown = clamp(config.skipWaveCooldown + 5f, 0f, 600f);
+            case 19 -> config.afkSeconds = clamp(config.afkSeconds - 10f, 10f, 600f);
+            case 20 -> config.afkSeconds = clamp(config.afkSeconds + 10f, 10f, 600f);
+            case 21 -> changed = false;
+            case 22 -> changed = false;
             default -> changed = false;
         }
 
         if(changed) CampaignConfig.save();
 
-        if(option == 0){
+        if(option == 21){
             hide(player, settingsId);
             openMain(player);
-        }else if(option == 3){
+        }else if(option == 22){
             hide(player, settingsId);
         }else{
             openSettings(player);

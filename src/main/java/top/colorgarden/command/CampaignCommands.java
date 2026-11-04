@@ -23,6 +23,7 @@ import mindustry.type.ItemSeq;
 import mindustry.type.ItemStack;
 import arc.util.CommandHandler;
 import arc.util.Log;
+import arc.util.Nullable;
 import arc.util.Strings;
 import arc.util.Time;
 import mindustry.ctype.UnlockableContent;
@@ -526,9 +527,13 @@ public class CampaignCommands{
             info(pause ? "campaign.sim.paused" : "campaign.sim.resumed");
         });
 
-        handler.register("campaign-skipwave", "[count]", "Skip waves immediately (vanilla Logic#skipWave).", args -> {
-            int count = skipWaves(args.length > 0 ? args[0] : "1");
-            info("campaign.wave.skipped", count, state.wave);
+        handler.register("campaign-skipwave", "Skip the next wave (one at a time, cooldown applies).", args -> {
+            String problem = skipOneWave(null);
+            if(problem != null){
+                err(problem);
+            }else{
+                info("campaign.wave.skipped", 1, state.wave);
+            }
         });
 
         handler.register("campaign-difficulty", "[name]", "Show or set the campaign difficulty.", args -> {
@@ -959,12 +964,14 @@ public class CampaignCommands{
         arc.util.CommandHandler.CommandRunner<Player> skip = (args, player) -> {
             if(!requirePermission(player, true)) return;
 
-            int count = skipWaves(args.length > 0 ? args[0] : "1");
-            player.sendMessage(I18n.get("campaign.wave.skipped", count, state.wave));
+            String problem = skipOneWave(player);
+            player.sendMessage(problem != null
+                ? "[scarlet]" + problem
+                : I18n.get("campaign.wave.skipped", 1, state.wave));
         };
 
-        client(handler, "cj", "[count]", "[admin] Skip waves.", skip);
-        client(handler, "cjump", "[count]", "[admin] Skip waves (alias).", skip);
+        client(handler, "cj", "[admin] Skip the next wave.", skip);
+        client(handler, "cjump", "[admin] Alias of /cj.", skip);
 
         client(handler, "difficulty", "[name]", "[admin] Show or set the campaign difficulty.", (args, player) -> {
             if(!requirePermission(player, true)) return;
@@ -1351,25 +1358,29 @@ public class CampaignCommands{
         return pause;
     }
 
+    /** Cooldown end per player uuid ("-" for the console). */
+    private static final arc.struct.ObjectMap<String, Long> waveSkipUntil = new arc.struct.ObjectMap<>();
+
     /**
-     * Skips waves with the vanilla routine ({@code Logic#skipWave}, the same call the campaign's
-     * "skip wave" button makes).
+     * Skips exactly one wave with the vanilla routine ({@code Logic#skipWave}, the same call the
+     * campaign's skip-wave button makes), honouring {@code skipWaveCooldown}.
      *
-     * @return how many waves were requested (capped at 50).
+     * @return null on success, otherwise a player-readable reason.
      */
-    private static int skipWaves(String raw){
-        int count = 1;
+    static @Nullable String skipOneWave(@Nullable Player player){
+        String key = player == null ? "-" : player.uuid();
+        long now = arc.util.Time.millis();
 
-        if(raw != null && Strings.canParsePositiveInt(raw)){
-            count = Math.max(1, Math.min(50, Strings.parseInt(raw)));
+        Long until = waveSkipUntil.get(key);
+        if(until != null && now < until){
+            return I18n.get("campaign.wave.cooldown", (until - now) / 1000 + 1);
         }
 
-        for(int i = 0; i < count; i++){
-            if(!state.isGame()) break;
-            mindustry.Vars.logic.skipWave();
-        }
+        if(!state.isGame()) return I18n.get("campaign.msg.not-playing");
 
-        return count;
+        mindustry.Vars.logic.skipWave();
+        waveSkipUntil.put(key, now + (long)(CampaignConfig.data().skipWaveCooldown * 1000f));
+        return null;
     }
 
     private static Sector requireSector(String query) throws CampaignException{

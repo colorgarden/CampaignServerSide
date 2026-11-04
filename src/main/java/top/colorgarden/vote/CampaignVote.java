@@ -270,13 +270,9 @@ public class CampaignVote{
         }else if(kind == Kind.wave){
             if(!mindustry.Vars.state.isGame()) return I18n.get("campaign.msg.not-playing");
 
-            int count = 1;
-            if(target != null && !target.trim().isEmpty() && arc.util.Strings.canParsePositiveInt(target.trim())){
-                count = Math.max(1, Math.min(20, arc.util.Strings.parseInt(target.trim())));
-            }
-
-            resolved = Integer.toString(count);
-            label = I18n.get("campaign.wave.skip-label", count);
+            //one wave per vote, like the command
+            resolved = "1";
+            label = I18n.get("campaign.wave.skip-label", 1);
         }else{
             UnlockableContent content = ResearchService.find(target);
             if(content == null) return I18n.get("campaign.vote.no-such-content", target) + suggest(kind, target);
@@ -525,17 +521,10 @@ public class CampaignVote{
 
                 announce(I18n.get(pause ? "campaign.vote.paused" : "campaign.vote.resumed"));
             }else if(vote.kind == Kind.wave){
-                int count = 1;
-                if(arc.util.Strings.canParsePositiveInt(vote.arg)){
-                    count = Math.max(1, Math.min(20, arc.util.Strings.parseInt(vote.arg)));
-                }
-
-                for(int i = 0; i < count; i++){
-                    if(!mindustry.Vars.state.isGame()) break;
+                if(mindustry.Vars.state.isGame()){
                     mindustry.Vars.logic.skipWave();
                 }
-
-                announce(I18n.get("campaign.vote.wave-skipped", count, mindustry.Vars.state.wave));
+                announce(I18n.get("campaign.vote.wave-skipped", 1, mindustry.Vars.state.wave));
             }else{
                 UnlockableContent content = ResearchService.find(vote.arg);
                 if(content == null){

@@ -108,6 +108,8 @@ public class CampaignConfig{
     public boolean votePause = true;
     /** Allow votes that skip the next wave. */
     public boolean voteWave = true;
+    /** Seconds to wait before the same player may skip another wave. */
+    public float skipWaveCooldown = 30f;
 
     // --- campaign rules (the same dialog the vanilla campaign offers) ---
 
