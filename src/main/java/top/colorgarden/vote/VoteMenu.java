@@ -128,14 +128,16 @@ public class VoteMenu{
             {I18n.get("campaign.menu.sector"), I18n.get("campaign.menu.research")},
             {I18n.get("campaign.menu.planet"), I18n.get("campaign.menu.destination")},
             {I18n.get("campaign.menu.redirect"), I18n.get("campaign.menu.pause")},
-            {I18n.get("campaign.menu.info"), I18n.get("campaign.menu.abandon")},
-            {I18n.get("campaign.menu.difficulty"), I18n.get("campaign.menu.rules")},
+            {I18n.get("campaign.menu.wave"), I18n.get("campaign.menu.abandon")},
+            {I18n.get("campaign.menu.info"), I18n.get("campaign.menu.difficulty")},
+            {I18n.get("campaign.menu.rules")},
             {I18n.get("campaign.menu.close")}
         } : new String[][]{
             {I18n.get("campaign.menu.sector"), I18n.get("campaign.menu.research")},
             {I18n.get("campaign.menu.planet"), I18n.get("campaign.menu.destination")},
             {I18n.get("campaign.menu.redirect"), I18n.get("campaign.menu.pause")},
-            {I18n.get("campaign.menu.info"), I18n.get("campaign.menu.abandon")},
+            {I18n.get("campaign.menu.wave"), I18n.get("campaign.menu.abandon")},
+            {I18n.get("campaign.menu.info")},
             {I18n.get("campaign.menu.close")}
         };
 
@@ -207,7 +209,7 @@ public class VoteMenu{
         if(option < 0) return; //closed with back/ESC
 
         //the close button is the last cell; admins have one extra row in front of it
-        int close = player.admin ? 10 : 8;
+        int close = player.admin ? 11 : 9;
         if(option == close){
             hide(player, mainId);
             return;
@@ -225,11 +227,10 @@ public class VoteMenu{
                 askConfirm(player, CampaignVote.Kind.pause, "", label);
             }
             case 6 -> {
-                CampaignVote.Vote vote = CampaignVote.active();
-                if(vote == null){
-                    player.sendMessage(I18n.get("campaign.vote.info-none"));
+                if(!mindustry.Vars.state.isGame()){
+                    player.sendMessage(I18n.get("campaign.msg.not-playing"));
                 }else{
-                    pushVoteTo(player);
+                    askConfirm(player, CampaignVote.Kind.wave, "", I18n.get("campaign.wave.skip-label", 1));
                 }
             }
             case 7 -> {
@@ -241,9 +242,17 @@ public class VoteMenu{
                 }
             }
             case 8 -> {
-                if(player.admin) openDifficulty(player);
+                CampaignVote.Vote vote = CampaignVote.active();
+                if(vote == null){
+                    player.sendMessage(I18n.get("campaign.vote.info-none"));
+                }else{
+                    pushVoteTo(player);
+                }
             }
             case 9 -> {
+                if(player.admin) openDifficulty(player);
+            }
+            case 10 -> {
                 if(player.admin) openRules(player);
             }
             default -> hide(player, mainId);
