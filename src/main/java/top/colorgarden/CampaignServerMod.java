@@ -17,6 +17,7 @@ import top.colorgarden.util.I18n;
 
 import arc.util.CommandHandler;
 import arc.util.Log;
+import arc.util.Nullable;
 import mindustry.mod.Plugin;
 
 import static mindustry.Vars.headless;
@@ -36,6 +37,28 @@ import static mindustry.Vars.headless;
 public class CampaignServerMod extends Plugin{
     /** Set in {@link #init()}; may be null if init has not run yet. */
     public static CampaignServerMod instance;
+
+    /** @return this mod's loaded entry, or null when it is not registered (very early init). */
+    private static @Nullable mindustry.mod.Mods.LoadedMod loaded(){
+        try{
+            return mindustry.Vars.mods == null ? null : mindustry.Vars.mods.getMod(CampaignServerMod.class);
+        }catch(Throwable ignored){
+            return null;
+        }
+    }
+
+    /** @return the version declared in {@code mod.hjson}, read at runtime so it never drifts. */
+    public static String version(){
+        mindustry.mod.Mods.LoadedMod mod = loaded();
+        return mod == null || mod.meta == null || mod.meta.version == null ? "?" : mod.meta.version;
+    }
+
+    /** @return the display name declared in {@code mod.hjson}. */
+    public static String modName(){
+        mindustry.mod.Mods.LoadedMod mod = loaded();
+        if(mod == null || mod.meta == null) return "Campaign Server Side";
+        return mod.meta.displayName == null || mod.meta.displayName.trim().isEmpty() ? mod.name : mod.meta.displayName;
+    }
 
     @Override
     public void registerServerCommands(CommandHandler handler){

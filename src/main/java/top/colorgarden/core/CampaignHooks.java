@@ -354,6 +354,8 @@ public class CampaignHooks{
     public static Seq<String> joinInfoLines(boolean admin){
         Seq<String> lines = new Seq<>();
         lines.add(I18n.get("campaign.join.title"));
+        //the version comes from mod.hjson, so a rebuilt jar always reports what it really is
+        lines.add(I18n.get("campaign.join.mod", top.colorgarden.CampaignServerMod.modName(), top.colorgarden.CampaignServerMod.version()));
 
         Sector sector = SectorService.current();
         if(sector == null){
