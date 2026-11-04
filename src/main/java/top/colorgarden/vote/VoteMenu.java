@@ -497,12 +497,18 @@ public class VoteMenu{
 
         if(option != 0){
             //cancel: back to where the player came from instead of leaving them with no dialog
+        //a sector launch opened the setup dialog; re-opening the picker would cover it
+        if(top.colorgarden.command.LaunchPanel.isWaiting(player)) return;
+
             reopen(player, entry);
             return;
         }
 
         String problem = CampaignVote.start(player, entry.kind, entry.target);
         if(problem != null) player.sendMessage("[scarlet]" + problem);
+
+        //a sector launch opened the setup dialog; re-opening the picker would cover it
+        if(top.colorgarden.command.LaunchPanel.isWaiting(player)) return;
 
         reopen(player, entry);
     }

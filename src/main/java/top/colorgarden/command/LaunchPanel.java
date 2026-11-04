@@ -90,6 +90,11 @@ public class LaunchPanel{
         I18n.withLocale(I18n.localeOf(player), () -> openMain(player));
     }
 
+    /** @return true while this player has an open launch setup dialog. */
+    public static boolean isWaiting(@Nullable Player player){
+        return player != null && pending.containsKey(player);
+    }
+
     public static void forget(@Nullable Player player){
         if(player == null) return;
         pending.remove(player);
