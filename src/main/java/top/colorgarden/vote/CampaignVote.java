@@ -177,6 +177,18 @@ public class CampaignVote{
             }
             if(out.size >= limit) break;
         }
+
+        //numbered sectors have no preset: their terrain is generated procedurally, so no map asset is
+        //needed. Vanilla only lets you land on one next to a sector that has a base (allowLanding).
+        for(Sector sector : currentPlanet.sectors){
+            if(sector == null || sector == playing || sector.preset != null) continue;
+            if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
+
+            if(matches(String.valueOf(sector.id), "", needle)){
+                out.add("#" + sector.id + " (" + currentPlanet.name + ":" + sector.id + ")");
+            }
+            if(out.size >= limit) break;
+        }
         return out;
     }
 
