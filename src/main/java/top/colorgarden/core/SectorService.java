@@ -556,6 +556,9 @@ public class SectorService{
      * {@link top.colorgarden.command.LaunchPanel} once confirmed.
      */
     public static void enter(@Nullable Player initiator, @Nullable Sector sector, boolean fresh, boolean force) throws CampaignException{
+        //diagnostic: shows exactly why the launch dialog is shown or skipped
+        Log.info("[CampaignServer] launch: initiator=@ prompt=@ needsGeneration=@ sector=@", initiator == null ? "-" : initiator.plainName(), CampaignConfig.data().promptLaunch, sector != null && needsGeneration(sector), sector == null ? "-" : sector.name());
+
         if(initiator != null && CampaignConfig.data().promptLaunch && sector != null && needsGeneration(sector)){
             top.colorgarden.command.LaunchPanel.show(initiator, new PendingLaunch(sector, fresh, force));
             return;
