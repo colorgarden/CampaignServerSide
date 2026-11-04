@@ -334,11 +334,14 @@ public class CampaignHooks{
             clear |= sector.planet.clearSectorOnLose || sector.planet.campaignRules.clearSectorOnLose;
         }
 
-        if(clear && sector != null){
+        //a sector whose cores are all gone cannot be played any more: drop its save so the
+        //next entry rebuilds it from the generator instead of loading a cored-less world
+        boolean lost = state.rules.defaultTeam.cores().isEmpty();
+        if(sector != null && (clear || lost)){
             SectorService.deleteSaveData(sector);
+            sector.info.hasCore = false;
+            sector.saveInfo();
             Log.info("[CampaignServer] " + I18n.get("campaign.log.sector-data-deleted"));
-        }else{
-            SectorService.saveCurrent();
         }
 
         //the sector has no standing base any more, so the next entry asks for a launch setup again
