@@ -167,7 +167,7 @@ public class CampaignVote{
             for(Sector sector : current.planet.sectors){
                 if(sector == null || sector == current || !sector.hasBase()) continue;
                 if(matches(sector.name(), String.valueOf(sector.id), needle)){
-                    out.add(sector.name());
+                    out.add(sector.name() + " " + sectorStatus(sector));
                 }
                 if(out.size >= limit) break;
             }
@@ -187,7 +187,7 @@ public class CampaignVote{
             if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
 
             if(matches(preset.name, I18n.content(preset), needle) || matches(String.valueOf(sector.id), "", needle)){
-                out.add(I18n.content(preset));
+                out.add(I18n.content(preset) + " " + sectorStatus(sector));
             }
             if(out.size >= limit) break;
         }
@@ -199,11 +199,19 @@ public class CampaignVote{
             if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
 
             if(matches(String.valueOf(sector.id), "", needle)){
-                out.add("#" + sector.id);
+                out.add("#" + sector.id + " " + sectorStatus(sector));
             }
             if(out.size >= limit) break;
         }
         return out;
+    }
+
+    /** @return the sector state shown next to its name: captured, launched or not launched. */
+    public static String sectorStatus(Sector sector){
+        if(sector == null) return "";
+
+        if(sector.isCaptured()) return I18n.get("campaign.sector.status.captured");
+        return sector.hasBase() ? I18n.get("campaign.sector.status.launched") : I18n.get("campaign.sector.status.unlaunched");
     }
 
     /** @return only the targets that can be used right now. */
