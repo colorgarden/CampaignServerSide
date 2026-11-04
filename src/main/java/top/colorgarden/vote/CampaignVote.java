@@ -194,7 +194,7 @@ public class CampaignVote{
 
         //numbered sectors have no preset: their terrain is generated procedurally, so no map asset is
         //needed. Vanilla only lets you land on one next to a sector that has a base (allowLanding).
-        for(Sector sector : currentPlanet.sectors){
+        if(config.showNumberedSectors) for(Sector sector : currentPlanet.sectors){
             if(sector == null || sector.preset != null) continue;
             if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
 

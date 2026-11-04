@@ -97,6 +97,41 @@ public class LaunchCargo{
         }
     }
 
+    /** @return the configured amount of one item. */
+    public static int amount(Item item){
+        for(ItemStack stack : current()){
+            if(stack.item == item) return stack.amount;
+        }
+        return 0;
+    }
+
+    /** Adds (or subtracts) an item amount and stores the result; 0 removes the entry. */
+    public static void addAmount(Item item, int delta){
+        Seq<ItemStack> existing = current();
+        int amount = Math.max(0, Math.min(99999, amount(item) + delta));
+
+        Seq<ItemStack> next = new Seq<>();
+        for(ItemStack stack : existing){
+            if(stack.item != item) next.add(stack);
+        }
+        if(amount > 0) next.add(new ItemStack(item, amount));
+
+        persist(next);
+    }
+
+    /** Writes the given cargo to disk and makes it current. */
+    private static void persist(Seq<ItemStack> cargo){
+        try{
+            StringBuilder builder = new StringBuilder();
+            for(ItemStack stack : cargo){
+                builder.append(stack.item.name).append(' ').append(stack.amount).append('\n');
+            }
+            file().writeString(builder.toString(), false, "UTF-8");
+            cached = cargo;
+        }catch(Throwable t){
+            Log.err("[CampaignServer] " + I18n.get("campaign.cargo.save-failed", String.valueOf(t)));
+        }
+    }
     /** @return a short description for messages. */
     public static String describe(){
         Seq<ItemStack> cargo = current();

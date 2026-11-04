@@ -139,7 +139,7 @@ public class AdminPanel{
             return;
         }
 
-        top.colorgarden.core.CoreBlueprints.save(text);
+        top.colorgarden.core.CoreBlueprints.add(text);
         player.sendMessage(I18n.get("campaign.core.saved-message", top.colorgarden.core.CoreBlueprints.describe()));
     }
 
@@ -483,7 +483,7 @@ public class AdminPanel{
         rows.add(new String[]{I18n.get("campaign.core.type-reset"), I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
 
         Call.followUpMenu(player.con, coreTypeId, I18n.get("campaign.admin.coretype"),
-            top.colorgarden.core.CoreBlueprints.describeCore(), rows.toArray(String[].class));
+            top.colorgarden.core.CoreBlueprints.describe(), rows.toArray(String[].class));
     }
 
     private static void onCoreType(Player player, int option){
@@ -493,12 +493,12 @@ public class AdminPanel{
         int count = cores.size;
 
         if(option < count){
-            top.colorgarden.core.CoreBlueprints.setCore(cores.get(option).name);
-            player.sendMessage(I18n.get("campaign.core.type-set", top.colorgarden.core.CoreBlueprints.describeCore()));
+            top.colorgarden.core.CoreBlueprints.select(cores.get(option).name);
+            player.sendMessage(I18n.get("campaign.core.type-set", top.colorgarden.core.CoreBlueprints.describe()));
             openCoreTypes(player);
         }else if(option == count){
-            top.colorgarden.core.CoreBlueprints.setCore("");
-            player.sendMessage(I18n.get("campaign.core.type-set", top.colorgarden.core.CoreBlueprints.describeCore()));
+            top.colorgarden.core.CoreBlueprints.select(null);
+            player.sendMessage(I18n.get("campaign.core.type-set", top.colorgarden.core.CoreBlueprints.describe()));
             openCoreTypes(player);
         }else if(option == count + 1){
             hide(player, coreTypeId);

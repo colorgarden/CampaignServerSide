@@ -106,6 +106,8 @@ public class CampaignConfig{
     public boolean voteRedirect = true;
     /** Allow votes that pause or resume the simulation. */
     public boolean votePause = true;
+    /** List numbered sectors (no preset) in the sector picker. */
+    public boolean showNumberedSectors = true;
     /** Allow votes that abandon the current sector (vanilla surrender). */
     public boolean voteAbandon = true;
     /** Ask the initiating player for the core/cargo before a sector is generated. */

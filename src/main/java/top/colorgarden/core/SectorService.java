@@ -875,7 +875,8 @@ public class SectorService{
     private static void applyCoreBlueprint(Sector sector){
         try{
             mindustry.gen.Building coreBuild = state.rules.defaultTeam.core();
-            mindustry.game.Schematic schematic = CoreBlueprints.current();
+            CoreBlueprints.Entry entry = CoreBlueprints.selectedEntry();
+            mindustry.game.Schematic schematic = entry == null ? null : entry.schematic;
 
             if(schematic != null){
                 if(coreBuild == null || coreBuild.tile == null) return;
