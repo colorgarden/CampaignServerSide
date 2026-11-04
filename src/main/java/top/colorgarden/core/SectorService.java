@@ -672,6 +672,8 @@ public class SectorService{
         sector.info.destination = link ? origin : null;
         sector.info.attempts ++;
 
+        applyCoreBlueprint(sector);
+
         logic.play();
         saveSector(sector);
         Events.fire(new SectorLaunchEvent(sector));
@@ -679,8 +681,32 @@ public class SectorService{
         Log.info("[CampaignServer] " + I18n.get("campaign.log.sector-started", sector.name(), sector.id));
     }
 
-    private static boolean loadSectorSave(Sector sector){
-        SaveSlot slot = sector.save;
+    /**
+     * Places the uploaded core blueprint instead of the plain generated core.
+     *
+     * <p>{@code Schematics#placeLoadout} is the vanilla routine the launch dialog's choice ends up in:
+     * it anchors the schematic's own core tile at the given position, clears whatever is in the way and
+     * registers the new core. The spawn position is updated so the player lands on the new core.</p>
+     */
+    private static void applyCoreBlueprint(Sector sector){
+        mindustry.game.Schematic schematic = CoreBlueprints.current();
+        if(schematic == null) return;
+
+        try{
+            mindustry.gen.Building core = state.rules.defaultTeam.core();
+            if(core == null || core.tile == null) return;
+
+            int x = core.tile.x, y = core.tile.y;
+            mindustry.game.Schematics.placeLoadout(schematic, x, y, state.rules.defaultTeam, true);
+
+            sector.info.spawnPosition = arc.math.geom.Point2.pack(x, y);
+            Log.info("[CampaignServer] " + I18n.get("campaign.core.applied", sector.name(), schematic.width, schematic.height));
+        }catch(Throwable t){
+            Log.err("[CampaignServer] " + I18n.get("campaign.core.apply-failed", Strings.getSimpleMessage(t)));
+        }
+    }
+
+    private static boolean loadSectorSave(Sector sector){        SaveSlot slot = sector.save;
         if(slot == null || slot.file == null || !slot.file.exists()){
             return false;
         }

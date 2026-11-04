@@ -76,6 +76,15 @@ public class CoreBlueprints{
             return I18n.get("campaign.core.too-big", schematic.width, schematic.height, core.size);
         }
 
+        //every block has to be unlocked already, otherwise the sector would start with content the
+        //campaign has not reached yet
+        for(Schematic.Stile tile : schematic.tiles){
+            if(tile.block == null || tile.block == mindustry.content.Blocks.air) continue;
+            if(!tile.block.unlocked()){
+                return I18n.get("campaign.core.locked", tile.block.localizedName);
+            }
+        }
+
         return null;
     }
 
