@@ -113,7 +113,7 @@ public class CampaignVote{
      * @return up to {@code limit} {@code localized (id)} strings
      */
     public static Seq<String> search(Kind kind, @Nullable String query, int limit, boolean includeBlocked){
-        return search(kind, query, limit, includeBlocked, CampaignConfig.data().showNumberedSectors);
+        return search(kind, query, limit, includeBlocked, true);
     }
 
     /** @param includeNumbered also list sectors that have no preset (the "#175" entries). */
