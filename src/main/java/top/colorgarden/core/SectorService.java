@@ -564,6 +564,9 @@ public class SectorService{
         if(!loaded){
             if(fresh){
                 deleteSaveData(sector);
+                //vanilla Control#playSector drops the stored spawn when the save is discarded, so a
+                //regenerated sector picks a spawn point from the map again instead of reusing one
+                sector.info.spawnPosition = 0;
             }
             createSector(sector, origin);
         }
