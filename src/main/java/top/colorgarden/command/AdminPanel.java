@@ -346,7 +346,10 @@ public class AdminPanel{
             default -> changed = false;
         }
 
-        if(changed) CampaignConfig.save();
+        if(changed){
+            normalizeTimings(config);
+            CampaignConfig.save();
+        }
 
         if(option == 24){
             hide(player, settingsId);
@@ -363,9 +366,21 @@ public class AdminPanel{
      *         {@code voteDuration - votePushSeconds}, so a longer timeout would always be cut off by
      *         the end of the window and the setting would look dead.
      */
+    /** @return the largest lead time that still leaves a window: one second below the duration. */
+    private static float maxLead(){
+        return Math.max(0f, CampaignConfig.data().voteDuration - 1f);
+    }
+
+    /** @return the largest idle timeout: one second below the lead time. */
     private static float maxTimeout(){
-        CampaignConfig config = CampaignConfig.data();
-        return Math.max(0f, config.voteDuration - Math.max(0f, config.votePushSeconds));
+        return Math.max(0f, CampaignConfig.data().votePushSeconds - 1f);
+    }
+
+    /** Keeps the chain {@code timeout < lead < duration} intact after any edit. */
+    private static void normalizeTimings(CampaignConfig config){
+        config.voteDuration = Math.max(5f, config.voteDuration);
+        config.votePushSeconds = clamp(config.votePushSeconds, 0f, Math.max(0f, config.voteDuration - 1f));
+        config.voteTimeout = clamp(config.voteTimeout, 0f, Math.max(0f, config.votePushSeconds - 1f));
     }
     private static float clamp(float value, float min, float max){
         return Math.max(min, Math.min(max, value));

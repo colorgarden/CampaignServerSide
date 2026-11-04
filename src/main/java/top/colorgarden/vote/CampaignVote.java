@@ -387,7 +387,10 @@ public class CampaignVote{
         vote.starterUuid = starter.uuid();
         vote.startedAt = Time.millis();
         vote.endsAt = vote.startedAt + (long)(config.voteDuration * 1000f);
-        vote.pushAt = vote.endsAt - (long)(Math.max(0f, config.votePushSeconds) * 1000f);
+        //independent settings, enforced chain: timeout < lead < duration
+        float lead = Math.max(0f, Math.min(config.votePushSeconds, config.voteDuration - 1f));
+        vote.effectiveTimeout = Math.max(0f, Math.min(config.voteTimeout, lead));
+        vote.pushAt = vote.endsAt - (long)(lead * 1000f);
         vote.yes.add(starter.uuid());
 
         //freeze the quorum at start: the bar must not move while the vote runs
@@ -551,7 +554,7 @@ public class CampaignVote{
             //idle timeout only counts once the ballot was actually shown; otherwise the vote
             //would settle before anyone was ever asked (window tail vs idle timeout collision)
             long idleFrom = Math.max(vote.lastCastAt, vote.pushAt);
-            if(vote.pushed && timeout > 0f && now - idleFrom >= (long)(timeout * 1000f)){
+            if(vote.pushed && vote.effectiveTimeout > 0f && now - idleFrom >= (long)(vote.effectiveTimeout * 1000f)){
                 Boolean decided = decide(vote);
                 if(decided == null) decided = fallback(vote);
                 finish(vote, decided, decided ? null : I18n.get("campaign.vote.timeout-no", vote.yes.size, vote.no.size));
@@ -759,6 +762,8 @@ public class CampaignVote{
         public long startedAt, endsAt;
         /** Quorum frozen when the vote started, so displays never disagree. */
         public int onlineAtStart = 1, requiredAtStart = 1;
+        /** Idle timeout actually in force for this vote (clamped below the lead time). */
+        public float effectiveTimeout;
 
         public int required(){
             return requiredAtStart > 0 ? requiredAtStart : CampaignVote.requiredVotes();
