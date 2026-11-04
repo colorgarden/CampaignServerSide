@@ -133,15 +133,8 @@ public class VoteMenu{
         String message = I18n.get("campaign.menu.main-message",
             vote == null ? I18n.get("campaign.vote.info-none") : CampaignVote.describe(vote));
 
-        String[][] options = player.admin ? new String[][]{
-            {I18n.get("campaign.menu.sector"), I18n.get("campaign.menu.research")},
-            {I18n.get("campaign.menu.planet"), I18n.get("campaign.menu.destination")},
-            {I18n.get("campaign.menu.redirect"), I18n.get("campaign.menu.pause")},
-            {I18n.get("campaign.menu.wave"), I18n.get("campaign.menu.abandon")},
-            {I18n.get("campaign.menu.info"), I18n.get("campaign.menu.difficulty")},
-            {I18n.get("campaign.menu.rules")},
-            {I18n.get("campaign.menu.close")}
-        } : new String[][]{
+        //difficulty and the campaign rules live in /ca now, so the vote menu is the same for everyone
+        String[][] options = {
             {I18n.get("campaign.menu.sector"), I18n.get("campaign.menu.research")},
             {I18n.get("campaign.menu.planet"), I18n.get("campaign.menu.destination")},
             {I18n.get("campaign.menu.redirect"), I18n.get("campaign.menu.pause")},
@@ -235,7 +228,7 @@ public class VoteMenu{
         if(option < 0) return; //closed with back/ESC
 
         //the close button is the last cell; admins have one extra row in front of it
-        int close = player.admin ? 11 : 9;
+        int close = 9;
         if(option == close){
             hide(player, mainId);
             return;
@@ -268,12 +261,6 @@ public class VoteMenu{
                 }
             }
             case 8 -> openVotes(player);
-            case 9 -> {
-                if(player.admin) openDifficulty(player);
-            }
-            case 10 -> {
-                if(player.admin) openRules(player);
-            }
             default -> hide(player, mainId);
         }
     }
