@@ -1054,6 +1054,15 @@ public class CampaignCommands{
             return;
         }
 
+        //"help" and "?" print the usage instead of an unknown-kind error
+        for(int i = 1; i < args.length; i++){
+            if(args[i] == null) continue;
+            if("help".equalsIgnoreCase(args[i].trim()) || "?".equals(args[i].trim())){
+                player.sendMessage(I18n.get("campaign.vote.help"));
+                return;
+            }
+        }
+
         //arc hands the tail over as one string ("list research 钻"), so split it back into tokens
         java.util.List<String> tokens = new java.util.ArrayList<>();
         for(int i = 1; i < args.length; i++){
