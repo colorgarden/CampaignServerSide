@@ -176,23 +176,12 @@ public class AdminPanel{
         Seq<String> out = new Seq<>();
 
         switch(purpose){
-            case research -> {
-                for(String entry : top.colorgarden.vote.CampaignVote.search(
-                    top.colorgarden.vote.CampaignVote.Kind.research, "", 60, false)){
-                    out.add(entry);
-                }
-            }
-            case sector -> {
-                Planet planet = SectorService.planet();
-                if(planet == null) return out;
-
-                Sector playing = SectorService.current();
-                for(mindustry.type.SectorPreset preset : SectorService.presets(planet)){
-                    Sector sector = preset.sector;
-                    if(sector == null || sector == playing) continue;
-                    out.add(I18n.content(preset) + " (" + planet.name + ":" + sector.id + ")");
-                }
-            }
+            //research and sector use exactly the same source as the vote lists, so the only
+            //difference between the two menus is whether the others have to agree first
+            case research -> out.addAll(top.colorgarden.vote.CampaignVote.search(
+                top.colorgarden.vote.CampaignVote.Kind.research, "", 200, false));
+            case sector -> out.addAll(top.colorgarden.vote.CampaignVote.search(
+                top.colorgarden.vote.CampaignVote.Kind.sector, "", 200, false, false));
             case planet -> {
                 for(Planet planet : SectorService.planets()){
                     if(planet == SectorService.planet()) continue;
