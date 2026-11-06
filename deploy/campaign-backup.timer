@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily backup of the Mindustry campaign server (keeps five days)
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1d
+AccuracySec=10min
+Persistent=true
+Unit=campaign-backup.service
+
+[Install]
+WantedBy=timers.target

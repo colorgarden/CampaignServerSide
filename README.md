@@ -346,5 +346,41 @@ campaign-goto erekir:onset         # 跨星球
 
 ## 13. 测试服
 
-`deploy/` 下是本项目固定测试服的启停脚本与说明（Arch Linux ARM，JRE 21，**不使用 systemd**，
-`server.sh start|stop|restart|status|console`）。详见 [`deploy/README.md`](deploy/README.md)。
+**地址：`colorgarden.top`**（端口 `6567`，Mindustry v160 客户端直接加入即可）
+
+`deploy/` 下是本项目固定测试服的启停脚本与说明（Arch Linux ARM，JRE 21，游戏服**不使用 systemd**，
+`server.sh start|stop|restart|status|console|shell|tmux`）。详见 [`deploy/README.md`](deploy/README.md)。
+
+## 14. 备份
+
+游戏服本身不用 systemd，但备份用一个独立的 systemd timer（`campaign-backup.timer`），
+每天一次快照，**只保留最近 5 天**，更早的自动删除。
+
+每次快照写入 `config/backups/<时间戳>/`，包含：
+
+- `config/saves/` 下全部 `*.msav`（当前存档、轮转的 `-backup.msav`、保留的 `.lost-*.msav`）
+- 插件配置 `config.json` 与 `blueprints/` 蓝图库
+- Mindustry 的 `settings.bin`（管理员名单、封禁、区块经济信息 `<planet>-s-<id>-info`）
+
+安装与管理：
+
+```bash
+install -m 755 deploy/campaign-backup.sh      /usr/local/sbin/campaign-backup.sh
+install -m 644 deploy/campaign-backup.service /etc/systemd/system/
+install -m 644 deploy/campaign-backup.timer   /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now campaign-backup.timer
+
+systemctl list-timers campaign-backup.timer   # 下次执行时间
+bash /usr/local/sbin/campaign-backup.sh       # 立刻打一份
+tail -f /var/log/campaign-backup.log          # 看日志
+```
+
+恢复某个快照：
+
+```bash
+systemctl stop 无需 —— 先 runuser -u colorgarden -- .../server.sh stop
+cp config/backups/<时间戳>/sector-serpulo-99.msav config/saves/
+runuser -u colorgarden -- .../server.sh start
+```
+
+保留天数在脚本顶部的 `RETENTION_DAYS=5`，改完不需要重装 timer。

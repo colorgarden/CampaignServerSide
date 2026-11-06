@@ -1,0 +1,8 @@
+[Unit]
+Description=Snapshot the campaign server saves, config and blueprints
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/campaign-backup.sh
+StandardOutput=append:/var/log/campaign-backup.log
+StandardError=append:/var/log/campaign-backup.log
