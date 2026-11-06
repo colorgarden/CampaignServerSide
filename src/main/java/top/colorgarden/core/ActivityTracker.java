@@ -48,9 +48,11 @@ public class ActivityTracker{
                 idle.put(player, idle.get(player, 0f) + Time.delta);
             }
 
-            //announce the transition so everybody knows why that player is skipped
+            //announce the transition so everybody knows why that player is skipped, and when they are back
             if(!wasAfk && isAfk(player)){
                 mindustry.gen.Call.sendMessage(top.colorgarden.util.I18n.get("campaign.afk.announced", player.plainName()));
+            }else if(wasAfk && !isAfk(player)){
+                mindustry.gen.Call.sendMessage(top.colorgarden.util.I18n.get("campaign.afk.returned", player.plainName()));
             }
         }
 
