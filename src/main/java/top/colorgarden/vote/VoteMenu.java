@@ -37,6 +37,8 @@ public class VoteMenu{
     private static final arc.struct.ObjectMap<Player, CampaignVote.Vote> viewing = new arc.struct.ObjectMap<>();
     /** Per player: whether numbered sectors are listed in the sector picker. */
     private static final arc.struct.ObjectMap<Player, Boolean> numberedView = new arc.struct.ObjectMap<>();
+    /** Pages that only explain that nothing can be picked right now. */
+    private static final arc.struct.ObjectMap<Player, ListState> emptyStates = new arc.struct.ObjectMap<>();
 
     private static int votesId = -1;
     private static int mainId = -1, listId = -1, confirmId = -1, voteId = -1, searchId = -1;
@@ -54,6 +56,8 @@ public class VoteMenu{
         boolean showAll;
         /** Sector picker only: list numbered sectors as well. */
         boolean numbered;
+        /** True when this state belongs to the "nothing to pick" page. */
+        boolean placeholder;
         Seq<String> entries = new Seq<>();
     }
 
@@ -241,7 +245,7 @@ public class VoteMenu{
 
         switch(option){
             case 0 -> showList(player, CampaignVote.Kind.sector, "", 0);
-            case 1 -> showList(player, CampaignVote.Kind.research, "", 0, true);
+            case 1 -> showList(player, CampaignVote.Kind.research, "", 0);
             case 2 -> showList(player, CampaignVote.Kind.planet, "", 0);
             case 3 -> player.sendMessage(I18n.get("campaign.menu.wip-message"));
             case 4 -> player.sendMessage(I18n.get("campaign.menu.wip-message"));
@@ -357,12 +361,9 @@ public class VoteMenu{
         boolean numbered = kind == CampaignVote.Kind.sector && numberedView.get(player, false);
         Seq<String> found = CampaignVote.search(kind, query, 200, showAll, numbered);
         if(found.isEmpty()){
-            //never leave the player without a page: a ready-only research list can be empty,
-            //so fall back to the full list where the prerequisites are visible
-            player.sendMessage(I18n.get("campaign.menu.no-target", I18n.get("campaign.vote.kind." + kind.name())));
-            if(!showAll){
-                showList(player, kind, query, 0, true);
-            }
+            //never close the menu here: the filters have to stay usable so the prerequisites of
+            //locked entries can be inspected
+            showEmpty(player, kind, query, showAll, numbered);
             return;
         }
 
@@ -420,8 +421,55 @@ public class VoteMenu{
         showList(player, kind, query, page, false);
     }
 
+    /** @return a page that says there is nothing to pick, keeping the filters usable. */
+    private static void showEmpty(Player player, CampaignVote.Kind kind, String query, boolean showAll, boolean numbered){
+        hide(player, mainId);
+        hide(player, listId);
+
+        ListState state = new ListState();
+        state.kind = kind;
+        state.query = query;
+        state.showAll = showAll;
+        state.numbered = numbered;
+        state.placeholder = true;
+        emptyStates.put(player, state);
+
+        Seq<String[]> rows = new Seq<>();
+        rows.add(new String[]{I18n.get("campaign.menu.no-target", I18n.get("campaign.vote.kind." + kind.name()))});
+        rows.add(new String[]{I18n.get(showAll ? "campaign.menu.show-ready" : "campaign.menu.show-all")});
+        rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
+
+        Call.followUpMenu(player.con, listId, I18n.get("campaign.menu.list-title"),
+            I18n.get(showAll ? "campaign.menu.mode-all" : "campaign.menu.mode-ready"), rows.toArray(String[].class));
+    }
+
+    /** @return true when the click on the "nothing to pick" page was handled. */
+    private static boolean handleEmpty(Player player, int option){
+        ListState state = emptyStates.get(player);
+        if(state == null) return false;
+
+        switch(option){
+            case 0 -> showEmpty(player, state.kind, state.query, state.showAll, state.numbered);
+            case 1 -> {
+                emptyStates.remove(player);
+                showList(player, state.kind, state.query, 0, !state.showAll);
+            }
+            case 2 -> {
+                emptyStates.remove(player);
+                hide(player, listId);
+                openMain(player);
+            }
+            default -> {
+                emptyStates.remove(player);
+                hide(player, listId);
+            }
+        }
+
+        return true;
+    }
     private static void onList(Player player, int option){
         if(option < 0) return; //closed with back/ESC
+        if(handleEmpty(player, option)) return;
 
         ListState state = listStates.get(player);
         if(state == null) return;
