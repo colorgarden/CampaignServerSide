@@ -92,8 +92,9 @@ public class AdminPanel{
         if(!player.admin) return;
 
         switch(option){
-            case 0 -> Call.textInput(player.con, searchId, I18n.get("campaign.admin.research"),
-                I18n.get("campaign.admin.research-hint"), 32, "", false);
+            //research and sector switching behave the same here: both open a pickable list, the only
+            //difference in the vote menu is that the vote asks the others first
+            case 0 -> showList(player, Purpose.research, 0);
             case 1 -> showList(player, Purpose.sector, 0);
             case 2 -> showList(player, Purpose.planet, 0);
             case 3 -> player.sendMessage(I18n.get("campaign.menu.wip-message"));
