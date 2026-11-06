@@ -203,7 +203,7 @@ public class CampaignVote{
         for(SectorPreset preset : SectorService.presets(currentPlanet)){
             Sector sector = preset.sector;
             if(sector == null) continue;
-            if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
+            if(!includeBlocked && config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
 
             if(matches(preset.name, I18n.content(preset), needle) || matches(String.valueOf(sector.id), "", needle)){
                 out.add(I18n.content(preset) + currentSuffix(sector) + " " + sectorStatus(sector));
@@ -215,7 +215,7 @@ public class CampaignVote{
         //needed. Vanilla only lets you land on one next to a sector that has a base (allowLanding).
         if(includeNumbered) for(Sector sector : currentPlanet.sectors){
             if(sector == null || sector.preset != null) continue;
-            if(config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
+            if(!includeBlocked && config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
 
             if(matches(String.valueOf(sector.id), "", needle)){
                 out.add("#" + sector.id + currentSuffix(sector) + " " + sectorStatus(sector));
