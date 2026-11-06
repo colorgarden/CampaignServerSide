@@ -113,13 +113,24 @@ public class CampaignHooks{
             if(player == null || message == null) return message;
             if(CampaignVote.active() == null) return message;
 
-            //"1" / "0" cast the only running vote; "1 2" / "0 2" pick one when several are running
+            //"1" / "0" cast the only running vote; "1 2" / "0 2" pick one when several are running.
+            //y / n and yes / no work exactly the same way, so nobody has to remember the digits.
             String trimmed = message.trim();
             String[] parts = trimmed.split("\\s+");
             if(parts.length == 0 || parts.length > 2) return message;
-            if(!parts[0].equals("0") && !parts[0].equals("1")) return message;
+
+            String first = parts[0].toLowerCase(java.util.Locale.ROOT);
+            boolean yes;
+            if(first.equals("1") || first.equals("y") || first.equals("yes")){
+                yes = true;
+            }else if(first.equals("0") || first.equals("n") || first.equals("no")){
+                yes = false;
+            }else{
+                return message;
+            }
+
             if(parts.length == 2 && !parts[1].matches("\\d+")) return message;
-            boolean yes = parts[0].equals("1");
+
             String problem = CampaignVote.cast(player, yes ? "y" : "n", parts.length == 2 ? parts[1] : null);
             player.sendMessage(problem == null
                 ? I18n.get("campaign.vote.ballot-counted", I18n.get(yes ? "campaign.vote.yes" : "campaign.vote.no"))
