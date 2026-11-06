@@ -484,6 +484,19 @@ public class VoteMenu{
             String label = state.entries.get(start + option);
             //entries are "显示名 (id)"; the id inside the parentheses is what the resolver accepts
             String target = inside(label);
+
+            //a locked sector must not even reach the confirm page: say what is missing and stay in the
+            //list, otherwise "show all" would look like every sector is selectable
+            if(state.kind == CampaignVote.Kind.sector
+                && top.colorgarden.config.CampaignConfig.data().enforceSectorUnlock
+                && !top.colorgarden.core.SectorService.canEnter(top.colorgarden.core.SectorService.resolve(target))){
+                mindustry.type.Sector locked = top.colorgarden.core.SectorService.resolve(target);
+                player.sendMessage(I18n.get("campaign.vote.sector-locked-click", locked == null ? target : locked.name()));
+                String hint = locked == null ? "" : top.colorgarden.core.SectorService.launchHint(locked);
+                if(!hint.isEmpty()) player.sendMessage("[scarlet]" + hint);
+                return;
+            }
+
             hide(player, listId);
 
             //every vote asks once more before it starts
@@ -537,6 +550,7 @@ public class VoteMenu{
         pending.put(player, entry);
 
         String message = I18n.get("campaign.menu.confirm-message", label,
+            CampaignVote.requiredVotes(),
             Math.max(1, top.colorgarden.core.ActivityTracker.activeCount())) + costBlock(kind, target);
 
         String[][] options = {

@@ -206,7 +206,7 @@ public class CampaignVote{
             if(!includeBlocked && config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
 
             if(matches(preset.name, I18n.content(preset), needle) || matches(String.valueOf(sector.id), "", needle)){
-                out.add(I18n.content(preset) + currentSuffix(sector) + " " + sectorStatus(sector));
+                out.add(I18n.content(preset) + currentSuffix(sector) + " " + sectorStatus(sector) + lockSuffix(sector));
             }
             if(out.size >= limit) break;
         }
@@ -218,11 +218,20 @@ public class CampaignVote{
             if(!includeBlocked && config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
 
             if(matches(String.valueOf(sector.id), "", needle)){
-                out.add("#" + sector.id + currentSuffix(sector) + " " + sectorStatus(sector));
+                out.add("#" + sector.id + currentSuffix(sector) + " " + sectorStatus(sector) + lockSuffix(sector));
             }
             if(out.size >= limit) break;
         }
         return out;
+    }
+
+    /** @return the prerequisite shown after a sector that cannot be entered yet, or "". */
+    private static String lockSuffix(Sector sector){
+        if(SectorService.canEnter(sector)) return "";
+
+        String hint = SectorService.launchHint(sector);
+        String reason = hint == null || hint.isEmpty() ? I18n.get("campaign.sector.locked-short") : hint;
+        return " [scarlet]— " + reason + "[]";
     }
 
     /** @return "此区块" when this is the sector being played, otherwise an empty string. */
