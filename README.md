@@ -5,11 +5,15 @@
 
 - 服务端生成/加载战役区块（sector），像单人战役一样保存区块进度
 - 管理员可切换区块、解锁科技；也可关掉“仅管理员”，让所有玩家直接操作
-- 玩家可以**投票**切换区块 / 投票解锁科技（“仅管理员”开启时自动禁用对应投票）
-- 定时自动保存、关服保存、区块被攻陷时保存，重启后从存档继续
+- 管理员面板 `/ca menu`：研究、切区块、切星球、暂停、跳波、难度、战役规则、遗弃区块
+- 八类投票（区块 / 科技 / 星球 / 发射目标 / 重定向 / 暂停 / 跳波 / 遗弃），全部带二次确认
+- **启动配置界面**：核心蓝图库、负载物品、容量校验，货物从来源区块扣除
+- 定时自动保存（跟随原版 `saveinterval`）、关服保存、区块失守时按规则决定是否存盘
+- 挂机判定：超过 `afkSeconds` 无位移的玩家在投票中被跳过，并公告
 - 自定义网络包 + Java API，客户端模组可直接调用（见 [`PROTOCOL.md`](PROTOCOL.md)）
-- 所有文案走语言文件（`bundles/bundle.properties` + `bundle_zh_CN.properties`）
+- 所有文案走语言文件，按客户端语言切换（`bundles/bundle.properties` + `bundle_zh_CN.properties`）
 
+当前版本：**0.0.2-alpha**（[发布页](https://github.com/colorgarden/CampaignServerSide/releases/tag/v0.0.2-alpha)）。
 目标版本：Mindustry **v160.x** 专用服务端（`server-release.jar`），JDK 17+。
 许可证：**AGPL-3.0-or-later**（见 [`LICENSE`](LICENSE)）。
 仓库：`https://github.com/colorgarden/CampaignServerSide`
@@ -49,6 +53,14 @@
 | `campaign-research <name>` | 解锁一项科技（含前置） |
 | `campaign-research-all` | 解锁全部科技 |
 | `campaign-relock <name>` | 重新锁上某项科技 |
+| `campaign-rule [name] [on\|off]` | 查看/切换战役规则（`invasion` `fog` `hidespawns` `randomwaveai` `rtsai` `pausedisabled` `clearonlose`） |
+| `campaign-difficulty [name]` | 查看/设置战役难度 |
+| `campaign-sim [pause\|resume]` | 直接暂停或恢复模拟 |
+| `campaign-skipwave` | 跳过下一波（等价原版跳过波次按钮） |
+| `campaign-autopause [on\|off]` | 查看/设置原版 `autoPause`（无人在线时暂停） |
+| `campaign-cores` | 列出全部核心方块、边长与允许的蓝图尺寸 |
+| `campaign-fix-spawn [x] [y]` | 修复当前区块被污染的出生点记录 |
+| `campaign-votelist [kind] [--all]` | 列出此刻可投票的目标 |
 | `campaign-vote [info\|cancel]` | 查看/取消进行中的玩家投票 |
 | `campaign-destination [sector\|clear]` | 查看/设置当前区块的发射台目标（仅同星球） |
 | `campaign-redirect` | 一键把所有向外运送的区块重定向到当前区块（原版接收台的 ↓ 按钮） |
@@ -77,14 +89,26 @@
 | `/research <name\|all>` | 见配置 | 解锁科技，立即同步给在线玩家 |
 | `/campaignsave` | 管理员 | 保存当前区块 |
 | `/capture` | 管理员 | 强制判定通关 |
+| `/ca menu` | 管理员 | 管理员面板（研究 / 切区块 / 切星球 / 暂停 / 跳波 / 难度 / 规则 / 遗弃） |
+| `/cadmin menu` | 管理员 | `/ca` 的别名 |
+| `/ca research <name>` | 管理员 | 直接解锁科技 |
+| `/ca sector <name>` | 管理员 | 直接切换区块 |
+| `/ca planet <name>` | 管理员 | 直接切换星球 |
+| `/ca rule <name> [on\|off]` | 管理员 | 切换战役规则 |
+| `/cj` `/cjump` | 管理员 | 跳过一波（受 `skipWaveCooldown` 冷却限制） |
+| `/cv menu` `/cvote menu` | 所有人 | 投票面板 |
 | `/cvote sector <name>` | 所有人 | 发起“切换区块”投票 |
 | `/cvote research <name>` | 所有人 | 发起“解锁科技”投票 |
 | `/cvote planet <name>` | 所有人 | 发起“切换星球”投票 |
 | `/cvote destination <sector>` | 所有人 | 发起“改本区块发射台目标”投票 |
 | `/cvote redirect` | 所有人 | 发起“一键重定向全星球对外运送”投票 |
+| `/cvote pause` | 所有人 | 发起“暂停/恢复模拟”投票 |
+| `/cvote wave` | 所有人 | 发起“跳过一波”投票 |
+| `/cvote abandon` | 所有人 | 发起“遗弃本区块”投票（等同撤退） |
 | `/cvote yes` / `/cvote no` | 所有人 | 投票 |
 | `/cvote cancel` | 管理员 | 取消投票 |
 | `/cvote info` | 所有人 | 当前投票状态 |
+| `/cvote help` | 所有人 | 列出全部投票指令 |
 | `/destination <name\|clear>` | 管理员 | 设置本区块的发射台目标 |
 | `/redirect` | 管理员 | 一键重定向所有对外运送 |
 | `/planets` | 所有人 | 列出参与战役的星球与占领进度 |
@@ -94,24 +118,39 @@
 
 ## 4. 投票
 
-投票覆盖五种操作：`sector`（切区块）、`planet`（切星球）、`research`（解锁科技）、
-`destination`（改本区块发射台目标）、`redirect`（一键把全星球对外运送指到本区块）。
+八类投票：`sector`（切区块）、`planet`（切星球）、`research`（解锁科技）、`destination`（改本区块发射台目标）、
+`redirect`（一键把全星球对外运送指到本区块）、`pause`（暂停/恢复）、`wave`（跳一波）、`abandon`（遗弃本区块）。
 
-- **投票与“仅管理员”开关无关**。`sectorSwitchAdminOnly` / `researchAdminOnly` / `planetSwitchAdminOnly`
-  只决定玩家能不能**直接**用 `/sector`、`/research`、`/planet`；投票由 `voting` + 各自的 `vote*` 开关控制。
-  也就是说管理员可以自己动手，普通玩家走投票。
+- 所有投票**都有二次确认页**；从列表点目标 → 确认 → 才真正发起。区块若还没有基地，确认后先弹启动配置，
+  点“发射”才发起投票。
+- 列表每页 6 行（科技两列共 12 条），带搜索与“显示全部”；锁定区块在列表里直接标出缺失的前置条件，
+  点击只提示、不进入确认页。空列表显示占位页而不是关闭菜单。
 - 判定模式由 `voteDecision` 决定，**默认 `majority`（少数服从多数）**：
   - `majority`：在线玩家都投完后立即判定，或超时按当前票数判定——同意 > 反对即通过，平票算失败。
     少数派无法单方面否决。
   - `threshold`：同意票 ≥ `ceil(在线人数 × votePercent)` 通过；反对票达到同样数量即失败。
   - `veto`：**一票否决**——只要有一张反对票立刻失败；同意票仍需达到阈值。
-- `voteTimeout`（默认 10 秒）：最后一张票之后若无人再投，超时即按上述模式结算，不必等满 `voteDuration`；
-  设为 `0` 关闭超时。`voteDuration` 仍是硬上限，到期按模式结算。
-- 管理员可随时取消投票。
-- 同一玩家两次发起之间要等 `voteCooldown` 秒（冷却从上一次投票结束算起）。
-- 在线人数不足 `voteMinPlayers` 时不能发起。设为 `1` 时单人也能投票——发起者的一票就是全部票数，
-  因此投票必然通过，这是该配置的预期行为。
+- 三段计时互相约束（强制 `超时 < 提前 < 窗口`）：
+  - `voteDuration`：投票总窗口，硬上限
+  - `votePushSeconds`：提前多少秒弹出投票窗口
+  - `voteTimeout`：弹窗后多少秒无人再投即结算，`0` 关闭
+- **挂机玩家**：超过 `afkSeconds` 无位移的玩家不计入合格人数、不能发起投票，转入挂机时会在聊天公告。
+  暂停期间不累计挂机时间。
+- 管理员可随时取消投票；同一玩家两次发起之间要等 `voteCooldown` 秒。
+- 在线人数不足 `voteMinPlayers` 时不能发起。设为 `1` 时单人也能投票——发起者的一票就是全部票数。
 - 投票结果会立即执行（切换区块会重载世界），并广播到聊天栏。
+
+## 4.1 启动配置与核心蓝图
+
+首次进入没有基地的区块时弹出启动配置（`/ca` 管理员直接进入同样适用）：
+
+- **核心蓝图库**：`config/mods/Campaign Server Side/blueprints/` 下的 `.msch`，加上按星球生成的单核心预设
+- **上传**：粘贴游戏导出的 base64 蓝图；校验解码、非空、恰好一个核心、全部方块已解锁、尺寸不超过
+  `核心边长 + 10`（原版 `maxLoadoutSchematicPad = 5`，每边 5 格）
+- **重命名 / 删除**：仅自建蓝图可改；自带核心预设只读。文件名用 ASCII slug，可读名存放在同名 `.name` 文件
+- **负载**：物品 ±50 / 最大化 / 全部最大化，单项上限 `min(来源库存 − 蓝图需求, 容量)`，
+  容量按 `launchCapacityMultiplier × core.itemCapacity`；来源区块不够时拒绝发射并提示
+- 取消发射会清空本次负载；已发射的负载从来源区块库存中扣除
 
 ## 5. 配置文件
 
@@ -125,9 +164,14 @@
 | `language` | `"auto"` | 文案语言：`auto`（JVM 区域）/ `en` / `zh_CN` |
 | `autoStart` | `false` | 启动后自动进入上次区块 |
 | `autosave` | `true` | 定时保存 |
-| `autosaveSeconds` | `180` | 自动保存间隔（秒） |
+| `autosaveSeconds` | `0` | 自动保存间隔；`0` 跟随原版 `saveinterval`（默认 60s），填正数覆盖 |
 | `saveOnExit` | `true` | 关服保存 |
-| `clearSectorOnLose` | `false` | 区块丢失时删除该区块存档 |
+| `paused` | `false` | 上次是否被刻意暂停；重启后恢复该状态 |
+| `clearSectorOnLose` | `false` | 丢失重置：`true` 时失守不保存、下次重新生成；`false` 时保存废墟并在进入时按原版重建 |
+| `blueprintOnRebuild` | `true` | 失守重建后是否应用选中的核心蓝图（原版只放默认核心） |
+| `afkEnabled` | `true` | 启用挂机判定 |
+| `afkSeconds` | `60` | 多少秒无位移判定为挂机 |
+| `skipWaveCooldown` | `30` | `/cj` 跳波冷却（秒） |
 | `allowSectorSwitch` | `true` | 区块切换总开关 |
 | `allowResearch` | `true` | 科技解锁总开关 |
 | `sectorSwitchAdminOnly` | `true` | 只有管理员能直接用 `/sector` 切区块（不影响投票） |
@@ -139,9 +183,10 @@
 | `voteRedirect` | `true` | 允许“一键重定向对外运送”投票 |
 | `votePercent` | `0.6` | `threshold` 模式下的通过比例 |
 | `voteMinPlayers` | `2` | 发起投票的最少在线人数（设 `1` 单人可投） |
-| `voteDuration` | `60` | 投票时长（秒），硬上限 |
+| `voteDuration` | `60` | 投票总窗口（秒），硬上限 |
+| `votePushSeconds` | `15` | 提前多少秒弹出投票窗口 |
 | `voteDecision` | `"majority"` | 判定模式：`majority` 少数服从多数 / `threshold` 阈值 / `veto` 一票否决 |
-| `voteTimeout` | `10` | 最后一张票之后多少秒未再投票即结算，`0` 关闭 |
+| `voteTimeout` | `10` | 弹窗后多少秒无人再投即结算，`0` 关闭 |
 | `allowPlanetSwitch` | `true` | 星球切换总开关 |
 | `planetSwitchAdminOnly` | `true` | 只有管理员能直接用 `/planet` 切星球（不影响投票） |
 | `votePlanet` | `true` | 允许“切换星球”投票 |
@@ -194,8 +239,20 @@ Serpulo 的发射台通过 `Universe#runTurn` 每回合结算运送，Erekir 的
 插件在 `WorldLoadEvent` / `RulesLoadEvent` 与每次攻陷后把该标志清回 `false`（配置 `worldProcessors`），
 且**不触碰** `allowEditWorldProcessors`——那个标志只管“能不能建造/编辑”，与是否执行无关。
 
-**尚未还原**：跨区块“携带物品/发射载具”的开局对话框（原版 `LaunchLoadoutDialog`）没有实现，
-新区块按地图默认核心开局；区块入侵沿用原版 `Universe#runTurn` 的服务端逻辑。
+**丢失重置（`clearSectorOnLose`）** 按原版 `Control#playSector` 的行为：
+
+- **开**：失守时不写盘、删除该区块存档，下次进入直接重新生成（无残留建筑）
+- **关**：失守时保存废墟状态；下次进入走原版重建流程——载入旧档 → 在 `spawnPosition` 放核心 →
+  `SectorDamage.apply(1f)` 沿敌方路径摧毁 → 记录存活建筑 / 废墟 / 计划 → `logic.reset()` →
+  用生成器重开 → 在 `playNewSector` 的 `beforePlay` 阶段放回存活建筑并 `changeTeam(derelict)` →
+  `logic.play()` → 最后按 `blueprintOnRebuild` 决定是否应用核心蓝图
+
+备份（`*.msav-backup.msav`）只在**存档载入失败**时启用，不会顶替失守流程。
+
+**发射负载**：原版 `LaunchLoadoutDialog` 只存在于客户端，服务端由启动配置界面接管，
+按原版 `Schematics#placeLoadout` 放置，容量与物品扣除规则同原版。
+
+**尚未还原**：跨区块发射的动画与音效（纯客户端表现）；蓝图与负载是全局状态，不是每次发射各自携带。
 
 ## 8. 工作原理（为什么原版不行）
 
@@ -218,16 +275,18 @@ Serpulo 的发射台通过 `Universe#runTurn` 每回合结算运送，Erekir 的
 ```
 src/main/java/top/colorgarden/
 ├── CampaignServerMod.java     入口（Plugin），客户端/服务端共用
-├── command/                   CampaignCommands（控制台 + 游戏内命令）
+├── command/                   CampaignCommands / AdminPanel / LaunchPanel
 ├── config/                    CampaignConfig
-├── core/                      SectorService / ResearchService / CampaignHooks / ServerControlHook
+├── core/                      SectorService / CoreBlueprints / LaunchCargo / ResearchService /
+│                              CampaignHooks / ActivityTracker / ServerControlHook
 ├── net/                       CampaignNetwork / CampaignClientApi / CampaignInfo / CampaignProtocol
 │   └── packet/                Hello / HelloAck / Request / Reply 四个包
-├── vote/                      CampaignVote
+├── vote/                      CampaignVote / VoteMenu
 └── util/                      I18n / CampaignException
 bundles/                       bundle.properties（英文兜底）+ bundle_zh_CN.properties
 deploy/                        测试服启停脚本与部署说明
 ```
+
 
 ## 10. 构建
 
@@ -249,13 +308,16 @@ gradle installToServer -PserverDir=/path/to/server
 
 ## 11. 已知限制
 
-- 客户端没有“星球地图”界面：跨区块移动要靠 `/sector` 或投票，或自己写客户端模组调用 API。
+- 客户端没有“星球地图”界面：跨区块移动要靠 `/cv menu`、`/ca menu` 或指令。
 - 客户端上的 `LaunchPad`/`Accelerator` 发射流程依赖单机存档，不要依赖它们换区块。
+- **蓝图与负载是全局状态**，不是每次发射各自携带；多人同时准备发射会互相覆盖。
+- 失守重建应用的是“当前选中”的蓝图，与当初发射该区块时用的蓝图无关。
 - 区块经济模拟（`Universe#runTurn`，每 2 分钟一次）在服务端照常运行，只在有基地的区块间联动。
-- 区块丢失后服务端会暂停并公告，不自动重开，需要管理员 `/sector <name>` 决定下一步。
+- 区块丢失后服务端会暂停并公告，需要管理员决定下一步（`/ca sector`、`/ca rule clearonlose` 等）。
 - 服务端不校验“玩家是否已解锁某个方块”（原版联机也不校验），需要严格限制请配合白名单类插件。
 - 服务端日志默认按 UTF-8 输出；如果机器 `LANG` 为空，请用 `-Dfile.encoding=UTF-8`
   `-Dstdout.encoding=UTF-8` 启动（`deploy/start.sh` 已带）。
+- 蓝图文件名走 `sun.jnu.encoding`，非 UTF-8 环境下中文会变 `?`，因此文件名用 ASCII slug、可读名存边车文件。
 
 ## 12. 自测清单
 
