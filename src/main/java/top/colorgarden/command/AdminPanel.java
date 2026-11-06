@@ -39,6 +39,8 @@ public class AdminPanel{
     private static class ListState{
         Purpose purpose;
         int page;
+        /** True when locked/unavailable entries are listed as well. */
+        boolean showAll;
         Seq<String> entries = new Seq<>();
     }
 
@@ -135,18 +137,17 @@ public class AdminPanel{
     // ---------------------------------------------------------------- lists
 
     private static void showList(Player player, Purpose purpose, int page){
-        showEntries(player, purpose, entries(purpose), page);
+        showList(player, purpose, page, false);
     }
 
-    private static void showEntries(Player player, Purpose purpose, Seq<String> entries, int page){
+    private static void showList(Player player, Purpose purpose, int page, boolean showAll){
+        showEntries(player, purpose, entries(purpose, showAll), page, showAll);
+    }
+
+    private static void showEntries(Player player, Purpose purpose, Seq<String> entries, int page, boolean showAll){
         if(!available || player == null || player.con == null) return;
 
         hide(player, mainId);
-
-        if(entries.isEmpty()){
-            player.sendMessage(I18n.get("campaign.admin.empty"));
-            return;
-        }
 
         int pages = Math.max(1, (entries.size + perPage - 1) / perPage);
         int current = Math.max(0, Math.min(page, pages - 1));
@@ -154,6 +155,7 @@ public class AdminPanel{
         ListState state = new ListState();
         state.purpose = purpose;
         state.page = current;
+        state.showAll = showAll;
         state.entries = entries;
         states.put(player, state);
 
@@ -161,9 +163,27 @@ public class AdminPanel{
         int end = Math.min(entries.size, start + perPage);
 
         Seq<String[]> rows = new Seq<>();
-        for(int i = start; i < end; i++){
-            rows.add(new String[]{entries.get(i)});
+
+        if(entries.isEmpty()){
+            rows.add(new String[]{I18n.get("campaign.admin.empty")});
+        }else if(purpose == Purpose.research){
+            //research can be long, so it is laid out two per row like the vote list
+            for(int i = start; i < end; i += 2){
+                String left = entries.get(i);
+                String right = i + 1 < end ? entries.get(i + 1) : "";
+                rows.add(right.isEmpty() ? new String[]{left} : new String[]{left, right});
+            }
+        }else{
+            for(int i = start; i < end; i++){
+                rows.add(new String[]{entries.get(i)});
+            }
         }
+
+        //the same filters the vote list offers; without them a locked target could never be reached
+        if(purpose == Purpose.research || purpose == Purpose.sector){
+            rows.add(new String[]{I18n.get(showAll ? "campaign.menu.show-ready" : "campaign.menu.show-all")});
+        }
+
         rows.add(new String[]{I18n.get("campaign.menu.prev"), I18n.get("campaign.menu.next")});
         rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
 
@@ -172,16 +192,16 @@ public class AdminPanel{
             rows.toArray(String[].class));
     }
 
-    private static Seq<String> entries(Purpose purpose){
+    private static Seq<String> entries(Purpose purpose, boolean showAll){
         Seq<String> out = new Seq<>();
 
         switch(purpose){
             //research and sector use exactly the same source as the vote lists, so the only
             //difference between the two menus is whether the others have to agree first
             case research -> out.addAll(top.colorgarden.vote.CampaignVote.search(
-                top.colorgarden.vote.CampaignVote.Kind.research, "", 200, false));
+                top.colorgarden.vote.CampaignVote.Kind.research, "", 200, showAll));
             case sector -> out.addAll(top.colorgarden.vote.CampaignVote.search(
-                top.colorgarden.vote.CampaignVote.Kind.sector, "", 200, false, false));
+                top.colorgarden.vote.CampaignVote.Kind.sector, "", 200, showAll, false));
             case planet -> {
                 for(Planet planet : SectorService.planets()){
                     if(planet == SectorService.planet()) continue;
@@ -211,14 +231,29 @@ public class AdminPanel{
 
         int start = state.page * perPage;
         int shown = Math.min(state.entries.size, start + perPage) - start;
+        int note = state.entries.isEmpty() ? 1 : 0;
+        int filter = state.purpose == Purpose.research || state.purpose == Purpose.sector ? 1 : 0;
 
         if(option < shown){
             act(player, state.purpose, inside(state.entries.get(start + option)));
-        }else if(option == shown){
-            showList(player, state.purpose, state.page - 1);
-        }else if(option == shown + 1){
-            showList(player, state.purpose, state.page + 1);
-        }else if(option == shown + 2){
+            return;
+        }
+
+        //the "nothing to pick" note is a dead cell; clicking it redraws the page
+        if(note > 0 && option == shown){
+            showList(player, state.purpose, state.page, state.showAll);
+            return;
+        }
+
+        int cursor = shown + note;
+
+        if(filter > 0 && option == cursor){
+            showList(player, state.purpose, 0, !state.showAll);
+        }else if(option == cursor + filter){
+            showList(player, state.purpose, state.page - 1, state.showAll);
+        }else if(option == cursor + filter + 1){
+            showList(player, state.purpose, state.page + 1, state.showAll);
+        }else if(option == cursor + filter + 2){
             hide(player, listId);
             openMain(player);
         }else{
@@ -279,7 +314,7 @@ public class AdminPanel{
         Seq<String> entries = top.colorgarden.vote.CampaignVote.search(
             top.colorgarden.vote.CampaignVote.Kind.research, text == null ? "" : text.trim(), 40, false);
 
-        showEntries(player, Purpose.research, entries, 0);
+        showEntries(player, Purpose.research, entries, 0, false);
     }
 
     // ---------------------------------------------------------------- vote settings
