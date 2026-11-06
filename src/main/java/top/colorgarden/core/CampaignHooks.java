@@ -334,10 +334,9 @@ public class CampaignHooks{
             clear |= sector.planet.clearSectorOnLose || sector.planet.campaignRules.clearSectorOnLose;
         }
 
-        //a sector whose cores are all gone cannot be played any more: drop its save so the
-        //next entry rebuilds it from the generator instead of loading a cored-less world
-        boolean lost = state.rules.defaultTeam.cores().isEmpty();
-        if(sector != null && (clear || lost)){
+        //vanilla campaign rule: clearSectorOnLose wipes the sector; with the rule off the world
+        //(and every building) is kept, the next entry only places a fresh core
+        if(sector != null && clear){
             SectorService.deleteSaveData(sector);
             sector.info.hasCore = false;
             sector.saveInfo();

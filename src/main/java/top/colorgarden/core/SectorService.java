@@ -324,6 +324,8 @@ public class SectorService{
         rules.randomWaveAI = config.ruleRandomWaveAI;
         rules.rtsAI = config.ruleRtsAI;
         rules.pauseDisabled = config.rulePauseDisabled;
+        //vanilla campaign rule: wipe the sector when it is lost instead of keeping the buildings
+        rules.clearSectorOnLose = config.clearSectorOnLose;
 
         if(state.rules != null){
             rules.apply(planet, state.rules);
@@ -359,6 +361,7 @@ public class SectorService{
             case "randomwaveai" -> setter = v -> config.ruleRandomWaveAI = v;
             case "rtsai" -> setter = v -> config.ruleRtsAI = v;
             case "pausedisabled" -> setter = v -> config.rulePauseDisabled = v;
+            case "clearonlose", "clear" -> setter = v -> config.clearSectorOnLose = v;
             default -> {
                 return null;
             }
@@ -380,6 +383,7 @@ public class SectorService{
             case "randomwaveai" -> config.ruleRandomWaveAI;
             case "rtsai" -> config.ruleRtsAI;
             case "pausedisabled" -> config.rulePauseDisabled;
+            case "clearonlose", "clear" -> config.clearSectorOnLose;
             default -> false;
         };
     }
@@ -657,6 +661,40 @@ public class SectorService{
             return false;
         }
     }
+    /**
+     * Puts a fresh core where the old base stood, mirroring vanilla's recovery of a sector whose core
+     * was destroyed while {@code clearSectorOnLose} is off.
+     *
+     * @return true when a core was placed
+     */
+    private static boolean placeEmergencyCore(Sector sector){
+        try{
+            int pos = sector.info.spawnPosition;
+            mindustry.world.Tile tile = pos != 0 ? world.tile(pos) : null;
+            if(tile == null) tile = world.tile(world.width() / 2, world.height() / 2);
+            if(tile == null) return false;
+
+            for(int i = 0; i < 20 && tile != null; i++){
+                if(tile.block() == mindustry.content.Blocks.air || tile.block().alwaysReplace) break;
+                tile = world.tile(tile.x + i, tile.y);
+            }
+            if(tile == null) return false;
+
+            tile.setBlock(sector.planet.defaultCore, state.rules.defaultTeam);
+            if(tile.build instanceof mindustry.world.blocks.storage.CoreBlock.CoreBuild core){
+                state.teams.registerCore(core);
+            }
+
+            sector.info.spawnPosition = tile.pos();
+            sector.info.hasCore = true;
+            sector.saveInfo();
+            Log.info("[CampaignServer] " + I18n.get("campaign.log.core-replaced", sector.name()));
+            return true;
+        }catch(Throwable t){
+            Log.err("[CampaignServer] " + I18n.get("campaign.core.apply-failed", Strings.getSimpleMessage(t)));
+            return false;
+        }
+    }
     /** @return true when entering this sector would generate it instead of loading a save. */
     public static boolean needsGeneration(@Nullable Sector sector){
         if(sector == null) return false;
@@ -762,6 +800,7 @@ public class SectorService{
         if(loaded && state.rules.defaultTeam.cores().isEmpty() && !CampaignConfig.data().regenerateLostSector){
             //keep the world instead of silently rebuilding it
             Log.warn("[CampaignServer] " + I18n.get("campaign.log.sector-no-core-kept", sector.name()));
+            placeEmergencyCore(sector);
             sector.info.hasCore = false;
             sector.saveInfo();
             state.set(State.playing);
