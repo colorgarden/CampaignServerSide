@@ -295,8 +295,9 @@ src/main/java/top/colorgarden/
 ├── vote/                      CampaignVote / VoteMenu
 └── util/                      I18n / CampaignException
 bundles/                       bundle.properties（英文兜底）+ bundle_zh_CN.properties
-deploy/                        测试服启停脚本与部署说明
 ```
+
+仓库只包含模组源码、语言文件与构建脚本；运维脚本（启停、备份、端口映射）不入库。
 
 
 ## 10. 构建
@@ -327,7 +328,7 @@ gradle installToServer -PserverDir=/path/to/server
 - 区块丢失后服务端会暂停并公告，需要管理员决定下一步（`/ca sector`、`/ca rule clearonlose` 等）。
 - 服务端不校验“玩家是否已解锁某个方块”（原版联机也不校验），需要严格限制请配合白名单类插件。
 - 服务端日志默认按 UTF-8 输出；如果机器 `LANG` 为空，请用 `-Dfile.encoding=UTF-8`
-  `-Dstdout.encoding=UTF-8` 启动（`deploy/start.sh` 已带）。
+  `-Dstdout.encoding=UTF-8` 启动。
 - 蓝图文件名走 `sun.jnu.encoding`，非 UTF-8 环境下中文会变 `?`，因此文件名用 ASCII slug、可读名存边车文件。
 
 ## 12. 自测清单
@@ -353,7 +354,7 @@ campaign-goto erekir:onset         # 跨星球
 
 **地址：`colorgarden.top`**（端口 `6567`，Mindustry v160 客户端直接加入即可）
 
-`deploy/` 下是本项目固定测试服的启停脚本与说明（Arch Linux ARM，JRE 21）。
+本项目的运维脚本（启停、备份、端口映射）不入仓库；下面是实际部署时使用的命令，供自建服务器参考。
 
 ### 服务管理（systemd）
 
@@ -365,7 +366,7 @@ systemctl restart campaign-server.service
 journalctl -u campaign-server.service -f      # 或 ./server.sh logs
 ```
 
-手动控制仍走 `server.sh`，它检测到单元后自动改用 `systemctl`（未安装单元则退回 `setsid + nohup`）：
+`./server.sh`（本机运维脚本，不进仓库）检测到 systemd 单元后自动改用 `systemctl`，未安装单元则退回 `setsid + nohup`：
 
 ```bash
 ./server.sh start | stop | restart | status
@@ -373,15 +374,11 @@ journalctl -u campaign-server.service -f      # 或 ./server.sh logs
 ./server.sh shell                       # 交互式控制台（日志 + 输入）
 ./server.sh tmux                        # 上窗格日志、下窗格命令
 ./server.sh logs                        # journalctl -f
-status                                  # 会额外显示 "running (systemd <pid>)" / "unit enabled at boot"
 ```
 
-安装单元：
-
-```bash
-install -m 644 deploy/campaign-server.service /etc/systemd/system/
-systemctl daemon-reload && systemctl enable --now campaign-server.service
-```
+单元文件与 `server.sh` 一样属于站点运维内容，需要时按上面的行为自行编写（`Type=simple`、
+`ExecStart=start.sh`、`User=colorgarden`、`StandardOutput=append:logs/server.log`、
+`Restart=on-failure`、`KillSignal=SIGTERM`、`TimeoutStopSec=90`）。
 
 停机细节：单元用 `KillSignal=SIGTERM` + `TimeoutStopSec=90`，Mindustry 的关机钩子会写盘；
 但 `./server.sh stop` 仍优先向控制台发送 `exit`，让插件先走完自己的存档流程。
@@ -397,14 +394,9 @@ systemctl daemon-reload && systemctl enable --now campaign-server.service
 - 插件配置 `config.json` 与 `blueprints/` 蓝图库
 - Mindustry 的 `settings.bin`（管理员名单、封禁、区块经济信息 `<planet>-s-<id>-info`）
 
-安装与管理：
+备份脚本同样属于站点运维内容，不在仓库里；下面的命令展示它在本机的用法：
 
 ```bash
-install -m 755 deploy/campaign-backup.sh      /usr/local/sbin/campaign-backup.sh
-install -m 644 deploy/campaign-backup.service /etc/systemd/system/
-install -m 644 deploy/campaign-backup.timer   /etc/systemd/system/
-systemctl daemon-reload && systemctl enable --now campaign-backup.timer
-
 systemctl list-timers campaign-backup.timer   # 下次执行时间
 bash /usr/local/sbin/campaign-backup.sh       # 立刻打一份
 tail -f /var/log/campaign-backup.log          # 看日志

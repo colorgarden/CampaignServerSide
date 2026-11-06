@@ -31,3 +31,7 @@ deploy/extract-content-names.ps1
 deploy/set-vote-*.py
 deploy/fix-*.sh
 deploy/restore-*.sh
+
+# local operations live outside the repository
+deploy/
+run-server.ps1

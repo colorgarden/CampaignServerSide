@@ -307,7 +307,6 @@ src/main/java/top/colorgarden/
 ├── vote/                      CampaignVote / VoteMenu
 └── util/                      I18n / CampaignException
 bundles/                       bundle.properties (English fallback) + bundle_zh_CN.properties
-deploy/                        test-server scripts and unit files
 ```
 
 ## 10. Building
@@ -341,7 +340,7 @@ gradle installToServer -PserverDir=/path/to/server
 - The server does not verify that a player has unlocked a block (vanilla multiplayer does not either); combine it
   with a whitelist-style plugin if you need that.
 - Logs are UTF-8 by default; if the machine has an empty `LANG`, start with `-Dfile.encoding=UTF-8`
-  `-Dstdout.encoding=UTF-8` (`deploy/start.sh` already does).
+  `-Dstdout.encoding=UTF-8`.
 - Blueprint file names go through `sun.jnu.encoding`, so non-UTF-8 locales turn Chinese into `?`; hence the ASCII
   slug plus sidecar name.
 
@@ -369,7 +368,9 @@ campaign-goto erekir:onset         # cross planet
 
 **Address: `colorgarden.top`** (port `6567`, join from a v160 client).
 
-`deploy/` holds the scripts and unit files for this project's fixed test server (Arch Linux ARM, JRE 21).
+The repository only ships the mod source, the language files and the build scripts; the operations scripts
+(start/stop, backups, port mapping) are deliberately kept out of it. The commands below show how this
+deployment is run, as a reference for your own server.
 
 ### Service management (systemd)
 
@@ -382,7 +383,7 @@ systemctl restart campaign-server.service
 journalctl -u campaign-server.service -f      # or ./server.sh logs
 ```
 
-Manual control still goes through `server.sh`, which switches to `systemctl` once the unit exists
+Manual control goes through the local `server.sh`, which switches to `systemctl` once the unit exists
 (and falls back to `setsid + nohup` when it does not):
 
 ```bash
@@ -391,19 +392,15 @@ Manual control still goes through `server.sh`, which switches to `systemctl` onc
 ./server.sh shell                       # interactive console (log + input)
 ./server.sh tmux                        # log on top, commands below
 ./server.sh logs                        # journalctl -f
-status                                  # also prints "running (systemd <pid>)" / "unit enabled at boot"
 ```
 
-Installing the unit:
+Both the unit file and `server.sh` are site-specific. If you write your own unit, the behaviour above comes from
+`Type=simple`, `ExecStart=start.sh`, `User=colorgarden`, `StandardOutput=append:logs/server.log`,
+`Restart=on-failure`, `KillSignal=SIGTERM` and `TimeoutStopSec=90`.
 
-```bash
-install -m 644 deploy/campaign-server.service /etc/systemd/system/
-systemctl daemon-reload && systemctl enable --now campaign-server.service
-```
-
-The unit uses `KillSignal=SIGTERM` with `TimeoutStopSec=90`, so Mindustry's shutdown hook saves; `./server.sh stop`
-still prefers sending `exit` to the console first so the plugin can finish its own save flow. A polkit rule
-(`deploy/49-campaign-server.rules`) lets the `colorgarden` user manage these units without interactive auth.
+The unit stops with SIGTERM so Mindustry's shutdown hook saves; the wrapper still prefers sending `exit` to the
+console first so the plugin can finish its own save flow. A polkit rule is what lets the unprivileged service user
+manage the units without interactive authentication.
 
 ## 14. Backups
 
@@ -416,14 +413,10 @@ Each snapshot goes to `config/backups/<timestamp>/` and contains:
 - the plugin `config.json` and the `blueprints/` library
 - Mindustry's `settings.bin` (admin list, bans, per-sector economy `<planet>-s-<id>-info`)
 
-Install and manage:
+The backup script is site-specific too and not part of the repository; these are the commands used on this
+deployment:
 
 ```bash
-install -m 755 deploy/campaign-backup.sh      /usr/local/sbin/campaign-backup.sh
-install -m 644 deploy/campaign-backup.service /etc/systemd/system/
-install -m 644 deploy/campaign-backup.timer   /etc/systemd/system/
-systemctl daemon-reload && systemctl enable --now campaign-backup.timer
-
 systemctl list-timers campaign-backup.timer   # next run
 bash /usr/local/sbin/campaign-backup.sh       # take one right now
 tail -f /var/log/campaign-backup.log          # log
