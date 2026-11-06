@@ -50,7 +50,8 @@ public class CampaignConfig{
     /** Save the played sector periodically. */
     public boolean autosave = true;
     /** Seconds between autosaves. */
-    public float autosaveSeconds = 180f;
+    /** Override for the vanilla autosave interval; 0 follows the game setting ("saveinterval"). */
+    public float autosaveSeconds = 0f;
     /** Save the played sector when the server shuts down. */
     public boolean saveOnExit = true;
     /** Delete the sector save when the sector is lost (matches the client's "clear sector on loss" rule). */
@@ -137,8 +138,7 @@ public class CampaignConfig{
     public float votePercent = 0.6f;
     /** Minimum online players needed to start a vote. */
     public int voteMinPlayers = 2;
-    /** Seconds between automatic sector saves; 0 disables them (vanilla autosaves every few seconds). */
-    public int sectorAutosaveSeconds = 30;
+
     /** How long a vote stays open, in seconds. */
     public float voteDuration = 15f;
     /**
@@ -218,8 +218,8 @@ public class CampaignConfig{
             data.voteDecision = data.voteDecision.toLowerCase();
         }
 
-        if(data.autosaveSeconds < 10f){
-            data.autosaveSeconds = 10f;
+        if(data.autosaveSeconds < 0f){
+            data.autosaveSeconds = 0f;
         }
     }
 

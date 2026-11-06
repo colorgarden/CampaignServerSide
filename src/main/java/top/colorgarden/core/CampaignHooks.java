@@ -46,7 +46,7 @@ public class CampaignHooks{
     /** Seconds since the last reachable-sector scan. */
     private static float campaignUnlockTimer;
     private static float autoUnlockTimer;
-    private static float autosaveTimer;
+
 
     /** True while the simulation is paused only because no player is online. */
 
@@ -418,14 +418,6 @@ public class CampaignHooks{
         flushJoinInfo();
         top.colorgarden.core.ActivityTracker.update();
 
-        //vanilla autosaves the running sector continuously; without this a crash or a lost base rolls
-        //the sector back to the last manual save
-        autosaveTimer += Time.delta;
-        if(autosaveTimer >= Math.max(1, CampaignConfig.data().sectorAutosaveSeconds) * 60f){
-            autosaveTimer = 0f;
-            if(state.isGame() && !state.isPaused()) SectorService.saveCurrent();
-        }
-
         //vanilla runs Control#checkAutoUnlocks continuously on the client; a server has to poll it
         autoUnlockTimer += Time.delta;
         if(autoUnlockTimer >= 120f){
@@ -441,14 +433,20 @@ public class CampaignHooks{
         }
         updateLogicProbe();
 
+        //vanilla Saves#update: the running sector autosaves while the game is live, on the same
+        //interval the game itself uses ("saveinterval", 60s by default). A paused game still saves;
+        //only game over stops it.
         CampaignConfig config = CampaignConfig.data();
-        if(!config.autosave || !state.isCampaign() || state.isPaused()){
+        if(!config.autosave || !state.isGame() || state.gameOver){
             autosaveTime = 0f;
             return;
         }
 
         autosaveTime += Time.delta;
-        if(autosaveTime < config.autosaveSeconds * 60f) return;
+        float interval = config.autosaveSeconds > 0f
+            ? config.autosaveSeconds
+            : Core.settings.getInt("saveinterval", 60);
+        if(autosaveTime < Math.max(1f, interval) * 60f) return;
 
         autosaveTime = 0f;
         if(SectorService.saveCurrent()){
@@ -459,7 +457,13 @@ public class CampaignHooks{
 
     private static void onDispose(){
         try{
-            if(CampaignConfig.data().saveOnExit && SectorService.playing()){
+            //a lost sector whose save was just deleted must not be written back on shutdown; every
+            //other case still saves, including a lost sector that keeps its buildings
+            boolean lostAndCleared = state.gameOver && (CampaignConfig.data().clearSectorOnLose
+                || (state.rules != null && state.rules.sector != null
+                    && (state.rules.sector.planet.clearSectorOnLose || state.rules.sector.planet.campaignRules.clearSectorOnLose)));
+
+            if(CampaignConfig.data().saveOnExit && SectorService.playing() && !lostAndCleared){
                 SectorService.saveCurrent();
                 Log.info("[CampaignServer] " + I18n.get("campaign.log.saved-on-exit"));
             }
