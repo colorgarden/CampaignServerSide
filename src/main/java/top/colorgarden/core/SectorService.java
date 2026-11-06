@@ -1091,9 +1091,12 @@ public class SectorService{
         sector.info.destination = link ? origin : null;
         sector.info.attempts ++;
 
-        applyCoreBlueprint(sector, origin);
-
         logic.play();
+
+        //vanilla applies the launch loadout only after playNewSector has finished and the world runs
+        //(LaunchLoadoutDialog -> launchCore); placing it earlier leaves the buildings unowned
+        if(origin != null) applyCoreBlueprint(sector, origin);
+
         saveSector(sector);
         Events.fire(new SectorLaunchEvent(sector));
 

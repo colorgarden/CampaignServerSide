@@ -69,6 +69,20 @@ public class CoreBlueprints{
         return dir.child("selected-blueprint.txt");
     }
 
+    /** @return the readable name of a stored blueprint, falling back to the file name. */
+    private static String displayName(Fi file){
+        try{
+            Fi sidecar = file.parent().child(file.nameWithoutExtension() + ".name");
+            if(sidecar.exists()){
+                String name = sidecar.readString("UTF-8").trim();
+                if(!name.isEmpty()) return name;
+            }
+        }catch(Throwable ignored){
+            //a missing sidecar only costs the pretty name
+        }
+        return file.nameWithoutExtension();
+    }
+
     /** @return every selectable blueprint: generated single-core presets first, then uploaded ones. */
     public static Seq<Entry> entries(){
         if(cache != null) return cache;
@@ -87,7 +101,9 @@ public class CoreBlueprints{
                 String text = file.readString("UTF-8").trim();
                 if(text.isEmpty()) continue;
 
-                out.add(new Entry(file.nameWithoutExtension(), Schematics.readBase64(text), false));
+                //the file name is ASCII-only; the human readable name lives in a sidecar file because
+                //JVM file names go through sun.jnu.encoding and turn Chinese into "?"
+                out.add(new Entry(displayName(file), Schematics.readBase64(text), false));
             }catch(Throwable t){
                 Log.err("[CampaignServer] " + I18n.get("campaign.core.load-failed", file.name()));
             }
@@ -204,11 +220,22 @@ public class CoreBlueprints{
                 name = I18n.get("campaign.core.default-name", folder().list().length + 1);
             }
 
-            String safe = name.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
-            folder().child(safe + ".msch").writeString(base64.trim(), false, "UTF-8");
+            //file names must stay ASCII: sun.jnu.encoding on a POSIX-locale server turns any other
+            //character into "?", which is exactly how a Chinese blueprint name became "??"
+            String slug = name.replaceAll("[^A-Za-z0-9._-]", "_").replaceAll("_+", "_");
+            if(slug.replace("_", "").isEmpty()) slug = "blueprint";
+            String base = slug;
+            for(int i = 2; folder().child(base + ".msch").exists(); i++){
+                base = slug + "-" + i;
+            }
+
+            Fi file = folder().child(base + ".msch");
+            file.writeString(base64.trim(), false, "UTF-8");
+            //the readable name is stored next to it, in UTF-8
+            folder().child(base + ".name").writeString(name.trim(), false, "UTF-8");
 
             cache = null;
-            return safe;
+            return name.trim();
         }catch(Throwable t){
             Log.err("[CampaignServer] " + I18n.get("campaign.core.save-failed", String.valueOf(t)));
             return null;
