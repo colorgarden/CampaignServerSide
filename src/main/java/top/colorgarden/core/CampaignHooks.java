@@ -403,6 +403,17 @@ public class CampaignHooks{
         }
     }
 
+    /** True while the pause was requested on purpose (vote, admin, game over), so it survives rejoins. */
+    private static boolean pauseIntent;
+
+    /** Records the intended pause state; called by the pause vote, the admin toggle and game over. */
+    public static void setPauseIntent(boolean paused){
+        pauseIntent = paused;
+    }
+
+    public static boolean pauseIntent(){
+        return pauseIntent;
+    }
     private static void update(){
         flushJoinInfo();
         top.colorgarden.core.ActivityTracker.update();

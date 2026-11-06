@@ -1393,6 +1393,7 @@ public class CampaignCommands{
         }
 
         state.set(pause ? mindustry.core.GameState.State.paused : mindustry.core.GameState.State.playing);
+        top.colorgarden.core.CampaignHooks.setPauseIntent(pause);
         return pause;
     }
 
