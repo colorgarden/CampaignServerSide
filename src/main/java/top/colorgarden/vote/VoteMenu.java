@@ -241,7 +241,7 @@ public class VoteMenu{
 
         switch(option){
             case 0 -> showList(player, CampaignVote.Kind.sector, "", 0);
-            case 1 -> showList(player, CampaignVote.Kind.research, "", 0);
+            case 1 -> showList(player, CampaignVote.Kind.research, "", 0, true);
             case 2 -> showList(player, CampaignVote.Kind.planet, "", 0);
             case 3 -> player.sendMessage(I18n.get("campaign.menu.wip-message"));
             case 4 -> player.sendMessage(I18n.get("campaign.menu.wip-message"));
@@ -357,7 +357,12 @@ public class VoteMenu{
         boolean numbered = kind == CampaignVote.Kind.sector && numberedView.get(player, false);
         Seq<String> found = CampaignVote.search(kind, query, 200, showAll, numbered);
         if(found.isEmpty()){
+            //never leave the player without a page: a ready-only research list can be empty,
+            //so fall back to the full list where the prerequisites are visible
             player.sendMessage(I18n.get("campaign.menu.no-target", I18n.get("campaign.vote.kind." + kind.name())));
+            if(!showAll){
+                showList(player, kind, query, 0, true);
+            }
             return;
         }
 
