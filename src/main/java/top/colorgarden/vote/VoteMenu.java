@@ -29,9 +29,10 @@ import mindustry.ui.Menus;
  * additional, optional front end.</p>
  */
 public class VoteMenu{
-    /** Entries per list page: the dialog gets tall fast. */
-    /** The client scrolls long menus itself, so a page can hold many entries. */
-    private static final int perPage = 40;
+    /** Six rows per page; research is laid out two per row, so it fits twelve entries. */
+    private static int perPage(CampaignVote.Kind kind){
+        return kind == CampaignVote.Kind.research ? 12 : 6;
+    }
 
     /** Which vote each player is currently answering. */
     private static final arc.struct.ObjectMap<Player, CampaignVote.Vote> viewing = new arc.struct.ObjectMap<>();
@@ -367,7 +368,8 @@ public class VoteMenu{
             return;
         }
 
-        int pages = Math.max(1, (found.size + perPage - 1) / perPage);
+        int size = perPage(kind);
+        int pages = Math.max(1, (found.size + size - 1) / size);
         int current = Math.max(0, Math.min(page, pages - 1));
 
         ListState state = new ListState();
@@ -379,8 +381,8 @@ public class VoteMenu{
         state.entries = found;
         listStates.put(player, state);
 
-        int start = current * perPage;
-        int end = Math.min(found.size, start + perPage);
+        int start = current * size;
+        int end = Math.min(found.size, start + size);
 
         Seq<String[]> rows = new Seq<>();
 
@@ -474,8 +476,9 @@ public class VoteMenu{
         ListState state = listStates.get(player);
         if(state == null) return;
 
-        int start = state.page * perPage;
-        int shown = Math.min(state.entries.size, start + perPage) - start;
+        int size = perPage(state.kind);
+        int start = state.page * size;
+        int shown = Math.min(state.entries.size, start + size) - start;
 
         if(option < shown){
             String label = state.entries.get(start + option);
