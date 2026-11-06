@@ -57,7 +57,7 @@ public class CampaignConfig{
     /** True when the game was paused on purpose; restored after a restart. */
     public boolean paused = false;
     /** Vanilla does not do this: apply the selected core blueprint when a lost sector is rebuilt. */
-    public boolean blueprintOnRebuild = false;
+    public boolean blueprintOnRebuild = true;
     /** Delete the sector save when the sector is lost (matches the client's "clear sector on loss" rule). */
     public boolean clearSectorOnLose = false;
     /** Rebuild a sector whose save has no core left; false keeps the world as it was found. */

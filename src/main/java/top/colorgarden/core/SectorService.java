@@ -695,62 +695,67 @@ public class SectorService{
             arc.struct.Seq<mindustry.game.Teams.BlockPlan> previousPlans = new arc.struct.Seq<>();
             for(mindustry.game.Teams.BlockPlan plan : state.rules.defaultTeam.data().plans) previousPlans.add(plan);
 
-            //4. throw the damaged world away and generate a clean one, core at the old position
+            //4. throw the damaged world away and generate a clean one, core at the old position; the
+            //buildings are restored inside beforePlay, exactly like vanilla Control#playSector, so
+            //logic.play() registers them instead of leaving them unowned
             logic.reset();
-            createSector(sector, null);
+            final arc.struct.Seq<mindustry.gen.Building> restoreBuildings = previousBuildings;
+            final arc.struct.Seq<mindustry.gen.Building> restoreDerelicts = previousDerelicts;
+            final arc.struct.Seq<mindustry.game.Teams.BlockPlan> restorePlans = previousPlans;
 
-            //5. the generator placed its own derelicts; drop them, the old ones are restored below
-            //(no Seq#toArray here: its component type is Object, so the array cast blows up)
-            arc.struct.Seq<mindustry.gen.Building> generatedDerelicts = new arc.struct.Seq<>();
-            for(mindustry.gen.Building generated : mindustry.game.Team.derelict.data().buildings){
-                generatedDerelicts.add(generated);
-            }
-            for(mindustry.gen.Building generated : generatedDerelicts){
-                if(generated.tile != null) generated.tile.remove();
-            }
-
-            for(mindustry.gen.Building build : previousDerelicts){
-                mindustry.world.Tile tile = world.tile(build.tileX(), build.tileY());
-                if(tile != null && tile.build == null && mindustry.world.Build.validPlace(build.block, mindustry.game.Team.derelict,
-                    build.tileX(), build.tileY(), build.rotation, false, false)){
-                    tile.setBlock(build.block, mindustry.game.Team.derelict, build.rotation, () -> build);
+            createSector(sector, null, () -> {
+                //the generator placed its own derelicts; drop them, the old ones are restored below
+                arc.struct.Seq<mindustry.gen.Building> generatedDerelicts = new arc.struct.Seq<>();
+                for(mindustry.gen.Building generated : mindustry.game.Team.derelict.data().buildings){
+                    generatedDerelicts.add(generated);
                 }
-            }
-
-            //6. the old power graphs point at deleted tiles
-            for(mindustry.gen.Building build : previousBuildings){
-                if(build.power != null){
-                    build.power.graph = new mindustry.world.blocks.power.PowerGraph();
-                    build.power.links.clear();
+                for(mindustry.gen.Building generated : generatedDerelicts){
+                    if(generated.tile != null) generated.tile.remove();
                 }
-            }
 
-            //7. surviving buildings come back as derelicts: config and health kept, but ruined
-            for(mindustry.gen.Building build : previousBuildings){
-                mindustry.world.Tile tile = world.tile(build.tileX(), build.tileY());
-                if(tile != null && tile.build == null && mindustry.world.Build.validPlace(build.block, state.rules.defaultTeam,
-                    build.tileX(), build.tileY(), build.rotation, false, false)){
-                    build.addPlan(false, true);
-                    tile.setBlock(build.block, state.rules.defaultTeam, build.rotation, () -> build);
-                    build.changeTeam(mindustry.game.Team.derelict);
-                    build.dropped();
+                for(mindustry.gen.Building build : restoreDerelicts){
+                    mindustry.world.Tile tile = world.tile(build.tileX(), build.tileY());
+                    if(tile != null && tile.build == null && mindustry.world.Build.validPlace(build.block, mindustry.game.Team.derelict,
+                        build.tileX(), build.tileY(), build.rotation, false, false)){
+                        tile.setBlock(build.block, mindustry.game.Team.derelict, build.rotation, () -> build);
+                    }
                 }
-            }
 
-            for(mindustry.gen.Building build : previousBuildings){
-                if(build.isValid()) build.updateProximity();
-            }
-
-            //8. plans that do not already have the block at their position are carried over
-            for(mindustry.game.Teams.BlockPlan plan : previousPlans){
-                mindustry.gen.Building build = world.build(plan.x, plan.y);
-                if(!(build != null && build.block == plan.block && build.tileX() == plan.x && build.tileY() == plan.y)){
-                    state.rules.defaultTeam.data().plans.add(plan);
+                //the old power graphs point at deleted tiles
+                for(mindustry.gen.Building build : restoreBuildings){
+                    if(build.power != null){
+                        build.power.graph = new mindustry.world.blocks.power.PowerGraph();
+                        build.power.links.clear();
+                    }
                 }
-            }
 
-            //vanilla stops here: the rebuilt base is ruins plus a plain default core. This optional
-            //switch additionally applies the selected blueprint, which vanilla never does.
+                //surviving buildings come back as derelicts: config and health kept, but ruined
+                for(mindustry.gen.Building build : restoreBuildings){
+                    mindustry.world.Tile tile = world.tile(build.tileX(), build.tileY());
+                    if(tile != null && tile.build == null && mindustry.world.Build.validPlace(build.block, state.rules.defaultTeam,
+                        build.tileX(), build.tileY(), build.rotation, false, false)){
+                        build.addPlan(false, true);
+                        tile.setBlock(build.block, state.rules.defaultTeam, build.rotation, () -> build);
+                        build.changeTeam(mindustry.game.Team.derelict);
+                        build.dropped();
+                    }
+                }
+
+                for(mindustry.gen.Building build : restoreBuildings){
+                    if(build.isValid()) build.updateProximity();
+                }
+
+                //plans that do not already have the block at their position are carried over
+                for(mindustry.game.Teams.BlockPlan plan : restorePlans){
+                    mindustry.gen.Building build = world.build(plan.x, plan.y);
+                    if(!(build != null && build.block == plan.block && build.tileX() == plan.x && build.tileY() == plan.y)){
+                        state.rules.defaultTeam.data().plans.add(plan);
+                    }
+                }
+            });
+
+            //vanilla applies the launch loadout after the sector is running, so the selected core
+            //blueprint is placed on top of the rebuilt ruins
             if(CampaignConfig.data().blueprintOnRebuild) applyCoreBlueprint(sector, null);
 
             saveSector(sector);
@@ -1042,6 +1047,11 @@ public class SectorService{
 
     /** Generates a brand new sector and starts playing it. */
     private static void createSector(Sector sector, @Nullable Sector origin) throws CampaignException{
+        createSector(sector, origin, null);
+    }
+
+    /** @param beforePlay runs after the map is loaded and before {@code logic.play()}, like vanilla. */
+    private static void createSector(Sector sector, @Nullable Sector origin, @Nullable Runnable beforePlay) throws CampaignException{
         SectorPreset preset = sector.preset;
         if(preset != null){
             try{
@@ -1074,10 +1084,13 @@ public class SectorService{
         sector.info.destination = link ? origin : null;
         sector.info.attempts ++;
 
+        //vanilla runs beforePlay after loadSector and before logic.play(), so the restored buildings are
+        //registered by the time the world starts
+        if(beforePlay != null) beforePlay.run();
+
         logic.play();
 
-        //vanilla applies the launch loadout only after playNewSector has finished and the world runs
-        //(LaunchLoadoutDialog -> launchCore); placing it earlier leaves the buildings unowned
+        //the blueprint goes on top of the running world; the caller decides whether it applies
         if(origin != null) applyCoreBlueprint(sector, origin);
 
         saveSector(sector);
