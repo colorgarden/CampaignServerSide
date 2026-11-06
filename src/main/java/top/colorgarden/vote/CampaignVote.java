@@ -267,6 +267,9 @@ public class CampaignVote{
         if(!votingEnabled(kind)){
             return I18n.get("campaign.vote.kind-disabled");
         }
+        //an AFK player would count as the only voter and pass the vote instantly
+        if(top.colorgarden.core.ActivityTracker.isAfk(starter)) return I18n.get("campaign.vote.afk-cannot-start");
+
         if(top.colorgarden.core.ActivityTracker.activeCount() < Math.max(1, config.voteMinPlayers)){
             return I18n.get("campaign.vote.not-enough-players");
         }

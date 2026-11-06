@@ -29,6 +29,7 @@ public class ActivityTracker{
         if(Groups.player == null) return;
 
         for(Player player : Groups.player){
+            boolean wasAfk = isAfk(player);
             Vec2 previous = last.get(player);
 
             if(previous == null || previous.dst(player.x, player.y) > 1f){
@@ -38,6 +39,11 @@ public class ActivityTracker{
                 idle.put(player, 0f);
             }else{
                 idle.put(player, idle.get(player, 0f) + Time.delta);
+            }
+
+            //announce the transition so everybody knows why that player is skipped
+            if(!wasAfk && isAfk(player)){
+                mindustry.gen.Call.sendMessage(top.colorgarden.util.I18n.get("campaign.afk.announced", player.plainName()));
             }
         }
 
