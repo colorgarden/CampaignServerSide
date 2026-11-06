@@ -138,6 +138,8 @@ public class CampaignConfig{
     public boolean ruleRtsAI = false;
     /** Disallow pausing. */
     public boolean rulePauseDisabled = false;
+    /** Vanilla rules#reactorExplosions: reactors explode and damage surrounding blocks. */
+    public boolean ruleReactorExplosions = true;
     /** Share of online players that must vote yes for a vote to pass (0.1 - 1). */
     public float votePercent = 0.6f;
     /** Minimum online players needed to start a vote. */

@@ -329,6 +329,9 @@ public class SectorService{
 
         if(state.rules != null){
             rules.apply(planet, state.rules);
+            //reactors only explode when this is on; it defaults to true but a sector save can carry false,
+            //and CampaignRules has no field for it - it lives on Rules only
+            state.rules.reactorExplosions = config.ruleReactorExplosions;
         }
     }
 
@@ -362,6 +365,7 @@ public class SectorService{
             case "rtsai" -> setter = v -> config.ruleRtsAI = v;
             case "pausedisabled" -> setter = v -> config.rulePauseDisabled = v;
             case "clearonlose", "clear" -> setter = v -> config.clearSectorOnLose = v;
+            case "reactorexplosions", "reactor" -> setter = v -> config.ruleReactorExplosions = v;
             default -> {
                 return null;
             }
@@ -384,6 +388,7 @@ public class SectorService{
             case "rtsai" -> config.ruleRtsAI;
             case "pausedisabled" -> config.rulePauseDisabled;
             case "clearonlose", "clear" -> config.clearSectorOnLose;
+            case "reactorexplosions", "reactor" -> config.ruleReactorExplosions;
             default -> false;
         };
     }
@@ -392,7 +397,7 @@ public class SectorService{
     public static boolean isRule(String name){
         return switch(name.toLowerCase(Locale.ROOT)){
             case "invasion", "sectorinvasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled",
-                 "clearonlose", "clear" -> true;
+                 "clearonlose", "clear", "reactorexplosions", "reactor" -> true;
             default -> false;
         };
     }

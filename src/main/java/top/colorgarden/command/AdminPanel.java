@@ -450,7 +450,7 @@ public class AdminPanel{
         }
     }
 
-    private static final String[] ruleNames = {"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled", "clearonlose"};
+    private static final String[] ruleNames = {"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled", "clearonlose", "reactorexplosions"};
 
     private static void openRules(Player player){
         if(!available || player == null || player.con == null || !player.admin) return;

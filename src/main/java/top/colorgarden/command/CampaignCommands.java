@@ -614,7 +614,7 @@ public class CampaignCommands{
         handler.register("campaign-rule", "[name] [on|off]", "Show or toggle a campaign rule flag.", args -> {
             if(args.length == 0){
                 info("campaign.rule.header");
-                for(String rule : new String[]{"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled", "clearonlose"}){
+                for(String rule : new String[]{"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled", "clearonlose", "reactorexplosions"}){
                     infoRaw("  " + I18n.get("campaign.rule.name." + rule) + " = " + SectorService.currentRule(rule));
                 }
                 return;
@@ -1056,7 +1056,7 @@ public class CampaignCommands{
 
             if(args.length == 0){
                 StringBuilder builder = new StringBuilder(I18n.get("campaign.rule.header"));
-                for(String rule : new String[]{"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled", "clearonlose"}){
+                for(String rule : new String[]{"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled", "clearonlose", "reactorexplosions"}){
                     builder.append("\n").append(I18n.get("campaign.rule.name." + rule))
                         .append(" = ").append(SectorService.currentRule(rule));
                 }
@@ -1305,7 +1305,7 @@ public class CampaignCommands{
                 case "rule" -> {
                     if(rest.isEmpty() || !SectorService.isRule(tokens.get(0))){
                         StringBuilder builder = new StringBuilder(I18n.get("campaign.rule.header"));
-                        for(String rule : new String[]{"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled", "clearonlose"}){
+                        for(String rule : new String[]{"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled", "clearonlose", "reactorexplosions"}){
                             builder.append("\n").append(I18n.get("campaign.rule.name." + rule))
                                 .append(" = ").append(SectorService.currentRule(rule));
                         }
