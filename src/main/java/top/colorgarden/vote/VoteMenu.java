@@ -428,15 +428,14 @@ public class VoteMenu{
             //entries are "显示名 (id)"; the id inside the parentheses is what the resolver accepts
             String target = inside(label);
             hide(player, listId);
-            //sector launches are confirmed by the launch setup itself, so no extra confirm page
-            if(state.kind == CampaignVote.Kind.sector){
+            //every pick starts the vote right away: the launch setup is the confirmation for
+            //sectors, and the cost details are shown on the ballot and in the announcement
+            {
                 String problem = CampaignVote.start(player, state.kind, target);
                 if(problem != null) player.sendMessage("[scarlet]" + problem);
                 //the vote is running now; the picker that started it closes
-                return;
             }
 
-            askConfirm(player, state.kind, target, label);
             return;
         }
 
