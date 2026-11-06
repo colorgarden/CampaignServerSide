@@ -24,6 +24,9 @@
 许可证：**AGPL-3.0-or-later**（见 [`LICENSE`](LICENSE)）。
 仓库：`https://github.com/colorgarden/CampaignServerSide`
 
+> [!TIP]
+> **测试服地址：`colorgarden.top`**（端口 `6567`，v160 客户端直接加入）
+
 ---
 
 ## 1. 安装
