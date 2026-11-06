@@ -46,6 +46,9 @@ public class CoreBlueprints{
         }
     }
 
+    /** Tiles a loadout may extend past the core on each side ({@code Schematics#maxLoadoutSchematicPad}). */
+    private static final int MAX_PAD = 10;
+
     private static @Nullable Seq<Entry> cache;
     private static @Nullable String selected;
 
@@ -165,8 +168,10 @@ public class CoreBlueprints{
         CoreBlock core = schematic.findCore();
         if(core == null) return I18n.get("campaign.core.no-core");
 
-        if(schematic.width > core.size || schematic.height > core.size){
-            return I18n.get("campaign.core.too-big", schematic.width, schematic.height, core.size);
+        //vanilla allows a loadout to reach maxLoadoutSchematicPad tiles past the core on each side
+        int maxSize = core.size + MAX_PAD * 2;
+        if(schematic.width > maxSize || schematic.height > maxSize){
+            return I18n.get("campaign.core.too-big", schematic.width, schematic.height, maxSize);
         }
 
         for(Schematic.Stile tile : schematic.tiles){

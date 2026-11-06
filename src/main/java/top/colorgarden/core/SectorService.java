@@ -687,14 +687,17 @@ public class SectorService{
         //sector cannot pay, instead of silently arriving empty-handed
         requireCargo(previous, sector);
 
+        //save BEFORE the reloader starts: begin() resets the world, and a save after that is
+        //silently skipped because the game is already in the menu state
+        if(previous != null && !(fresh && previous == sector)){
+            saveCurrent();
+        }
+
         boolean syncClients = net.server() && Groups.player.size() > 0 && CampaignConfig.data().resyncClients;
         mindustry.net.WorldReloader reloader = syncClients ? new mindustry.net.WorldReloader() : null;
         if(reloader != null) reloader.begin();
 
 
-        if(previous != null && !(fresh && previous == sector)){
-            saveCurrent();
-        }
 
         try{
             startSector(sector, fresh, previous);
