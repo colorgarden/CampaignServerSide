@@ -1,5 +1,11 @@
 # Campaign Server Side
 
+> [!WARNING]
+> 此模组处于**极早期测试阶段**，存在许多尚未发现的问题。如发现问题，欢迎提交 issue 或 PR；
+> 也欢迎 vibe coding 的 PR。
+>
+> 本项目**包含 AI 生成内容**。
+
 给 Mindustry 专用服务端（dedicated server）使用的 Java 插件，让**战役模式**可以在服务端运行，
 并给客户端模组提供一套网络接口。
 
