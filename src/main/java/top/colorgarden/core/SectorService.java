@@ -689,6 +689,25 @@ public class SectorService{
             sector.info.hasCore = true;
             sector.saveInfo();
             Log.info("[CampaignServer] " + I18n.get("campaign.log.core-replaced", sector.name()));
+            //vanilla Control#playSector: place the core first, then simulate the loss so the
+            //buildings along the enemy paths are destroyed instead of surviving untouched
+            try{
+                mindustry.maps.SectorDamage.apply(1f);
+            }catch(Throwable t){
+                Log.warn("[CampaignServer] " + I18n.get("campaign.log.damage-skipped", Strings.getSimpleMessage(t)));
+            }
+
+            //SectorDamage removes every core at full fraction, so put ours back afterwards
+            if(tile.block() == null || !(tile.block() instanceof mindustry.world.blocks.storage.CoreBlock)){
+                tile.setBlock(sector.planet.defaultCore, state.rules.defaultTeam);
+                if(tile.build instanceof mindustry.world.blocks.storage.CoreBlock.CoreBuild cb){
+                    state.teams.registerCore(cb);
+                }
+            }
+            sector.info.hasCore = true;
+            sector.saveInfo();
+
+            Log.info("[CampaignServer] " + I18n.get("campaign.log.core-replaced", sector.name()));
             return true;
         }catch(Throwable t){
             Log.err("[CampaignServer] " + I18n.get("campaign.core.apply-failed", Strings.getSimpleMessage(t)));
