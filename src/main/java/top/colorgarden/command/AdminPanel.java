@@ -29,7 +29,8 @@ import mindustry.ui.Menus;
  * menu is only pushed after an admin check.</p>
  */
 public class AdminPanel{
-    private static final int perPage = 6;
+    /** Research is laid out two per row, so a page holds six rows; other lists use one per row. */
+    private static final int perPage = 12;
 
     private static int mainId = -1, listId = -1, settingsId = -1, difficultyId = -1, rulesId = -1, searchId = -1, coreId = -1, coreTypeId = -1, abandonId = -1;
     private static boolean available;
