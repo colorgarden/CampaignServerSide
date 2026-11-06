@@ -663,6 +663,98 @@ public class SectorService{
         }
     }
     /**
+     * Vanilla's recovery for a sector that was lost while {@code clearSectorOnLose} is off
+     * ({@code Control#playSector}): the loaded world is only used as a source of surviving buildings,
+     * then the sector is generated again and those buildings are restored as derelicts.
+     *
+     * @return true when the sector was rebuilt
+     */
+    private static boolean recoverLostSector(Sector sector){
+        try{
+            int spawnPos = sector.info.spawnPosition;
+            mindustry.world.Tile spawn = spawnPos != 0 ? world.tile(spawnPos) : null;
+            if(spawn == null) return false;
+
+            //1. the core has to exist for SectorDamage to path towards it
+            spawn.setBlock(sector.planet.defaultCore, state.rules.defaultTeam);
+
+            //2. simulate the loss: everything along the enemy paths is destroyed
+            try{
+                mindustry.maps.SectorDamage.apply(1f);
+            }catch(Throwable t){
+                Log.warn("[CampaignServer] " + I18n.get("campaign.log.damage-skipped", Strings.getSimpleMessage(t)));
+            }
+
+            //3. remember what is left; the objects stay usable after logic.reset()
+            arc.struct.Seq<mindustry.gen.Building> previousBuildings = new arc.struct.Seq<>();
+            for(mindustry.gen.Building build : state.rules.defaultTeam.data().buildings) previousBuildings.add(build);
+
+            arc.struct.Seq<mindustry.gen.Building> previousDerelicts = new arc.struct.Seq<>();
+            for(mindustry.gen.Building build : mindustry.game.Team.derelict.data().buildings) previousDerelicts.add(build);
+
+            arc.struct.Seq<mindustry.game.Teams.BlockPlan> previousPlans = new arc.struct.Seq<>();
+            for(mindustry.game.Teams.BlockPlan plan : state.rules.defaultTeam.data().plans) previousPlans.add(plan);
+
+            //4. throw the damaged world away and generate a clean one, core at the old position
+            logic.reset();
+            createSector(sector, null);
+
+            //5. the generator placed its own derelicts; drop them, the old ones are restored below
+            for(Object entry : mindustry.game.Team.derelict.data().buildings.toArray()){
+                mindustry.gen.Building generated = (mindustry.gen.Building)entry;
+                generated.tile.remove();
+            }
+
+            for(mindustry.gen.Building build : previousDerelicts){
+                mindustry.world.Tile tile = world.tile(build.tileX(), build.tileY());
+                if(tile != null && tile.build == null && mindustry.world.Build.validPlace(build.block, mindustry.game.Team.derelict,
+                    build.tileX(), build.tileY(), build.rotation, false, false)){
+                    tile.setBlock(build.block, mindustry.game.Team.derelict, build.rotation, () -> build);
+                }
+            }
+
+            //6. the old power graphs point at deleted tiles
+            for(mindustry.gen.Building build : previousBuildings){
+                if(build.power != null){
+                    build.power.graph = new mindustry.world.blocks.power.PowerGraph();
+                    build.power.links.clear();
+                }
+            }
+
+            //7. surviving buildings come back as derelicts: config and health kept, but ruined
+            for(mindustry.gen.Building build : previousBuildings){
+                mindustry.world.Tile tile = world.tile(build.tileX(), build.tileY());
+                if(tile != null && tile.build == null && mindustry.world.Build.validPlace(build.block, state.rules.defaultTeam,
+                    build.tileX(), build.tileY(), build.rotation, false, false)){
+                    build.addPlan(false, true);
+                    tile.setBlock(build.block, state.rules.defaultTeam, build.rotation, () -> build);
+                    build.changeTeam(mindustry.game.Team.derelict);
+                    build.dropped();
+                }
+            }
+
+            for(mindustry.gen.Building build : previousBuildings){
+                if(build.isValid()) build.updateProximity();
+            }
+
+            //8. plans that do not already have the block at their position are carried over
+            for(mindustry.game.Teams.BlockPlan plan : previousPlans){
+                mindustry.gen.Building build = world.build(plan.x, plan.y);
+                if(!(build != null && build.block == plan.block && build.tileX() == plan.x && build.tileY() == plan.y)){
+                    state.rules.defaultTeam.data().plans.add(plan);
+                }
+            }
+
+            saveSector(sector);
+            Log.info("[CampaignServer] " + I18n.get("campaign.log.sector-recovered", sector.name(), previousBuildings.size));
+            return true;
+        }catch(Throwable t){
+            Log.err("[CampaignServer] " + I18n.get("campaign.log.sector-recover-failed", sector.name(), Strings.getSimpleMessage(t)));
+            return false;
+        }
+    }
+
+    /**
      * Puts a fresh core where the old base stood, mirroring vanilla's recovery of a sector whose core
      * was destroyed while {@code clearSectorOnLose} is off.
      *
@@ -818,8 +910,18 @@ public class SectorService{
         }
 
         if(loaded && state.rules.defaultTeam.cores().isEmpty() && !CampaignConfig.data().regenerateLostSector){
-            //keep the world instead of silently rebuilding it
+            //vanilla Control#playSector: the old save is only read to collect the surviving buildings,
+            //then the sector is rebuilt from the generator and those buildings are dropped back in as
+            //derelicts, so a lost base looks ruined instead of surviving intact
             Log.warn("[CampaignServer] " + I18n.get("campaign.log.sector-no-core-kept", sector.name()));
+            if(recoverLostSector(sector)){
+                sector.info.hasCore = true;
+                sector.saveInfo();
+                state.set(State.playing);
+                return;
+            }
+
+            //fallback: keep the loaded world and put a core back
             placeEmergencyCore(sector);
             sector.info.hasCore = false;
             sector.saveInfo();

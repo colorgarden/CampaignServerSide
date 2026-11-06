@@ -46,6 +46,7 @@ public class CampaignHooks{
     /** Seconds since the last reachable-sector scan. */
     private static float campaignUnlockTimer;
     private static float autoUnlockTimer;
+    private static float autosaveTimer;
 
     /** True while the simulation is paused only because no player is online. */
 
@@ -416,6 +417,14 @@ public class CampaignHooks{
     private static void update(){
         flushJoinInfo();
         top.colorgarden.core.ActivityTracker.update();
+
+        //vanilla autosaves the running sector continuously; without this a crash or a lost base rolls
+        //the sector back to the last manual save
+        autosaveTimer += Time.delta;
+        if(autosaveTimer >= Math.max(1, CampaignConfig.data().sectorAutosaveSeconds) * 60f){
+            autosaveTimer = 0f;
+            if(state.isGame() && !state.isPaused()) SectorService.saveCurrent();
+        }
 
         //vanilla runs Control#checkAutoUnlocks continuously on the client; a server has to poll it
         autoUnlockTimer += Time.delta;

@@ -137,6 +137,8 @@ public class CampaignConfig{
     public float votePercent = 0.6f;
     /** Minimum online players needed to start a vote. */
     public int voteMinPlayers = 2;
+    /** Seconds between automatic sector saves; 0 disables them (vanilla autosaves every few seconds). */
+    public int sectorAutosaveSeconds = 30;
     /** How long a vote stays open, in seconds. */
     public float voteDuration = 15f;
     /**
