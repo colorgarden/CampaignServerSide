@@ -429,14 +429,9 @@ public class VoteMenu{
             //entries are "显示名 (id)"; the id inside the parentheses is what the resolver accepts
             String target = inside(label);
             hide(player, listId);
-            //every pick starts the vote right away: the launch setup is the confirmation for
-            //sectors, and the cost details are shown on the ballot and in the announcement
-            {
-                String problem = CampaignVote.start(player, state.kind, target);
-                if(problem != null) player.sendMessage("[scarlet]" + problem);
-                //the vote is running now; the picker that started it closes
-            }
 
+            //every vote asks once more before it starts
+            askConfirm(player, state.kind, target, label);
             return;
         }
 
@@ -504,10 +499,7 @@ public class VoteMenu{
         if(entry == null) return;
 
         if(option != 0){
-            //cancel: back to where the player came from instead of leaving them with no dialog
-        //starting a vote closes the picker; only cancelling returns to the previous level
-
-        if(option == 0) return; //vote started: leave the menus closed
+            //cancel: back to where the player came from
             reopen(player, entry);
             return;
         }
@@ -515,10 +507,7 @@ public class VoteMenu{
         String problem = CampaignVote.start(player, entry.kind, entry.target);
         if(problem != null) player.sendMessage("[scarlet]" + problem);
 
-        //starting a vote closes the picker; only cancelling returns to the previous level
-
-        if(option == 0) return; //vote started: leave the menus closed
-        reopen(player, entry);
+        //the vote is running: keep the dialogs closed (a launch setup may have taken over)
     }
 
     /** Returns the player to the list they picked from, or to the vote main menu. */
