@@ -915,6 +915,8 @@ public class SectorService{
             //derelicts, so a lost base looks ruined instead of surviving intact
             Log.warn("[CampaignServer] " + I18n.get("campaign.log.sector-no-core-kept", sector.name()));
             if(recoverLostSector(sector)){
+                //a sector that was lost stays paused until an admin decides what to do
+                top.colorgarden.core.CampaignHooks.setPauseIntent(true);
                 sector.info.hasCore = true;
                 sector.saveInfo();
                 state.set(State.playing);

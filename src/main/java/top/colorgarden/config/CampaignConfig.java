@@ -54,6 +54,8 @@ public class CampaignConfig{
     public float autosaveSeconds = 0f;
     /** Save the played sector when the server shuts down. */
     public boolean saveOnExit = true;
+    /** True when the game was paused on purpose; restored after a restart. */
+    public boolean paused = false;
     /** Delete the sector save when the sector is lost (matches the client's "clear sector on loss" rule). */
     public boolean clearSectorOnLose = false;
     /** Rebuild a sector whose save has no core left; false keeps the world as it was found. */

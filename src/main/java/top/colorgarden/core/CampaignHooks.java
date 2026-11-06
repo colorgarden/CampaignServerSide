@@ -168,6 +168,9 @@ public class CampaignHooks{
     private static void onServerLoad(){
         Log.info("[CampaignServer] " + I18n.get("campaign.log.ready"));
 
+        //a pause requested before the restart is applied again as soon as the world is running
+        pauseIntent = CampaignConfig.data().paused;
+
         if(!CampaignConfig.data().autoStart){
             return;
         }
@@ -409,6 +412,11 @@ public class CampaignHooks{
     /** Records the intended pause state; called by the pause vote, the admin toggle and game over. */
     public static void setPauseIntent(boolean paused){
         pauseIntent = paused;
+        //persisted so a restart does not silently resume a game that was paused on purpose
+        if(CampaignConfig.data().paused != paused){
+            CampaignConfig.data().paused = paused;
+            CampaignConfig.save();
+        }
     }
 
     public static boolean pauseIntent(){
