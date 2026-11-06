@@ -28,6 +28,13 @@ public class ActivityTracker{
     public static void update(){
         if(Groups.player == null) return;
 
+        //a paused simulation freezes every unit, so nobody can prove they are still there; treat the
+        //pause as activity instead of marking the whole server AFK
+        if(mindustry.Vars.state.isPaused() || !mindustry.Vars.state.isGame()){
+            for(Player player : idle.keys()) idle.put(player, 0f);
+            return;
+        }
+
         for(Player player : Groups.player){
             boolean wasAfk = isAfk(player);
             Vec2 previous = last.get(player);
