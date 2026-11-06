@@ -450,7 +450,7 @@ public class AdminPanel{
         }
     }
 
-    private static final String[] ruleNames = {"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled"};
+    private static final String[] ruleNames = {"invasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled", "clearonlose"};
 
     private static void openRules(Player player){
         if(!available || player == null || player.con == null || !player.admin) return;
@@ -459,8 +459,12 @@ public class AdminPanel{
         Seq<String[]> rows = new Seq<>();
         for(int i = 0; i < ruleNames.length; i += 2){
             String left = toggle(ruleNames[i]);
-            String right = i + 1 < ruleNames.length ? toggle(ruleNames[i + 1]) : "";
-            rows.add(new String[]{left, right});
+            if(i + 1 < ruleNames.length){
+                rows.add(new String[]{left, toggle(ruleNames[i + 1])});
+            }else{
+                //odd count: a single cell, otherwise the empty second slot shifts every index after it
+                rows.add(new String[]{left});
+            }
         }
         rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
 

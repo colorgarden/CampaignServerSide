@@ -391,7 +391,8 @@ public class SectorService{
     /** @return whether a campaign rule flag name exists. */
     public static boolean isRule(String name){
         return switch(name.toLowerCase(Locale.ROOT)){
-            case "invasion", "sectorinvasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled" -> true;
+            case "invasion", "sectorinvasion", "fog", "hidespawns", "randomwaveai", "rtsai", "pausedisabled",
+                 "clearonlose", "clear" -> true;
             default -> false;
         };
     }
