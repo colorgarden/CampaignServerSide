@@ -47,7 +47,7 @@ public class CoreBlueprints{
     }
 
     /** Tiles a loadout may extend past the core on each side ({@code Schematics#maxLoadoutSchematicPad}). */
-    private static final int MAX_PAD = 10;
+    private static final int MAX_PAD = 5;
 
     private static @Nullable Seq<Entry> cache;
     private static @Nullable String selected;
