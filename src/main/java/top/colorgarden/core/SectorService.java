@@ -908,8 +908,9 @@ public class SectorService{
         boolean loaded = !fresh && loadSectorSave(sector);
         Log.info("[CampaignServer] enter @: loaded=@ cores=@", sector.name(), loaded, loaded ? state.rules.defaultTeam.cores().size : -1);
 
-        //a sector whose core is gone cannot continue; vanilla restarts it with a fresh core
-        if(loaded && state.rules.defaultTeam.cores().isEmpty() && restoreFromBackup(sector)){
+        //a backup is only a corruption fallback: it must never replace the vanilla lost-sector flow,
+        //otherwise a sector that lost its core silently rolls back to the backup instead of being rebuilt
+        if(!loaded && !fresh && sectorFile(sector).exists() && restoreFromBackup(sector)){
             loaded = loadSectorSave(sector);
             Log.info("[CampaignServer] enter @ after backup: loaded=@ cores=@", sector.name(), loaded, loaded ? state.rules.defaultTeam.cores().size : -1);
         }
