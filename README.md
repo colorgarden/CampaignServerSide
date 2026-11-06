@@ -1,5 +1,7 @@
 # Campaign Server Side
 
+**简体中文** | [English](README.en.md)
+
 > [!WARNING]
 > 此模组处于**极早期测试阶段**，存在许多尚未发现的问题。如发现问题，欢迎提交 issue 或 PR；
 > 也欢迎 vibe coding 的 PR。
