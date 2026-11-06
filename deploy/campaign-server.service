@@ -1,0 +1,27 @@
+[Unit]
+Description=Mindustry campaign server (Campaign Server Side)
+After=network-online.target
+Wants=network-online.target
+# the port mapping and the wifi watchdog are independent helpers
+After=NetworkManager.service
+
+[Service]
+Type=simple
+User=colorgarden
+Group=colorgarden
+WorkingDirectory=/home/colorgarden/campaign-server
+ExecStart=/home/colorgarden/campaign-server/start.sh
+# the game reads its console from the FIFO that start.sh opens, so stdin is irrelevant
+StandardInput=null
+StandardOutput=append:/home/colorgarden/campaign-server/logs/server.log
+StandardError=append:/home/colorgarden/campaign-server/logs/server.log
+# Mindustry saves on SIGTERM through its shutdown hook, so give it time
+KillSignal=SIGTERM
+TimeoutStopSec=90
+Restart=on-failure
+RestartSec=10
+# a busy sector with many units opens a lot of descriptors
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

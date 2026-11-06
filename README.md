@@ -348,12 +348,42 @@ campaign-goto erekir:onset         # 跨星球
 
 **地址：`colorgarden.top`**（端口 `6567`，Mindustry v160 客户端直接加入即可）
 
-`deploy/` 下是本项目固定测试服的启停脚本与说明（Arch Linux ARM，JRE 21，游戏服**不使用 systemd**，
-`server.sh start|stop|restart|status|console|shell|tmux`）。详见 [`deploy/README.md`](deploy/README.md)。
+`deploy/` 下是本项目固定测试服的启停脚本与说明（Arch Linux ARM，JRE 21）。
+
+### 服务管理（systemd）
+
+游戏服由 `campaign-server.service` 托管：开服自启、异常退出 10 秒后自动重启、输出追加到 `logs/server.log`。
+
+```bash
+systemctl status  campaign-server.service
+systemctl restart campaign-server.service
+journalctl -u campaign-server.service -f      # 或 ./server.sh logs
+```
+
+手动控制仍走 `server.sh`，它检测到单元后自动改用 `systemctl`（未安装单元则退回 `setsid + nohup`）：
+
+```bash
+./server.sh start | stop | restart | status
+./server.sh console 'campaign-status'   # 通过命名管道 console.in 发一条命令
+./server.sh shell                       # 交互式控制台（日志 + 输入）
+./server.sh tmux                        # 上窗格日志、下窗格命令
+./server.sh logs                        # journalctl -f
+status                                  # 会额外显示 "running (systemd <pid>)" / "unit enabled at boot"
+```
+
+安装单元：
+
+```bash
+install -m 644 deploy/campaign-server.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now campaign-server.service
+```
+
+停机细节：单元用 `KillSignal=SIGTERM` + `TimeoutStopSec=90`，Mindustry 的关机钩子会写盘；
+但 `./server.sh stop` 仍优先向控制台发送 `exit`，让插件先走完自己的存档流程。
 
 ## 14. 备份
 
-游戏服本身不用 systemd，但备份用一个独立的 systemd timer（`campaign-backup.timer`），
+备份与游戏服分离，用独立的 systemd timer（`campaign-backup.timer`），
 每天一次快照，**只保留最近 5 天**，更早的自动删除。
 
 每次快照写入 `config/backups/<时间戳>/`，包含：

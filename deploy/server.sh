@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Manual control for the campaign server (no systemd unit).
+# Control for the campaign server.
 #
-#   ./server.sh start              start in the background (survives ssh logout)
+#   ./server.sh start              start (systemd when the unit is installed, else nohup)
 #   ./server.sh stop               save + stop gracefully
 #   ./server.sh restart
 #   ./server.sh status
 #   ./server.sh console 'campaign-status'   send one console command
 #   ./server.sh shell              interactive console (live log + typed commands)
-#   ./server.sh tmux               run/attach the server inside tmux (real tty console)
+#   ./server.sh tmux               tmux workspace: log on top, commands below
 #   ./server.sh attach             follow the log
+#   ./server.sh logs               follow the systemd journal
 #
 # Everything runs from this directory; logs go to logs/server.log.
 set -uo pipefail
@@ -19,9 +20,20 @@ cd "$DIR"
 PIDFILE="$DIR/server.pid"
 LOG="$DIR/logs/server.log"
 FIFO="$DIR/console.in"
+UNIT=campaign-server.service
 mkdir -p logs
 
+# the unit is optional: without it the script falls back to setsid + nohup
+has_systemd(){
+  command -v systemctl >/dev/null 2>&1 && systemctl cat "$UNIT" >/dev/null 2>&1
+}
+
 running(){
+  if has_systemd; then
+    systemctl is-active --quiet "$UNIT"
+    return $?
+  fi
+
   [ -f "$PIDFILE" ] || return 1
   local pid
   pid="$(cat "$PIDFILE" 2>/dev/null)"
@@ -86,10 +98,24 @@ attach_if_interactive(){
 
 start(){
   if running; then
-    echo "already running (pid $(cat "$PIDFILE"))"
+    echo "already running ($(describe_running))"
     attach_if_interactive
     return 0
   fi
+
+  if has_systemd; then
+    systemctl start "$UNIT" || { echo "systemctl start failed, see journalctl -u $UNIT" >&2; return 1; }
+    for _ in $(seq 1 40); do running && break; sleep 0.5; done
+    if running; then
+      echo "started via systemd ($(describe_running)), log: $LOG"
+      attach_if_interactive
+    else
+      echo "failed to start, see: journalctl -u $UNIT -n 30 --no-pager" >&2
+      return 1
+    fi
+    return 0
+  fi
+
   rm -f "$PIDFILE"
   echo "---- $(date -Is) starting ----" >> "$LOG"
   setsid nohup "$DIR/start.sh" >> "$LOG" 2>&1 < /dev/null &
@@ -108,27 +134,51 @@ start(){
   fi
 }
 
+describe_running(){
+  if has_systemd; then
+    echo "systemd $(systemctl show -p MainPID --value "$UNIT")"
+  else
+    echo "pid $(cat "$PIDFILE" 2>/dev/null)"
+  fi
+}
+
 stop(){
   if ! running; then
     echo "not running"
     rm -f "$PIDFILE"
     return 0
   fi
-  local pid
-  pid="$(cat "$PIDFILE")"
+
+  # the console exit command is the cleanest shutdown: the server saves before leaving
   if [ -p "$FIFO" ]; then
     timeout 8 bash -c 'echo exit > "$1"' _ "$FIFO" || true
   fi
-  for _ in $(seq 1 20); do
+  for _ in $(seq 1 30); do
     running || break
     sleep 1
   done
+
   if running; then
-    echo "graceful stop timed out, sending TERM"
-    kill "$pid" 2>/dev/null || true
-    sleep 3
-    running && kill -9 "$pid" 2>/dev/null || true
+    if has_systemd; then
+      echo "graceful stop timed out, stopping the unit"
+      systemctl stop "$UNIT" || true
+      sleep 3
+      running && systemctl kill -s SIGKILL "$UNIT" 2>/dev/null || true
+    else
+      echo "graceful stop timed out, sending TERM"
+      local pid
+      pid="$(cat "$PIDFILE" 2>/dev/null)"
+      [ -n "${pid:-}" ] && kill "$pid" 2>/dev/null || true
+      sleep 3
+      running && [ -n "${pid:-}" ] && kill -9 "$pid" 2>/dev/null || true
+    fi
   fi
+
+  # when systemd owns the process it must not be left in a failed state
+  if has_systemd; then
+    systemctl reset-failed "$UNIT" 2>/dev/null || true
+  fi
+
   rm -f "$PIDFILE"
   echo "stopped"
 }
@@ -175,7 +225,12 @@ case "${1:-}" in
   stop)               stop ;;
   restart)            stop; NOTMUX=1 start ;;
   status)
-    if running; then echo "running (pid $(cat "$PIDFILE"))"; else echo "stopped"; fi ;;
+    if running; then
+      echo "running ($(describe_running))"
+      if has_systemd; then systemctl is-enabled --quiet "$UNIT" && echo "unit enabled at boot"; fi
+    else
+      echo "stopped"
+    fi ;;
   console)
     shift
     if [ $# -eq 0 ]; then echo "usage: $0 console '<command>'" >&2; exit 1; fi
@@ -184,6 +239,8 @@ case "${1:-}" in
   shell)              shell ;;
   tmux)               tmux_mode ;;
   attach)             tail -n 50 -f "$LOG" ;;
+  logs)
+    if has_systemd; then journalctl -u "$UNIT" -f -n 80; else tail -n 80 -f "$LOG"; fi ;;
   *)
-    sed -n '2,14p' "$0"; exit 1 ;;
+    sed -n '2,15p' "$0"; exit 1 ;;
 esac
