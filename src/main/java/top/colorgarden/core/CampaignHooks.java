@@ -333,24 +333,22 @@ public class CampaignHooks{
             //messaging is best-effort
         }
 
-        boolean clear = CampaignConfig.data().clearSectorOnLose;
-        if(sector != null){
-            clear |= sector.planet.clearSectorOnLose || sector.planet.campaignRules.clearSectorOnLose;
-        }
+        boolean clear = SectorService.lostClears(sector);
 
-        //vanilla campaign rule: clearSectorOnLose wipes the sector; with the rule off the world
-        //(and every building) is kept, the next entry only places a fresh core
-        if(sector != null && clear){
-            SectorService.deleteSaveData(sector);
-            sector.info.hasCore = false;
-            sector.saveInfo();
-            Log.info("[CampaignServer] " + I18n.get("campaign.log.sector-data-deleted"));
-        }
-
-        //the sector has no standing base any more, so the next entry asks for a launch setup again
+        //vanilla campaign rule: with clearSectorOnLose on the lost sector is not saved at all, so the
+        //next entry generates it from scratch; with the rule off the ruined base is saved and the next
+        //entry rebuilds it the vanilla way (damage, regenerate, buildings restored as derelicts)
         if(sector != null){
             sector.info.hasCore = false;
             sector.saveInfo();
+
+            if(clear){
+                SectorService.deleteSaveData(sector);
+                Log.info("[CampaignServer] " + I18n.get("campaign.log.sector-data-deleted"));
+            }else{
+                boolean saved = SectorService.saveCurrent();
+                Log.info("[CampaignServer] " + I18n.get(saved ? "campaign.log.sector-lost-saved" : "campaign.log.sector-lost-save-failed"));
+            }
         }
 
         //stop the simulation; the campaign expects a decision about what happens next

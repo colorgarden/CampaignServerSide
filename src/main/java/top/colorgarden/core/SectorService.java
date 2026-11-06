@@ -896,6 +896,11 @@ public class SectorService{
         CampaignNetwork.pushInfoToAll();
     }
 
+    /** @return true when losing this sector must discard it ({@code clearSectorOnLose} in any form). */
+    public static boolean lostClears(Sector sector){
+        if(CampaignConfig.data().clearSectorOnLose) return true;
+        return sector != null && (sector.planet.clearSectorOnLose || sector.planet.campaignRules.clearSectorOnLose);
+    }
     /** Loads the sector save or generates the sector, then makes it the active one. */
     private static void startSector(Sector sector, boolean fresh, @Nullable Sector origin) throws CampaignException{
         logic.reset();
@@ -909,7 +914,7 @@ public class SectorService{
             Log.info("[CampaignServer] enter @ after backup: loaded=@ cores=@", sector.name(), loaded, loaded ? state.rules.defaultTeam.cores().size : -1);
         }
 
-        if(loaded && state.rules.defaultTeam.cores().isEmpty() && !CampaignConfig.data().regenerateLostSector){
+        if(loaded && state.rules.defaultTeam.cores().isEmpty() && !lostClears(sector)){
             //vanilla Control#playSector: the old save is only read to collect the surviving buildings,
             //then the sector is rebuilt from the generator and those buildings are dropped back in as
             //derelicts, so a lost base looks ruined instead of surviving intact
