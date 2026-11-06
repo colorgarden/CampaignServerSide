@@ -18,3 +18,16 @@ run.log
 
 # java
 *.class
+
+# site-specific operations: wifi watchdog, UPnP port mapping, ad-hoc repair scripts
+deploy/wifi-*
+deploy/mindustry-portmap.*
+deploy/igd-*.py
+deploy/49-campaign-server.rules
+deploy/set-motd.sh
+deploy/set-server-list.sh
+deploy/console.sh
+deploy/extract-content-names.ps1
+deploy/set-vote-*.py
+deploy/fix-*.sh
+deploy/restore-*.sh
