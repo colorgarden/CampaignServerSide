@@ -700,9 +700,13 @@ public class SectorService{
             createSector(sector, null);
 
             //5. the generator placed its own derelicts; drop them, the old ones are restored below
-            for(Object entry : mindustry.game.Team.derelict.data().buildings.toArray()){
-                mindustry.gen.Building generated = (mindustry.gen.Building)entry;
-                generated.tile.remove();
+            //(no Seq#toArray here: its component type is Object, so the array cast blows up)
+            arc.struct.Seq<mindustry.gen.Building> generatedDerelicts = new arc.struct.Seq<>();
+            for(mindustry.gen.Building generated : mindustry.game.Team.derelict.data().buildings){
+                generatedDerelicts.add(generated);
+            }
+            for(mindustry.gen.Building generated : generatedDerelicts){
+                if(generated.tile != null) generated.tile.remove();
             }
 
             for(mindustry.gen.Building build : previousDerelicts){
@@ -745,6 +749,10 @@ public class SectorService{
                 }
             }
 
+            //vanilla stops here: the rebuilt base is ruins plus a plain default core. This optional
+            //switch additionally applies the selected blueprint, which vanilla never does.
+            if(CampaignConfig.data().blueprintOnRebuild) applyCoreBlueprint(sector, null);
+
             saveSector(sector);
             Log.info("[CampaignServer] " + I18n.get("campaign.log.sector-recovered", sector.name(), previousBuildings.size));
             return true;
@@ -755,8 +763,9 @@ public class SectorService{
     }
 
     /**
-     * Puts a fresh core where the old base stood, mirroring vanilla's recovery of a sector whose core
-     * was destroyed while {@code clearSectorOnLose} is off.
+     * Puts a fresh core exactly where the old base stood. Vanilla does one thing only:
+     * {@code spawn.setBlock(planet.defaultCore, team)} - it never searches for free space, because
+     * moving the core would also move the recorded spawn position.
      *
      * @return true when a core was placed
      */
@@ -764,13 +773,6 @@ public class SectorService{
         try{
             int pos = sector.info.spawnPosition;
             mindustry.world.Tile tile = pos != 0 ? world.tile(pos) : null;
-            if(tile == null) tile = world.tile(world.width() / 2, world.height() / 2);
-            if(tile == null) return false;
-
-            for(int i = 0; i < 20 && tile != null; i++){
-                if(tile.block() == mindustry.content.Blocks.air || tile.block().alwaysReplace) break;
-                tile = world.tile(tile.x + i, tile.y);
-            }
             if(tile == null) return false;
 
             tile.setBlock(sector.planet.defaultCore, state.rules.defaultTeam);
@@ -778,25 +780,6 @@ public class SectorService{
                 state.teams.registerCore(core);
             }
 
-            sector.info.spawnPosition = tile.pos();
-            sector.info.hasCore = true;
-            sector.saveInfo();
-            Log.info("[CampaignServer] " + I18n.get("campaign.log.core-replaced", sector.name()));
-            //vanilla Control#playSector: place the core first, then simulate the loss so the
-            //buildings along the enemy paths are destroyed instead of surviving untouched
-            try{
-                mindustry.maps.SectorDamage.apply(1f);
-            }catch(Throwable t){
-                Log.warn("[CampaignServer] " + I18n.get("campaign.log.damage-skipped", Strings.getSimpleMessage(t)));
-            }
-
-            //SectorDamage removes every core at full fraction, so put ours back afterwards
-            if(tile.block() == null || !(tile.block() instanceof mindustry.world.blocks.storage.CoreBlock)){
-                tile.setBlock(sector.planet.defaultCore, state.rules.defaultTeam);
-                if(tile.build instanceof mindustry.world.blocks.storage.CoreBlock.CoreBuild cb){
-                    state.teams.registerCore(cb);
-                }
-            }
             sector.info.hasCore = true;
             sector.saveInfo();
 

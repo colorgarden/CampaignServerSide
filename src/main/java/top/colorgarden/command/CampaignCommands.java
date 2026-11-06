@@ -541,6 +541,50 @@ public class CampaignCommands{
             }
         });
 
+        handler.register("campaign-fix-spawn", "[x] [y]", "Repair the stored spawn position of the active sector (no args prints a suggestion from the ruins).", args -> {
+            var sector = SectorService.current();
+            if(sector == null){
+                err("campaign.spawn.no-sector");
+                return;
+            }
+
+            int old = sector.info.spawnPosition;
+            if(args.length >= 2){
+                try{
+                    int x = Integer.parseInt(args[0]), y = Integer.parseInt(args[1]);
+                    sector.info.spawnPosition = arc.math.geom.Point2.pack(x, y);
+                    sector.saveInfo();
+                    info("campaign.spawn.fixed", x, y,
+                        old == 0 ? "-" : (arc.math.geom.Point2.x(old) + "," + arc.math.geom.Point2.y(old)));
+                }catch(NumberFormatException e){
+                    err("campaign.spawn.bad-coords");
+                }
+                return;
+            }
+
+            //average of the surviving buildings: a compact base puts this close to the old core
+            long sx = 0, sy = 0;
+            int n = 0;
+            for(mindustry.gen.Building build : mindustry.Vars.state.rules.defaultTeam.data().buildings){
+                sx += build.tileX();
+                sy += build.tileY();
+                n++;
+            }
+            for(mindustry.gen.Building build : mindustry.game.Team.derelict.data().buildings){
+                sx += build.tileX();
+                sy += build.tileY();
+                n++;
+            }
+
+            String current = old == 0 ? "-" : (arc.math.geom.Point2.x(old) + "," + arc.math.geom.Point2.y(old));
+            if(n == 0){
+                info("campaign.spawn.no-buildings", current);
+                return;
+            }
+
+            info("campaign.spawn.suggestion", sx / n, sy / n, n, current);
+        });
+
         handler.register("campaign-respawn", "[sector|all]", "Clear the stored spawn position so the next generation rerolls it.", args -> {
             int count = SectorService.clearSpawnPositions(args.length > 0 ? args[0] : null);
             info("campaign.spawn.cleared", count);
