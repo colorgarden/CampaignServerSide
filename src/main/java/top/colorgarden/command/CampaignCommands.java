@@ -525,6 +525,13 @@ public class CampaignCommands{
             info(pause ? "campaign.sim.paused" : "campaign.sim.resumed");
         });
 
+        handler.register("campaign-cores", "List every core block, its size and the blueprint footprint it allows.", args -> {
+            for(var block : mindustry.Vars.content.blocks()){
+                if(!(block instanceof mindustry.world.blocks.storage.CoreBlock core)) continue;
+                info("campaign.core.list", core.name, core.size, core.size + top.colorgarden.core.CoreBlueprints.pad() * 2,
+                    core.unlocked() ? I18n.get("campaign.core.unlocked") : I18n.get("campaign.core.locked"));
+            }
+        });
         handler.register("campaign-skipwave", "Skip the next wave (one at a time, cooldown applies).", args -> {
             String problem = skipOneWave(null);
             if(problem != null){

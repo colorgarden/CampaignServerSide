@@ -49,6 +49,11 @@ public class CoreBlueprints{
     /** Tiles a loadout may extend past the core on each side ({@code Schematics#maxLoadoutSchematicPad}). */
     private static final int MAX_PAD = 5;
 
+    /** @return the per-side pad used for the blueprint footprint limit. */
+    public static int pad(){
+        return MAX_PAD;
+    }
+
     private static @Nullable Seq<Entry> cache;
     private static @Nullable String selected;
 
