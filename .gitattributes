@@ -9,3 +9,9 @@
 *.jar binary
 *.msav binary
 *.png binary
+
+# keep GitHub's language bar about the mod itself: the helper scripts and the local
+# deployment templates are infrastructure, not part of the Java plugin
+deploy/** linguist-vendored
+*.ps1 linguist-vendored
+* linguist-generated=false
