@@ -28,7 +28,7 @@ import mindustry.ui.Menus;
  * choice), and the cargo page replaces the item grid with -/+ buttons per item.</p>
  */
 public class LaunchPanel{
-    private static final int PER_PAGE = 6;
+    private static final int PER_PAGE = 24;
 
     private static int mainId = -1, listId = -1, cargoId = -1, uploadId = -1;
     private static boolean available;

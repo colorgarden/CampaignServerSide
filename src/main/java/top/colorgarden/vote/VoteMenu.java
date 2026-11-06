@@ -30,7 +30,8 @@ import mindustry.ui.Menus;
  */
 public class VoteMenu{
     /** Entries per list page: the dialog gets tall fast. */
-    private static final int perPage = 6;
+    /** The client scrolls long menus itself, so a page can hold many entries. */
+    private static final int perPage = 40;
 
     /** Which vote each player is currently answering. */
     private static final arc.struct.ObjectMap<Player, CampaignVote.Vote> viewing = new arc.struct.ObjectMap<>();
