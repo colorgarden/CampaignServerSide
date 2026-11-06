@@ -34,11 +34,23 @@ public class CoreBlueprints{
         public final Schematic schematic;
         /** True when this is a generated "core only" preset, not an uploaded blueprint. */
         public final boolean singleCore;
+        /** File name without extension for uploaded blueprints; null for the generated presets. */
+        public final @Nullable String slug;
 
         public Entry(String name, Schematic schematic, boolean singleCore){
+            this(name, schematic, singleCore, null);
+        }
+
+        public Entry(String name, Schematic schematic, boolean singleCore, @Nullable String slug){
             this.name = name;
             this.schematic = schematic;
             this.singleCore = singleCore;
+            this.slug = slug;
+        }
+
+        /** @return true when this blueprint was uploaded, so it may be renamed or deleted. */
+        public boolean editable(){
+            return !singleCore && slug != null;
         }
 
         public String describe(){
@@ -103,7 +115,7 @@ public class CoreBlueprints{
 
                 //the file name is ASCII-only; the human readable name lives in a sidecar file because
                 //JVM file names go through sun.jnu.encoding and turn Chinese into "?"
-                out.add(new Entry(displayName(file), Schematics.readBase64(text), false));
+                out.add(new Entry(displayName(file), Schematics.readBase64(text), false, file.nameWithoutExtension()));
             }catch(Throwable t){
                 Log.err("[CampaignServer] " + I18n.get("campaign.core.load-failed", file.name()));
             }
@@ -120,6 +132,49 @@ public class CoreBlueprints{
         return new Schematic(tiles, new StringMap(), 1, 1);
     }
 
+    /**
+     * Renames an uploaded blueprint. The generated single-core presets are fixed, so this refuses them.
+     *
+     * @return true when the new name was stored
+     */
+    public static boolean rename(Entry entry, @Nullable String newName){
+        if(entry == null || !entry.editable() || newName == null) return false;
+        String name = newName.trim();
+        if(name.isEmpty() || name.length() > 64) return false;
+
+        try{
+            folder().child(entry.slug + ".name").writeString(name, false, "UTF-8");
+            if(entry.name.equals(selected)) select(name);
+            cache = null;
+            return true;
+        }catch(Throwable t){
+            Log.err("[CampaignServer] " + I18n.get("campaign.core.rename-failed", String.valueOf(t)));
+            return false;
+        }
+    }
+
+    /**
+     * Deletes an uploaded blueprint and its sidecar name. The generated presets cannot be deleted.
+     *
+     * @return true when the files were removed
+     */
+    public static boolean remove(Entry entry){
+        if(entry == null || !entry.editable()) return false;
+
+        try{
+            Fi schematic = folder().child(entry.slug + ".msch");
+            Fi sidecar = folder().child(entry.slug + ".name");
+            if(schematic.exists()) schematic.delete();
+            if(sidecar.exists()) sidecar.delete();
+
+            if(entry.name.equals(selected)) select(null);
+            cache = null;
+            return true;
+        }catch(Throwable t){
+            Log.err("[CampaignServer] " + I18n.get("campaign.core.remove-failed", String.valueOf(t)));
+            return false;
+        }
+    }
     /** @return the selected blueprint, or null when none was chosen yet. */
     public static @Nullable Entry selectedEntry(){
         Seq<Entry> all = entries();

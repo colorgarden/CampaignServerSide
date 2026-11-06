@@ -31,6 +31,7 @@ public class LaunchPanel{
     private static final int PER_PAGE = 24;
 
     private static int mainId = -1, listId = -1, cargoId = -1, uploadId = -1;
+    private static int manageId = -1, actionId = -1, confirmId = -1, renameId = -1;
     private static boolean available;
 
     private static final ObjectMap<Player, SectorService.PendingLaunch> pending = new ObjectMap<>();
@@ -38,6 +39,9 @@ public class LaunchPanel{
     private static final ObjectMap<Player, Runnable> voteAction = new ObjectMap<>();
     private static final ObjectMap<Player, Integer> listPage = new ObjectMap<>();
     private static final ObjectMap<Player, Integer> cargoPage = new ObjectMap<>();
+    private static final ObjectMap<Player, Integer> managePage = new ObjectMap<>();
+    /** The uploaded blueprint the manage pages act on. */
+    private static final ObjectMap<Player, CoreBlueprints.Entry> manageTarget = new ObjectMap<>();
 
     public static void init(){
         try{
@@ -45,6 +49,10 @@ public class LaunchPanel{
             listId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onList(p, o)));
             cargoId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onCargo(p, o)));
             uploadId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onUpload(p, s)));
+            manageId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onManage(p, o)));
+            actionId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onAction(p, o)));
+            confirmId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onConfirm(p, o)));
+            renameId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onRename(p, s)));
             available = true;
             Log.info("[CampaignServer] launch panel registered.");
         }catch(Throwable t){
@@ -167,7 +175,8 @@ public class LaunchPanel{
             rows.add(new String[]{entry.name + mark});
         }
 
-        rows.add(new String[]{I18n.get("campaign.launch.upload"), I18n.get("campaign.launch.back")});
+        rows.add(new String[]{I18n.get("campaign.launch.upload"), I18n.get("campaign.core.manage"),
+            I18n.get("campaign.launch.back")});
         rows.add(new String[]{I18n.get("campaign.menu.prev"), I18n.get("campaign.menu.next"),
             I18n.get("campaign.menu.close")});
 
@@ -196,14 +205,177 @@ public class LaunchPanel{
         switch(rest){
             case 0 -> Call.textInput(player.con, uploadId, I18n.get("campaign.launch.upload"),
                 I18n.get("campaign.admin.core-hint"), 20000, "", false);
-            case 1 -> {
+            case 1 -> openManage(player, 0);
+            case 2 -> {
                 hide(player, listId);
                 openMain(player);
             }
-            case 2 -> openList(player, page - 1);
-            case 3 -> openList(player, page + 1);
+            case 3 -> openList(player, page - 1);
+            case 4 -> openList(player, page + 1);
             default -> hide(player, listId);
         }
+    }
+
+    // ---------------------------------------------------------------- rename / delete
+
+    /** Lists the uploaded blueprints, which are the only ones that can be renamed or deleted. */
+    private static void openManage(Player player, int page){
+        if(!available || player == null || player.con == null) return;
+
+        Seq<CoreBlueprints.Entry> custom = new Seq<>();
+        for(CoreBlueprints.Entry entry : CoreBlueprints.entries()){
+            if(entry.editable()) custom.add(entry);
+        }
+
+        hide(player, listId);
+
+        int pages = Math.max(1, (custom.size + PER_PAGE - 1) / PER_PAGE);
+        int current = Math.max(0, Math.min(pages - 1, page));
+        managePage.put(player, current);
+
+        Seq<String[]> rows = new Seq<>();
+        if(custom.isEmpty()){
+            rows.add(new String[]{I18n.get("campaign.admin.empty")});
+        }else{
+            for(int i = current * PER_PAGE; i < Math.min(custom.size, (current + 1) * PER_PAGE); i++){
+                rows.add(new String[]{custom.get(i).name});
+            }
+        }
+        rows.add(new String[]{I18n.get("campaign.menu.prev"), I18n.get("campaign.menu.next")});
+        rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
+
+        Call.followUpMenu(player.con, manageId, I18n.get("campaign.core.manage"),
+            I18n.get("campaign.core.manage-hint"), rows.toArray(String[].class));
+    }
+
+    private static void onManage(Player player, int option){
+        if(option < 0) return;
+
+        Seq<CoreBlueprints.Entry> custom = new Seq<>();
+        for(CoreBlueprints.Entry entry : CoreBlueprints.entries()){
+            if(entry.editable()) custom.add(entry);
+        }
+
+        int page = managePage.get(player, 0);
+        int from = page * PER_PAGE;
+        int visible = Math.max(0, Math.min(custom.size, from + PER_PAGE) - from);
+
+        if(option < visible){
+            manageTarget.put(player, custom.get(from + option));
+            openAction(player);
+            return;
+        }
+
+        int rest = option - visible;
+        switch(rest){
+            case 0 -> openManage(player, page - 1);
+            case 1 -> openManage(player, page + 1);
+            case 2 -> {
+                hide(player, manageId);
+                openList(player, 0);
+            }
+            default -> hide(player, manageId);
+        }
+    }
+
+    private static void openAction(Player player){
+        CoreBlueprints.Entry entry = manageTarget.get(player);
+        if(entry == null) return;
+
+        hide(player, manageId);
+
+        Seq<String[]> rows = new Seq<>();
+        if(entry.editable()){
+            rows.add(new String[]{I18n.get("campaign.core.rename"), I18n.get("campaign.core.delete")});
+        }else{
+            //generated presets are fixed; the buttons stay visible but say why they do nothing
+            rows.add(new String[]{I18n.get("campaign.core.not-editable")});
+        }
+        rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
+
+        Call.followUpMenu(player.con, actionId, entry.describe(), "", rows.toArray(String[].class));
+    }
+
+    private static void onAction(Player player, int option){
+        if(option < 0) return;
+
+        CoreBlueprints.Entry entry = manageTarget.get(player);
+        if(entry == null) return;
+
+        if(!entry.editable()){
+            if(option == 1){
+                hide(player, actionId);
+                openManage(player, managePage.get(player, 0));
+            }else if(option > 1){
+                hide(player, actionId);
+            }
+            return;
+        }
+
+        switch(option){
+            case 0 -> Call.textInput(player.con, renameId, I18n.get("campaign.core.rename"),
+                I18n.get("campaign.core.rename-hint"), 64, entry.name, false);
+            case 1 -> openConfirm(player);
+            case 2 -> {
+                hide(player, actionId);
+                openManage(player, managePage.get(player, 0));
+            }
+            default -> hide(player, actionId);
+        }
+    }
+
+    private static void openConfirm(Player player){
+        CoreBlueprints.Entry entry = manageTarget.get(player);
+        if(entry == null) return;
+
+        hide(player, actionId);
+
+        String[][] rows = {
+            {I18n.get("campaign.core.delete"), I18n.get("campaign.menu.cancel")}
+        };
+
+        Call.followUpMenu(player.con, confirmId, I18n.get("campaign.core.delete"),
+            I18n.get("campaign.core.delete-confirm", entry.name), rows);
+    }
+
+    private static void onConfirm(Player player, int option){
+        if(option < 0) return;
+
+        CoreBlueprints.Entry entry = manageTarget.get(player);
+        hide(player, confirmId);
+
+        if(entry == null) return;
+
+        if(option != 0){
+            openAction(player);
+            return;
+        }
+
+        boolean removed = CoreBlueprints.remove(entry);
+        player.sendMessage(I18n.get(removed ? "campaign.core.removed" : "campaign.core.remove-failed",
+            entry.name, ""));
+        manageTarget.remove(player);
+        openManage(player, managePage.get(player, 0));
+    }
+
+    private static void onRename(Player player, String text){
+        CoreBlueprints.Entry entry = manageTarget.get(player);
+        hide(player, renameId);
+
+        if(entry == null) return;
+
+        if(text == null || text.trim().isEmpty()){
+            player.sendMessage("[scarlet]" + I18n.get("campaign.core.rename-failed", ""));
+            openAction(player);
+            return;
+        }
+
+        boolean renamed = CoreBlueprints.rename(entry, text);
+        player.sendMessage(renamed
+            ? I18n.get("campaign.core.renamed", text.trim())
+            : I18n.get("campaign.core.rename-failed", entry.name));
+        manageTarget.remove(player);
+        openManage(player, managePage.get(player, 0));
     }
 
     private static void onUpload(Player player, String text){
