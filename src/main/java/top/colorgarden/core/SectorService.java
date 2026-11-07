@@ -1141,24 +1141,18 @@ public class SectorService{
     }
 
     /**
-     * Rebuilds the neighbour and power wiring of the team's buildings after a loadout placement.
+     * Rebuilds the neighbour caches of the team's buildings after a loadout placement.
      *
-     * <p>{@code Tile#setBlock} creates the building but does not rebuild every derived structure, and
-     * the loadout removes whatever stood in its footprint. Blocks that end up without a valid power
-     * graph or proximity cache stop accepting items and stop driving their logic - the symptom is a
-     * whole sector where logistics and world processors silently do nothing.</p>
+     * <p>Only {@code updateProximity()} is safe here. {@code PowerNode#links} is *player data* - the
+     * actual wires - not a cache: clearing it disconnects every node in the sector, and reassigning
+     * {@code power.graph} without re-adding the node leaves it in a graph that no longer contains it.
+     * Mindustry rebuilds graphs from the links itself once the world runs.</p>
      */
     private static int refreshPlacedBuildings(){
         try{
             int touched = 0;
             for(mindustry.gen.Building build : state.rules.defaultTeam.data().buildings){
                 if(build == null || build.tile == null) continue;
-
-                if(build.power != null){
-                    //the old graph still references tiles that the loadout removed
-                    build.power.graph = new mindustry.world.blocks.power.PowerGraph();
-                    build.power.links.clear();
-                }
 
                 build.updateProximity();
                 touched ++;
