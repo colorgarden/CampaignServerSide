@@ -40,22 +40,120 @@ public class EnvironmentService{
         //nothing to register: the two systems hook into the existing update loop
     }
 
-    /** Called once per world load, after the sector rules have been applied. */
+    /**
+     * Called once per world load, after the sector rules have been applied.
+     *
+     * <p>This deliberately does <b>not</b> recompute the weather. Vanilla fills {@code rules.weather}
+     * once, while the sector is generated ({@code World#setSectorRules} -> {@code addWeather}), and the
+     * result is stored in the sector save. Calling {@code addWeather} again on every load clears that
+     * list and rebuilds it from the tiles as they are <i>now</i>, which can differ from the state the
+     * sector was generated in - that is how an existing sector can silently lose its weather.</p>
+     */
     public static void onWorldLoad(){
         if(!CampaignConfig.data().weatherSystem || !Vars.state.isCampaign()) return;
 
-        Sector sector = Vars.state.rules.sector;
-        PlanetGenerator generator = sector == null || sector.planet == null ? null : sector.planet.generator;
-        if(generator == null) return;
-
-        //the generator clears and refills the list from the terrain; do it again so a save that was
-        //written without weather entries (or with a stale set) gets its own weather back
         try{
-            generator.addWeather(sector, Vars.state.rules);
             describeSchedule();
         }catch(Throwable t){
-            Log.info("[CampaignServer] weather setup skipped: @", t.toString());
+            Log.info("[CampaignServer] weather report skipped: @", t.toString());
         }
+    }
+
+    /**
+     * @return the tile statistics vanilla's {@code addWeather} looks at, plus the branch it would take.
+     *         Printed by {@code campaign-weather floors} so the decision can be checked instead of
+     *         guessed. Counted twice: as the world is now, and with border darkness ignored, which is
+     *         the state the sector was generated in.
+     */
+    public static Seq<String> floorReport(){
+        Seq<String> out = new Seq<>();
+        if(Vars.world == null) return out;
+
+        Sector sector = Vars.state.rules == null ? null : Vars.state.rules.sector;
+        String preset = sector == null || sector.preset == null ? "none" : sector.preset.name;
+        out.add("sector=" + (sector == null ? "-" : sector.name() + " (" + sector.id + ")")
+            + " preset=" + preset + " planetGenerator="
+            + (sector == null || sector.planet == null || sector.planet.generator == null
+                ? "-" : sector.planet.generator.getClass().getSimpleName())
+            + " borderDarkness=" + (Vars.state.rules != null && Vars.state.rules.borderDarkness));
+
+        out.addAll(countFloors("now", true));
+        out.addAll(countFloors("no-darkness", false));
+
+        return out;
+    }
+
+    /** Counts floors the way {@code addWeather} does, optionally ignoring the border-darkness filter. */
+    private static Seq<String> countFloors(String label, boolean respectDarkness){
+        Seq<String> out = new Seq<>();
+
+        arc.struct.ObjectIntMap<mindustry.world.Block> counts = new arc.struct.ObjectIntMap<>();
+        arc.struct.ObjectSet<mindustry.type.Liquid> liquids = new arc.struct.ObjectSet<>();
+        int skipped = 0;
+
+        for(mindustry.world.Tile tile : Vars.world.tiles){
+            if(respectDarkness && Vars.world.getDarkness(tile.x, tile.y) >= 3){
+                skipped ++;
+                continue;
+            }
+
+            if(tile.floor().liquidDrop != null) liquids.add(tile.floor().liquidDrop);
+            if(tile.overlay() != null && tile.overlay().liquidDrop != null) liquids.add(tile.overlay().liquidDrop);
+
+            if(!tile.block().isStatic()){
+                counts.increment(tile.floor());
+                if(tile.overlay() != mindustry.content.Blocks.air){
+                    counts.increment(tile.overlay());
+                }
+            }
+        }
+
+        arc.struct.Seq<arc.struct.ObjectIntMap.Entry<mindustry.world.Block>> entries = counts.entries().toArray();
+        entries.sort(e -> -e.value);
+        entries.removeAll(e -> e.value < 30);
+
+        out.add("[" + label + "] skippedByDarkness=" + skipped + " floorsOver30=" + entries.size
+            + " liquids=" + liquids.size);
+
+        int shown = 0;
+        for(arc.struct.ObjectIntMap.Entry<mindustry.world.Block> entry : entries){
+            if(shown ++ >= 5) break;
+            out.add("  " + label + " " + entry.key.name + " x" + entry.value);
+        }
+
+        if(!entries.isEmpty()){
+            mindustry.world.Block first = entries.first().key;
+            boolean snow = first.name.contains("ice") || first.name.contains("snow");
+            boolean rain = !snow && liquids.contains(mindustry.content.Liquids.water) && !first.name.contains("sand");
+            boolean desert = !snow && !rain && first == mindustry.content.Blocks.sand;
+            boolean spores = first.name.contains("spore") || first.name.contains("moss") || first.name.contains("tainted");
+            out.add("[" + label + "] branches: snow=" + snow + " rain=" + rain
+                + " desert=" + desert + " spores=" + spores);
+        }
+
+        return out;
+    }
+
+    /**
+     * Recomputes the weather table the way the sector was generated: vanilla runs {@code addWeather}
+     * while generating, before campaign border darkness exists, so re-running it later with darkness
+     * active can pick a different dominant floor and drop the weather the sector originally had.
+     *
+     * @return the entries that ended up in the table
+     */
+    public static int refill(){
+        Sector sector = Vars.state.rules == null ? null : Vars.state.rules.sector;
+        if(sector == null || sector.planet == null || sector.planet.generator == null) return -1;
+
+        boolean darkness = Vars.state.rules.borderDarkness;
+        Vars.state.rules.borderDarkness = false;
+        try{
+            sector.planet.generator.addWeather(sector, Vars.state.rules);
+        }finally{
+            Vars.state.rules.borderDarkness = darkness;
+        }
+
+        return Vars.state.rules.weather.size;
     }
 
     /** Called from the tick hook. */

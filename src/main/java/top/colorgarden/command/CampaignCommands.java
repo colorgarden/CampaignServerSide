@@ -541,7 +541,7 @@ public class CampaignCommands{
             }
         });
 
-        handler.register("campaign-refresh-buildings", "Rebuild proximity caches and power graphs of the current sector's buildings (repairs a sector where logistics/logic stopped working).", args -> {
+        handler.register("campaign-refresh-buildings", "Rebuild proximity caches of the current sector's buildings (repairs a sector where logistics/logic stopped working).", args -> {
             if(!state.isGame()){
                 err("campaign.msg.not-playing");
                 return;
@@ -580,9 +580,29 @@ public class CampaignCommands{
 
             if(listed == 0) info("campaign.exports.none");
         });
-        handler.register("campaign-weather", "[list|name] [seconds]", "Show the sector's weather schedule, or force a weather event (e.g. rain 60).", args -> {
+        handler.register("campaign-weather", "[list|floors|refill|name] [seconds]", "Show the sector's weather schedule, dump the terrain statistics vanilla's addWeather uses, rebuild the schedule the way generation did, or force an event (e.g. rain 60).", args -> {
             if(args.length == 0 || "list".equalsIgnoreCase(args[0])){
                 top.colorgarden.core.EnvironmentService.describeSchedule();
+                return;
+            }
+
+            if("floors".equalsIgnoreCase(args[0]) || "terrain".equalsIgnoreCase(args[0])){
+                for(String line : top.colorgarden.core.EnvironmentService.floorReport()){
+                    infoRaw("  " + line);
+                }
+                return;
+            }
+
+            if("refill".equalsIgnoreCase(args[0]) || "rebuild".equalsIgnoreCase(args[0])){
+                int count = top.colorgarden.core.EnvironmentService.refill();
+                if(count < 0){
+                    err("campaign.weather.unknown", "-");
+                    return;
+                }
+                info("campaign.weather.refilled", count);
+                top.colorgarden.core.EnvironmentService.describeSchedule();
+                //the schedule lives in the sector rules, so it has to reach the save
+                top.colorgarden.core.SectorService.saveCurrent();
                 return;
             }
 
@@ -988,7 +1008,8 @@ public class CampaignCommands{
             player.sendMessage(I18n.get(changed ? "campaign.client.research.ok" : "campaign.client.research.already", I18n.content(unlockable)));
         });
 
-        client(handler, "campaign", "Show campaign status.", (args, player) -> {
+        //the status text moved into the hub; the command is the hub now (/campaign, /c)
+        client(handler, "campaign-status", "Show campaign status in the chat.", (args, player) -> {
             Sector sector = SectorService.current();
             if(sector == null){
                 player.sendMessage(I18n.get("campaign.client.not-campaign"));
@@ -1120,6 +1141,9 @@ public class CampaignCommands{
                 player.sendMessage(I18n.get("campaign.error.unexpected", Strings.getSimpleMessage(t)));
             }
         });
+
+        client(handler, "campaign", "[menu]", "Open the campaign hub: votes, admin panel and the sector browser.", (args, player) -> MainMenu.openMain(player));
+        client(handler, "c", "[menu]", "Short form of /campaign.", (args, player) -> MainMenu.openMain(player));
 
         client(handler, "cvote", "[option] [args...]", "Vote to switch sector/planet, unlock research or rewire launch pads.", (args, player) -> handleVote(player, args));
         client(handler, "cv", "[option] [args...]", "Short form of /cvote.", (args, player) -> handleVote(player, args));

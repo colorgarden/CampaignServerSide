@@ -69,6 +69,8 @@ public class CampaignHooks{
         installChatBallot();
         CampaignVote.init();
         top.colorgarden.command.AdminPanel.init();
+        top.colorgarden.command.SectorPanel.init();
+        top.colorgarden.command.MainMenu.init();
         top.colorgarden.command.LaunchPanel.init();
         AnnounceService.init();
 
