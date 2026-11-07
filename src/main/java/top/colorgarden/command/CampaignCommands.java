@@ -541,6 +541,55 @@ public class CampaignCommands{
             }
         });
 
+        handler.register("campaign-pads", "Trace the launch/landing pad chain of the current sector: destination, export means, import rates, cooldown timers and every pad's state.", args -> {
+            var sector = SectorService.current();
+            if(sector == null){
+                err("campaign.pads.no-sector");
+                return;
+            }
+
+            var rules = mindustry.Vars.state.rules;
+            var info = sector.info;
+            info("campaign.pads.header", sector.name(), sector.id,
+                mindustry.Vars.state.isCampaign(),
+                sector.planet.campaignRules.legacyLaunchPads);
+            info("campaign.pads.destination",
+                info.destination == null ? "-" : info.destination.name(),
+                info.destination == null ? false : info.destination.hasBase());
+
+            //export means: what the source sectors report, which is what the receiver sums up
+            if(info.export.isEmpty()){
+                info("campaign.pads.no-export");
+            }else{
+                info.export.each((item, stat) -> info("campaign.pads.export", item.localizedName, stat.mean, stat.counter));
+            }
+
+            float[] rates = info.getImportRates(sector.planet);
+            for(mindustry.type.Item item : mindustry.Vars.content.items()){
+                if(rates[item.id] > 0f){
+                    info("campaign.pads.import-rate", item.localizedName, rates[item.id],
+                        info.importCooldownTimers.get(item, 0f));
+                }
+            }
+
+            int pads = 0;
+            for(mindustry.gen.Building build : mindustry.Vars.state.rules.defaultTeam.data().buildings){
+                if(build instanceof mindustry.world.blocks.campaign.LandingPad.LandingPadBuild pad){
+                    pads++;
+                    info("campaign.pads.landing", pad.tileX(), pad.tileY(),
+                        pad.config == null ? "-" : pad.config.localizedName,
+                        pad.items.total(), pad.cooldown, pad.arriving != null);
+                }else if(build.block instanceof mindustry.world.blocks.campaign.LaunchPad){
+                    pads++;
+                    info("campaign.pads.launch", build.tileX(), build.tileY(),
+                        build.items.total(), build.block.itemCapacity);
+                }
+            }
+
+            if(pads == 0) info("campaign.pads.none");
+            info("campaign.pads.total", pads);
+        });
+
         handler.register("campaign-fix-spawn", "[x] [y]", "Repair the stored spawn position of the active sector (no args prints a suggestion from the ruins).", args -> {
             var sector = SectorService.current();
             if(sector == null){
