@@ -38,3 +38,6 @@ run-server.ps1
 
 # local tooling (icon renderer); the generated assets are committed instead
 tools/
+
+# agent working notes (project memory) - local state, not part of the mod
+.dsh/
