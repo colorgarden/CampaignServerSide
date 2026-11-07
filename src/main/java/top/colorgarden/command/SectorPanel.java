@@ -105,6 +105,10 @@ public class SectorPanel{
     private static void openList(Player player, String query, int page, boolean showAll){
         if(!available || player == null || player.con == null) return;
 
+        //a followUpMenu does not replace the previous one on the client, it stacks, so the page we
+        //came from has to be closed explicitly
+        Call.hideFollowUpMenu(player.con, detailId);
+
         boolean numbered = numberedView.get(player, false);
         Seq<Sector> found = candidates(query, showAll, numbered);
 
@@ -187,6 +191,9 @@ public class SectorPanel{
 
     private static void showDetail(Player player, Sector sector){
         if(sector == null || player == null || player.con == null) return;
+
+        //see openList: the list must be closed, otherwise both pages render on top of each other
+        Call.hideFollowUpMenu(player.con, listId);
 
         viewing.put(player, sector);
         String[][] options = {
@@ -275,8 +282,9 @@ public class SectorPanel{
         for(ItemStack stack : stacks){
             if(shown ++ >= 6) break;
             if(out.length() > 0) out.append('\n');
-            out.append("  ").append(top.colorgarden.util.Icons.item(stack.item))
-                .append(stack.item.localizedName).append(" x").append(stack.amount);
+            //the glyph has to stay outside any colour tag: a tag in front of it tints the icon itself
+            out.append("[]  ").append(top.colorgarden.util.Icons.item(stack.item))
+                .append("[white]").append(stack.item.localizedName).append(" x").append(stack.amount);
         }
         return out.toString();
     }
@@ -286,7 +294,7 @@ public class SectorPanel{
 
         Seq<ObjectMap.Entry<Item, SectorInfo.ExportStat>> entries = new Seq<>();
         for(ObjectMap.Entry<Item, SectorInfo.ExportStat> entry : stats){
-            if(entry.value == null || entry.value.mean <= 0.01f) continue;
+            if(entry.value == null || entry.value.mean < 0.05f) continue;
             entries.add(entry);
         }
         if(entries.isEmpty()) return I18n.get("campaign.sector.detail-none");
@@ -298,8 +306,9 @@ public class SectorPanel{
         for(ObjectMap.Entry<Item, SectorInfo.ExportStat> entry : entries){
             if(shown ++ >= 6) break;
             if(out.length() > 0) out.append('\n');
-            out.append("  ").append(top.colorgarden.util.Icons.item(entry.key))
-                .append(entry.key.localizedName).append(" +")
+            //icon first, colour tag after it, so the glyph keeps its own tint
+            out.append("[]  ").append(top.colorgarden.util.Icons.item(entry.key))
+                .append("[white]").append(entry.key.localizedName).append(" +")
                 .append(Strings.fixed(entry.value.mean, 1))
                 .append(I18n.get("campaign.sector.per-minute"));
         }
