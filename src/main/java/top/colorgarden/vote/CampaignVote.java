@@ -644,8 +644,12 @@ public class CampaignVote{
     }
 
     /**
-     * Final decision once the ballot is over: how players who never voted count is configured
-     * ({@code unvoted}: abstain, yes or no), and the yes quorum remains mandatory in every mode.
+     * Final decision once the ballot is over.
+     *
+     * <p>Only here do players who never answered leave the denominator: abstainers and (with
+     * {@code unvoted = abstain}) the silent ones are not participants, so the quorum is recomputed
+     * from the players who actually took part. During the vote the frozen quorum still applies, which
+     * is what keeps a ballot from passing the second it starts.</p>
      */
     private static boolean settle(Vote vote){
         int online = vote.onlineAtStart > 0 ? vote.onlineAtStart
@@ -653,15 +657,18 @@ public class CampaignVote{
         int unvoted = Math.max(0, online - vote.yes.size - vote.no.size - vote.abstain.size);
 
         int yes = vote.yes.size, no = vote.no.size;
+        int participants = online - vote.abstain.size;
+
         switch(CampaignConfig.data().unvoted){
             case "yes" -> yes += unvoted;
             case "no" -> no += unvoted;
-            default -> {
-                //abstain: un-voted players count for neither side
-            }
+            default -> participants -= unvoted;   //abstain: silent players are not participants either
         }
 
-        if(yes < vote.required()) return false;
+        participants = Math.max(1, participants);
+        int required = Math.max(1, (int)Math.ceil(participants * CampaignConfig.data().votePercent));
+
+        if(yes < required) return false;
 
         return switch(CampaignConfig.data().voteDecision){
             case "veto" -> no == 0;
@@ -842,32 +849,20 @@ public class CampaignVote{
         public String starterName = "";
         public String starterUuid = "";
         public long startedAt, endsAt;
-        /** Players online when the vote started; the denominator is derived from it. */
+        /** Quorum frozen when the vote started, so the bar never moves while the vote runs. */
         public int onlineAtStart = 1, requiredAtStart = 1;
         /** Idle timeout actually in force for this vote (clamped below the lead time). */
         public float effectiveTimeout;
 
         /**
-         * @return how many yes votes are needed right now.
+         * @return the live quorum shown to players: the value frozen at start.
          *
-         * <p>Abstaining players are not participants, so they leave the denominator: a ballot where
-         * half the server walks away must not need the same number of yes votes as one where everybody
-         * takes part. With {@code unvoted = abstain} the silent players count the same way, which is
-         * what stops an AFK player from inflating the bar.</p>
+         * <p>Non-voters are only treated as non-participants when the ballot ends, see
+         * {@code CampaignVote#settle}; reducing the bar mid-vote made a vote pass the instant it
+         * started, because the starter's own yes already filled a denominator of one.</p>
          */
         public int required(){
-            int online = onlineAtStart > 0 ? onlineAtStart : CampaignVote.requiredVotes();
-            int excluded = abstain.size;
-
-            if("abstain".equals(CampaignConfig.data().unvoted)){
-                excluded += Math.max(0, online - yes.size - no.size - abstain.size);
-            }
-
-            //the denominator never drops below the configured minimum: without that floor a single
-            //player would pass any vote the moment everybody else stayed silent
-            int floor = Math.max(1, CampaignConfig.data().voteMinPlayers);
-            int participants = Math.max(floor, online - Math.min(excluded, Math.max(0, online - floor)));
-            return Math.max(1, (int)Math.ceil(participants * CampaignConfig.data().votePercent));
+            return requiredAtStart > 0 ? requiredAtStart : CampaignVote.requiredVotes();
         }
         /** When the ballot dialog should pop up (near the end of the window). */
         public long pushAt;
