@@ -240,29 +240,21 @@ public class CampaignVote{
     }
 
     /**
-     * @return the sector state shown next to its name: captured, launched, lost or not launched.
+     * @return the sector state shown next to its name: captured, launched or not launched.
      *
      * <p>{@code Sector#isCaptured()} alone is not enough: it is {@code save != null && !info.waves &&
      * !info.attack}, so a sector that was captured once and later lost its base (the save keeps the
-     * "no waves" flag) would still read as captured. A captured sector is only captured while it
-     * actually has a standing core - which also covers attack maps, where the enemy core has to be
-     * gone before {@code attackMode} is cleared.</p>
+     * "no waves" flag) would still read as captured. Without a standing core the sector falls back to
+     * "not launched", which is what the planet view shows for a sector you cannot land on yet.</p>
      */
     public static String sectorStatus(Sector sector){
         if(sector == null) return "";
 
-        if(sector.hasBase()){
-            return sector.isCaptured()
-                ? I18n.get("campaign.sector.status.captured")
-                : I18n.get("campaign.sector.status.launched");
-        }
+        if(!sector.hasBase()) return I18n.get("campaign.sector.status.unlaunched");
 
-        //a save without a core: the base was lost, and with clearSectorOnLose off this is a real state
-        if(sector.save != null || (sector.info != null && sector.info.hasCore)){
-            return I18n.get("campaign.sector.status.lost");
-        }
-
-        return I18n.get("campaign.sector.status.unlaunched");
+        return sector.isCaptured()
+            ? I18n.get("campaign.sector.status.captured")
+            : I18n.get("campaign.sector.status.launched");
     }
 
     /** @return only the targets that can be used right now. */
