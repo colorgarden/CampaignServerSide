@@ -86,7 +86,11 @@ public class CampaignHooks{
                 top.colorgarden.command.AdminPanel.forget(event.player);
             }
         });
-        Events.on(WorldLoadEvent.class, event -> applyLogicRules());
+        top.colorgarden.core.EnvironmentService.init();
+        Events.on(WorldLoadEvent.class, event -> {
+            applyLogicRules();
+            top.colorgarden.core.EnvironmentService.onWorldLoad();
+        });
         Events.on(RulesLoadEvent.class, event -> applyLogicRules());
         Events.on(SectorCaptureEvent.class, event -> onSectorCapture(event.sector));
         Events.on(SaveWriteEvent.class, event -> onSaveWrite());
@@ -434,6 +438,7 @@ public class CampaignHooks{
     private static void update(){
         flushJoinInfo();
         top.colorgarden.core.ActivityTracker.update();
+        top.colorgarden.core.EnvironmentService.update();
 
         //vanilla runs Control#checkAutoUnlocks continuously on the client; a server has to poll it
         autoUnlockTimer += Time.delta;

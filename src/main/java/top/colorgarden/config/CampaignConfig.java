@@ -140,6 +140,12 @@ public class CampaignConfig{
     public boolean rulePauseDisabled = false;
     /** Vanilla rules#reactorExplosions: reactors explode and damage surrounding blocks. */
     public boolean ruleReactorExplosions = true;
+    /** Rebuild the terrain-based weather schedule on every world load. */
+    public boolean weatherSystem = true;
+    /** Drive the planet day/night cycle and push the ambient light to clients. */
+    public boolean dayNightCycle = true;
+    /** Seconds between ambient-light broadcasts to clients; 0 disables the push. */
+    public float dayNightSyncSeconds = 5f;
     /** Share of online players that must vote yes for a vote to pass (0.1 - 1). */
     public float votePercent = 0.6f;
     /** Minimum online players needed to start a vote. */

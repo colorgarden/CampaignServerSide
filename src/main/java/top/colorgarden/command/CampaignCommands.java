@@ -541,6 +541,35 @@ public class CampaignCommands{
             }
         });
 
+        handler.register("campaign-weather", "[list|name] [seconds]", "Show the sector's weather schedule, or force a weather event (e.g. rain 60).", args -> {
+            if(args.length == 0 || "list".equalsIgnoreCase(args[0])){
+                top.colorgarden.core.EnvironmentService.describeSchedule();
+                return;
+            }
+
+            float seconds = args.length > 1 ? Float.parseFloat(args[1]) : 60f;
+            if(!top.colorgarden.core.EnvironmentService.force(args[0], seconds)){
+                err("campaign.weather.unknown", args[0]);
+            }
+        });
+
+        handler.register("campaign-daynight", "Show the current day/night light level and ambient darkness.", args -> {
+            var sector = SectorService.current();
+            if(sector == null){
+                err("campaign.pads.no-sector");
+                return;
+            }
+
+            float light = sector.getLight();
+            float alpha = arc.math.Mathf.clamp(arc.math.Mathf.map(light,
+                sector.planet.lightSrcFrom, sector.planet.lightSrcTo,
+                sector.planet.lightDstFrom, sector.planet.lightDstTo));
+
+            info("campaign.daynight.state", light, alpha, 1f - alpha,
+                sector.planet.updateLighting, sector.preset != null && sector.preset.noLighting,
+                mindustry.Vars.state.rules.lighting, CampaignConfig.data().dayNightCycle,
+                CampaignConfig.data().dayNightSyncSeconds);
+        });
         handler.register("campaign-pads", "Trace the launch/landing pad chain of the current sector: destination, export means, import rates, cooldown timers and every pad's state.", args -> {
             var sector = SectorService.current();
             if(sector == null){
