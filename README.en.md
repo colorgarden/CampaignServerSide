@@ -29,6 +29,7 @@ Repository: `https://github.com/colorgarden/CampaignServerSide`
 
 > [!TIP]
 > **Test server: `colorgarden.top`** (port `6567`, join straight from a v160 client)
+> **QQ group: `1135085472`** (bug reports, finding people to play with, release news)
 
 ---
 
@@ -367,6 +368,7 @@ campaign-goto erekir:onset         # cross planet
 ## 13. Test server
 
 **Address: `colorgarden.top`** (port `6567`, join from a v160 client).
+**QQ group: `1135085472`**
 
 The repository only ships the mod source, the language files and the build scripts; the operations scripts
 (start/stop, backups, port mapping) are deliberately kept out of it. The commands below show how this
