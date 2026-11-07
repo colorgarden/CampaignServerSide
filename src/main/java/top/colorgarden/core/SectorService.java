@@ -1138,11 +1138,19 @@ public class SectorService{
         }
 
         state.rules.sector = sector;
-        //vanilla Control#playNewSector: a sector you launch into exports its production back to the origin
+        //vanilla Control#playNewSector: a sector you launch into exports its production back to the
+        //origin. Entering a sector without a launch (vote, console) must not touch the pair at all -
+        //overwriting it with null silently dropped the export destination the players had configured,
+        //so their pads discarded every payload.
         boolean link = CampaignConfig.data().launchPadLinking && origin != null
             && origin != sector && origin.planet == sector.planet;
-        sector.info.origin = link ? origin : null;
-        sector.info.destination = link ? origin : null;
+        if(link){
+            sector.info.origin = origin;
+            sector.info.destination = origin;
+        }else if(origin != null && origin != sector){
+            //remember where the operator came from, but keep the configured export target
+            sector.info.origin = origin;
+        }
         sector.info.attempts ++;
 
         //vanilla runs beforePlay after loadSector and before logic.play(), so the restored buildings are
