@@ -511,9 +511,21 @@ public class SectorService{
         return null;
     }
 
-    /** @return a localized "switch to X first" hint for a locked sector, or "" when there is none. */
+    /**
+     * @return a localized hint for a locked sector: what is actually missing from the tech tree, or -
+     *         when nothing is missing - which neighbouring sector to launch from
+     */
     public static String launchHint(@Nullable Sector target){
         if(target == null || canEnter(target)) return "";
+
+        //a preset sector is gated by its tech node; that is the real reason, the launch route is only
+        //how you get there once it is unlocked
+        if(target.preset != null){
+            Seq<String> missing = ResearchService.missingObjectives(target.preset.techNode);
+            if(!missing.isEmpty()){
+                return I18n.get("campaign.hint.missing", missing.toString(", "));
+            }
+        }
 
         Sector source = launchSource(target);
         return source == null ? I18n.get("campaign.hint.no-launcher")

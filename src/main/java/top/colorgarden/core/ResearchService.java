@@ -275,6 +275,33 @@ public class ResearchService{
     }
 
     /**
+     * @return the unfinished objectives of a node, rendered with our own labels. Vanilla's
+     *         {@code Objective#display()} depends on client-only bundle keys and comes out as
+     *         {@code ???requirement.capture???} on a headless server, so the two concrete objective
+     *         types are formatted here instead.
+     */
+    public static Seq<String> missingObjectives(@Nullable TechNode node){
+        Seq<String> out = new Seq<>();
+        if(node == null || node.objectives == null) return out;
+
+        for(mindustry.game.Objectives.Objective objective : node.objectives){
+            if(objective == null || objective.complete()) continue;
+
+            if(objective instanceof mindustry.game.Objectives.Research research){
+                out.add(I18n.get("campaign.hint.need-research", research.content == null
+                    ? "?" : research.content.localizedName));
+            }else if(objective instanceof mindustry.game.Objectives.SectorComplete sector){
+                out.add(I18n.get("campaign.hint.need-sector", sector.preset == null
+                    ? "?" : sector.preset.localizedName));
+            }else{
+                out.add(objective.toString());
+            }
+        }
+
+        return out;
+    }
+
+    /**
      * @return true when vanilla would unlock this node by itself: parent unlocked, no item cost and
      *         every objective already complete. Such content must never be "researched" by hand.
      */
