@@ -519,26 +519,41 @@ public class CampaignVote{
         }
 
         boolean yes;
-        if("yes".equalsIgnoreCase(choice) || "y".equalsIgnoreCase(choice)){
+        boolean abstain = false;
+        if("yes".equalsIgnoreCase(choice) || "y".equalsIgnoreCase(choice) || "1".equals(choice)){
             yes = true;
-        }else if("no".equalsIgnoreCase(choice) || "n".equalsIgnoreCase(choice)){
+        }else if("no".equalsIgnoreCase(choice) || "n".equalsIgnoreCase(choice) || "0".equals(choice)){
             yes = false;
+        }else if("abstain".equalsIgnoreCase(choice) || "a".equalsIgnoreCase(choice) || "2".equals(choice)){
+            yes = false;
+            abstain = true;
         }else{
             return I18n.get("campaign.vote.need-choice");
         }
 
         vote.lastCastAt = Time.millis();
 
-        if(yes){
+        if(abstain){
+            vote.yes.remove(player.uuid());
             vote.no.remove(player.uuid());
+            if(!vote.abstain.add(player.uuid())) return I18n.get("campaign.vote.already-abstain");
+
+            announce(I18n.get("campaign.vote.cast-abstain", player.plainName(), describe(vote),
+                vote.yes.size, vote.required()));
+        }else if(yes){
+            vote.no.remove(player.uuid());
+            vote.abstain.remove(player.uuid());
             if(!vote.yes.add(player.uuid())) return I18n.get("campaign.vote.already-yes");
         }else{
             vote.yes.remove(player.uuid());
+            vote.abstain.remove(player.uuid());
             if(!vote.no.add(player.uuid())) return I18n.get("campaign.vote.already-no");
         }
 
-        announce(I18n.get("campaign.vote.cast", player.plainName(), I18n.get(yes ? "campaign.vote.yes" : "campaign.vote.no"),
-            describe(vote), vote.yes.size, vote.required()));
+        if(!abstain){
+            announce(I18n.get("campaign.vote.cast", player.plainName(), I18n.get(yes ? "campaign.vote.yes" : "campaign.vote.no"),
+                describe(vote), vote.yes.size, vote.required()));
+        }
 
         Boolean decided = decide(vote);
         if(decided == null){
@@ -566,6 +581,8 @@ public class CampaignVote{
 
     /** Called every tick on the server. */
     public static void update(){
+        ScoreboardFeed.tick();
+
         if(votes.isEmpty()) return;
 
         long now = Time.millis();
@@ -581,8 +598,9 @@ public class CampaignVote{
 
             if(now >= vote.endsAt){
                 Boolean decided = decide(vote);
-                finish(vote, decided != null && decided, decided == null || !decided
-                    ? I18n.get("campaign.vote.expired") : null);
+                //running out of time is a failure, and the reason names the missing quorum
+                finish(vote, decided != null && decided,
+                    decided != null && decided ? null : failReason(vote));
                 continue;
             }
 
@@ -605,7 +623,9 @@ public class CampaignVote{
         int required = vote.required();
 
         int yes = vote.yes.size, no = vote.no.size;
-        int remaining = Math.max(0, online - yes - no);
+        int abstain = vote.abstain.size;
+        //abstaining players already answered; they can no longer add a yes
+        int remaining = Math.max(0, online - yes - no - abstain);
         String mode = CampaignConfig.data().voteDecision;
 
         //enough yes votes: the result cannot change any more
@@ -618,19 +638,24 @@ public class CampaignVote{
         }
 
         if("majority".equals(mode)){
-            //everyone who counts has voted
-            return yes + no >= online ? Boolean.valueOf(yes > no) : null;
+            //everyone who counts has voted: a majority is not enough on its own, the quorum still rules
+            return yes + no + abstain >= online ? Boolean.valueOf(yes > no) : null;
         }
 
         return no >= required ? Boolean.FALSE : null;
     }
 
-    /** Resolution when a timed-out vote is still undecided. */
+    /** Resolution when a timed-out vote is still undecided: the quorum is mandatory. */
     private static boolean fallback(Vote vote){
-        return "majority".equals(CampaignConfig.data().voteDecision) && vote.yes.size > vote.no.size;
+        return vote.yes.size >= vote.required()
+            && "majority".equals(CampaignConfig.data().voteDecision) && vote.yes.size > vote.no.size;
     }
 
     private static String failReason(Vote vote){
+        //a vote that never reached the yes quorum fails for that reason, whatever the decision mode
+        if(vote.yes.size < vote.required()){
+            return I18n.get("campaign.vote.not-enough-yes", vote.yes.size, vote.required());
+        }
         return switch(CampaignConfig.data().voteDecision){
             case "veto" -> I18n.get("campaign.vote.vetoed");
             case "majority" -> I18n.get("campaign.vote.majority-failed", vote.yes.size, vote.no.size);
@@ -812,6 +837,8 @@ public class CampaignVote{
         public boolean pushed;
         public final ObjectSet<String> yes = new ObjectSet<>();
         public final ObjectSet<String> no = new ObjectSet<>();
+        /** Ballots withdrawn by their voter; they count for neither side and do not block the vote. */
+        public final ObjectSet<String> abstain = new ObjectSet<>();
 
         /** Timestamp of the most recent vote (start counts as one). */
         public long lastCastAt = Time.millis();

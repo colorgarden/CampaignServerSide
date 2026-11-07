@@ -195,7 +195,8 @@ public class VoteMenu{
 
         //the starter already counted a yes, so the ballot is only pushed to everyone else
         if(vote.starterUuid != null && vote.starterUuid.equals(player.uuid())) return;
-        if(vote.yes.contains(player.uuid()) || vote.no.contains(player.uuid())) return;
+        if(vote.yes.contains(player.uuid()) || vote.no.contains(player.uuid())
+            || vote.abstain.contains(player.uuid())) return;
 
         String message = I18n.get("campaign.menu.vote-message", CampaignVote.describe(vote),
             vote.yes.size, vote.required(), vote.no.size, vote.secondsLeft())
@@ -203,6 +204,7 @@ public class VoteMenu{
 
         String[][] options = {
             {I18n.get("campaign.menu.vote-yes"), I18n.get("campaign.menu.vote-no")},
+            {I18n.get("campaign.menu.vote-abstain")},
             {I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")}
         };
 
@@ -643,8 +645,8 @@ public class VoteMenu{
             return;
         }
 
-        if(option == 0 || option == 1){
-            String problem = CampaignVote.cast(player, option == 0 ? "y" : "n", vote);
+        if(option == 0 || option == 1 || option == 2){
+            String problem = CampaignVote.cast(player, option == 0 ? "y" : option == 1 ? "n" : "a", vote);
             if(problem != null) player.sendMessage("[scarlet]" + problem);
 
             viewing.remove(player);
@@ -652,7 +654,7 @@ public class VoteMenu{
             return;
         }
 
-        if(option == 2){
+        if(option == 3){
             //back to the running-vote list
             viewing.remove(player);
             hide(player, voteId);

@@ -126,20 +126,24 @@ public class CampaignHooks{
             if(parts.length == 0 || parts.length > 2) return message;
 
             String first = parts[0].toLowerCase(java.util.Locale.ROOT);
-            boolean yes;
+            String choice;
             if(first.equals("1") || first.equals("y") || first.equals("yes")){
-                yes = true;
+                choice = "y";
             }else if(first.equals("0") || first.equals("n") || first.equals("no")){
-                yes = false;
+                choice = "n";
+            }else if(first.equals("2") || first.equals("a") || first.equals("abstain")){
+                choice = "a";
             }else{
                 return message;
             }
 
             if(parts.length == 2 && !parts[1].matches("\\d+")) return message;
 
-            String problem = CampaignVote.cast(player, yes ? "y" : "n", parts.length == 2 ? parts[1] : null);
+            String problem = CampaignVote.cast(player, choice, parts.length == 2 ? parts[1] : null);
             player.sendMessage(problem == null
-                ? I18n.get("campaign.vote.ballot-counted", I18n.get(yes ? "campaign.vote.yes" : "campaign.vote.no"))
+                ? I18n.get("campaign.vote.ballot-counted", I18n.get(
+                    "a".equals(choice) ? "campaign.vote.abstain"
+                        : "y".equals(choice) ? "campaign.vote.yes" : "campaign.vote.no"))
                 : "[scarlet]" + problem);
             if(problem == null) VoteMenu.hideVote(player);
 
