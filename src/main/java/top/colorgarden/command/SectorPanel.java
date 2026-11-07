@@ -285,9 +285,9 @@ public class SectorPanel{
 
         String destination = info.destination == null
             ? I18n.get("campaign.sector.detail-none") : info.destination.name();
-        String origin = info.origin == null
-            ? I18n.get("campaign.sector.detail-none") : info.origin.name();
-        out.append('\n').append(I18n.get("campaign.sector.detail-route", origin, destination)).append('\n');
+
+        out.append('\n').append(I18n.get("campaign.sector.detail-route", importSources(sector), destination))
+            .append('\n');
 
         if(info.imports != null && info.imports.size > 0){
             out.append(I18n.get("campaign.sector.detail-import")).append('\n')
@@ -299,6 +299,38 @@ public class SectorPanel{
         }
 
         return out.toString();
+    }
+
+    /**
+     * @return who ships into this sector.
+     *
+     * <p>{@code SectorInfo#origin} only remembers the sector a launch came from and stays null for
+     * everything entered by a vote or by the console - that is why it always read as "none". The
+     * vanilla planet dialog instead asks which sectors have this one as their destination, which is
+     * what {@code eachImport} walks; the launch origin is only a fallback.</p>
+     */
+    private static String importSources(Sector sector){
+        Seq<String> names = new Seq<>();
+        mindustry.type.Planet planet = sector.planet;
+
+        if(planet != null){
+            sector.info.eachImport(planet, source -> {
+                if(source != null && source != sector) names.add(source.name());
+            });
+        }
+
+        if(names.isEmpty() && sector.info.origin != null){
+            names.add(sector.info.origin.name());
+        }
+
+        if(names.isEmpty()) return I18n.get("campaign.sector.detail-none");
+
+        //long lists would push the page apart; the count is enough past three
+        if(names.size <= 3) return names.toString(", ");
+
+        Seq<String> head = new Seq<>();
+        for(int i = 0; i < 3; i++) head.add(names.get(i));
+        return head.toString(", ") + " +" + (names.size - 3);
     }
 
     // ---------------------------------------------------------------- formatting
