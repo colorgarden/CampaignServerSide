@@ -35,3 +35,6 @@ deploy/restore-*.sh
 # local operations live outside the repository
 deploy/
 run-server.ps1
+
+# local tooling (icon renderer); the generated assets are committed instead
+tools/
