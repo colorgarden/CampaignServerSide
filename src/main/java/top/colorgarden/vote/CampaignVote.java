@@ -203,16 +203,22 @@ public class CampaignVote{
         for(SectorPreset preset : SectorService.presets(currentPlanet)){
             Sector sector = preset.sector;
             if(sector == null) continue;
+
+            //community submissions are presets too, but they carry a slug name and no localization,
+            //so they read as "#24" like any other numbered slot instead of "sector-serpulo-24"
+            boolean numbered = SectorService.isNumbered(sector);
+            if(numbered && !includeNumbered) continue;
             if(!includeBlocked && config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;
 
+            String label = numbered ? "#" + sector.id : I18n.content(preset);
             if(matches(preset.name, I18n.content(preset), needle) || matches(String.valueOf(sector.id), "", needle)){
-                out.add(I18n.content(preset) + currentSuffix(sector) + " " + sectorStatus(sector) + lockSuffix(sector));
+                out.add(label + currentSuffix(sector) + " " + sectorStatus(sector) + lockSuffix(sector));
             }
             if(out.size >= limit) break;
         }
 
-        //numbered sectors have no preset: their terrain is generated procedurally, so no map asset is
-        //needed. Vanilla only lets you land on one next to a sector that has a base (allowLanding).
+        //numbered sectors have no usable preset: their terrain is generated procedurally, so no map
+        //asset is needed. Vanilla only lets you land on one next to a sector that has a base.
         if(includeNumbered) for(Sector sector : currentPlanet.sectors){
             if(sector == null || sector.preset != null) continue;
             if(!includeBlocked && config.enforceSectorUnlock && !SectorService.canEnter(sector)) continue;

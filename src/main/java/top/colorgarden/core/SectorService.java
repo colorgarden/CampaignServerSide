@@ -443,6 +443,24 @@ public class SectorService{
         return planet.generator.allowLanding(sector);
     }
 
+    /**
+     * @return true when the sector should be shown as a plain number ("#24") rather than by name.
+     *
+     * <p>A preset does not imply a campaign map: community submissions are presets with a slug name
+     * and no localization ({@code SectorPreset#localizedName} falls back to the slug), and they carry
+     * no tech node. Those slots behave like numbered sectors - they are not part of the campaign chain
+     * - so the pickers label them by id.</p>
+     */
+    public static boolean isNumbered(@Nullable Sector sector){
+        if(sector == null) return false;
+        mindustry.type.SectorPreset preset = sector.preset;
+        if(preset == null) return true;
+        if(preset.techNode != null) return false;
+
+        String localized = preset.localizedName;
+        return localized == null || localized.isEmpty() || localized.equals(preset.name);
+    }
+
     /** @return the reason entering is blocked ("shielded"/"locked"), or an empty string when it is allowed. */
     public static String lockReason(@Nullable Sector sector){
         if(sector == null) return "locked";
