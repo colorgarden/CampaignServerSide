@@ -192,8 +192,7 @@ public class VoteMenu{
 
         if(!CampaignVote.activeVotes().contains(vote)) return;
 
-        //the starter does not vote on their own ballot, and re-popping it for someone who already
-        //voted is just noise
+        //the starter already counted a yes, so the ballot is only pushed to everyone else
         if(vote.starterUuid != null && vote.starterUuid.equals(player.uuid())) return;
         if(vote.yes.contains(player.uuid()) || vote.no.contains(player.uuid())) return;
 
