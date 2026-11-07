@@ -978,16 +978,19 @@ public class SectorService{
 
     /**
      * One-click version of the vanilla landing-pad "redirect exports" button: every other sector that
-     * has a base and ships items is pointed at {@code target}.
+     * has a base is pointed at {@code target}.
      *
-     * @return how many sectors were redirected.
+     * <p>The export statistics gate was removed on purpose: a sector whose pads are running but whose
+     * destination is unset or different has no exports yet, so requiring `anyExports()` made the
+     * redirect silently do nothing exactly when it was needed.</p>
+     *
+     * @return how many sectors were actually changed
      */
     public static int redirectAllExports(Sector target){
         int count = 0;
 
         for(Sector sector : target.planet.sectors){
             if(sector == null || sector == target || !sector.hasBase()) continue;
-            if(!sector.info.anyExports()) continue;
             if(sector.info.destination == target) continue;
 
             sector.info.destination = target;
@@ -996,6 +999,18 @@ public class SectorService{
         }
 
         target.info.refreshImportRates(target.planet);
+        return count;
+    }
+
+    /** @return how many sectors already point their exports at {@code target}. */
+    public static int countExportsTo(Sector target){
+        int count = 0;
+
+        for(Sector sector : target.planet.sectors){
+            if(sector == null || sector == target) continue;
+            if(sector.info.destination == target) count ++;
+        }
+
         return count;
     }
 

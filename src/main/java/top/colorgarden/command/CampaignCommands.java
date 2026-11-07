@@ -541,6 +541,36 @@ public class CampaignCommands{
             }
         });
 
+        handler.register("campaign-exports", "List every sector of the planet with its destination, export statistics and whether a redirect would touch it.", args -> {
+            var planet = SectorService.planet();
+            if(planet == null){
+                err("campaign.pads.no-sector");
+                return;
+            }
+
+            int listed = 0;
+            for(mindustry.type.Sector sector : planet.sectors){
+                if(sector == null || !sector.hasBase()) continue;
+
+                var info = sector.info;
+                boolean exports = info.anyExports();
+                if(!exports && info.destination == null) continue;
+
+                StringBuilder means = new StringBuilder();
+                info.export.each((item, stat) -> {
+                    if(stat.mean <= 0f) return;
+                    if(means.length() > 0) means.append(", ");
+                    means.append(item.name).append('=').append(arc.util.Strings.fixed(stat.mean, 2));
+                });
+
+                info("campaign.exports.line", sector.name(), sector.id,
+                    info.destination == null ? "-" : info.destination.name(),
+                    exports, means.length() == 0 ? "-" : means.toString());
+                listed++;
+            }
+
+            if(listed == 0) info("campaign.exports.none");
+        });
         handler.register("campaign-weather", "[list|name] [seconds]", "Show the sector's weather schedule, or force a weather event (e.g. rain 60).", args -> {
             if(args.length == 0 || "list".equalsIgnoreCase(args[0])){
                 top.colorgarden.core.EnvironmentService.describeSchedule();

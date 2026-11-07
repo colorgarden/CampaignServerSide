@@ -109,7 +109,8 @@ public class AdminPanel{
                     return;
                 }
                 int changed = top.colorgarden.core.SectorService.redirectAllExports(current);
-                mindustry.gen.Call.sendMessage(I18n.get("campaign.vote.redirect-done", changed, current.name()));
+                mindustry.gen.Call.sendMessage(I18n.get("campaign.vote.redirect-done", changed, current.name(),
+                    top.colorgarden.core.SectorService.countExportsTo(current)));
                 hide(player, mainId);
             }
             case 5 -> {

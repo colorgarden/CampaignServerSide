@@ -697,7 +697,8 @@ public class CampaignVote{
                     return;
                 }
                 int count = SectorService.redirectAllExports(current);
-                announce(I18n.get("campaign.vote.redirect-done", count, current.name()));
+                announce(I18n.get("campaign.vote.redirect-done", count, current.name(),
+                    SectorService.countExportsTo(current)));
             }else if(vote.kind == Kind.pause){
                 //vanilla pause: the game state machine, so the server simply stops simulating
                 boolean pause = "pause".equals(vote.arg);
