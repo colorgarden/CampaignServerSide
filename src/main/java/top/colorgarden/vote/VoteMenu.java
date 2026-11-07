@@ -9,6 +9,7 @@ import top.colorgarden.util.I18n;
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.Log;
+import arc.util.Time;
 import arc.util.Nullable;
 import mindustry.ctype.UnlockableContent;
 import mindustry.gen.Call;
@@ -213,6 +214,41 @@ public class VoteMenu{
         if(player != null) viewing.remove(player);
         hide(player, voteId);
     }
+
+    /**
+     * Keeps the countdown on the open ballots alive.
+     *
+     * <p>{@code followUpMenu} is a snapshot, and the client replaces a dialog when the same menu id is
+     * sent again, so re-sending the ballot once a second is what makes the remaining time tick instead
+     * of freezing at the value it was opened with.</p>
+     */
+    public static void tick(){
+        long now = Time.millis();
+        if(now - lastBallotTick < 1000L) return;
+        lastBallotTick = now;
+
+        if(viewing.isEmpty()) return;
+
+        //copy first: pushVoteTo writes into the same map
+        Seq<Player> players = new Seq<>();
+        Seq<CampaignVote.Vote> votes = new Seq<>();
+        for(arc.struct.ObjectMap.Entry<Player, CampaignVote.Vote> entry : viewing){
+            if(entry.key == null || entry.value == null) continue;
+            players.add(entry.key);
+            votes.add(entry.value);
+        }
+
+        for(int i = 0; i < players.size; i++){
+            Player player = players.get(i);
+            CampaignVote.Vote vote = votes.get(i);
+            if(player.con == null) continue;
+            if(!CampaignVote.activeVotes().contains(vote)) continue;
+            pushVoteTo(player, vote);
+        }
+    }
+
+    /** Timestamp of the last ballot refresh, so the ticker runs once a second. */
+    private static long lastBallotTick;
 
     /** Closes the ballot on every client once the vote is over. */
     public static void hideVote(){
@@ -591,7 +627,11 @@ public class VoteMenu{
         }
     }
     private static void onVote(Player player, int option){
-        if(option < 0) return; //closed with back/ESC
+        //closed with back/ESC: stop the countdown ticker for this player
+        if(option < 0){
+            viewing.remove(player);
+            return;
+        }
 
         CampaignVote.Vote vote = viewing.get(player);
 

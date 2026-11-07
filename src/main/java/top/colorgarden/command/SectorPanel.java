@@ -4,6 +4,7 @@ import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.Log;
 import arc.util.Strings;
+import arc.util.Time;
 import mindustry.game.SectorInfo;
 import mindustry.gen.Call;
 import mindustry.gen.Player;
@@ -187,6 +188,38 @@ public class SectorPanel{
         openList(player, text == null ? "" : text, 0, state != null && state.showAll);
     }
 
+    /**
+     * Re-sends the open detail page so its numbers follow the simulation.
+     *
+     * <p>The client replaces a dialog when the same menu id arrives again, so a periodic re-send is a
+     * clean in-place refresh; without it the page would freeze on the values it was opened with.</p>
+     */
+    public static void tick(){
+        long now = Time.millis();
+        if(now - lastRefresh < refreshMs) return;
+        lastRefresh = now;
+
+        if(viewing.isEmpty()) return;
+
+        Seq<Player> players = new Seq<>();
+        Seq<Sector> sectors = new Seq<>();
+        for(ObjectMap.Entry<Player, Sector> entry : viewing){
+            if(entry.key == null || entry.value == null) continue;
+            players.add(entry.key);
+            sectors.add(entry.value);
+        }
+
+        for(int i = 0; i < players.size; i++){
+            Player player = players.get(i);
+            if(player.con == null) continue;
+            showDetail(player, sectors.get(i));
+        }
+    }
+
+    /** Refresh interval of the detail page, in milliseconds. */
+    private static final long refreshMs = 1500L;
+    private static long lastRefresh;
+
     // ---------------------------------------------------------------- detail
 
     private static void showDetail(Player player, Sector sector){
@@ -208,14 +241,22 @@ public class SectorPanel{
     private static void onDetail(Player player, int option){
         if(player == null || player.con == null) return;
 
+        //closed with back/ESC: stop refreshing this page
+        if(option < 0){
+            viewing.remove(player);
+            return;
+        }
+
         Sector sector = viewing.get(player);
         if(option == 0 && sector != null){
             showDetail(player, sector);
         }else if(option == 1){
+            viewing.remove(player);
             ListState state = listStates.get(player);
             openList(player, state == null ? "" : state.query, state == null ? 0 : state.page,
                 state != null && state.showAll);
         }else{
+            viewing.remove(player);
             Call.hideFollowUpMenu(player.con, detailId);
         }
     }

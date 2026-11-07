@@ -441,6 +441,10 @@ public class CampaignHooks{
         flushJoinInfo();
         top.colorgarden.core.ActivityTracker.update();
         top.colorgarden.core.EnvironmentService.update();
+        //menus are snapshots on the client; re-sending the same id is what keeps the numbers and the
+        //vote countdown live
+        top.colorgarden.vote.VoteMenu.tick();
+        top.colorgarden.command.SectorPanel.tick();
 
         //vanilla runs Control#checkAutoUnlocks continuously on the client; a server has to poll it
         autoUnlockTimer += Time.delta;
