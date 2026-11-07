@@ -863,7 +863,10 @@ public class CampaignVote{
                 excluded += Math.max(0, online - yes.size - no.size - abstain.size);
             }
 
-            int participants = Math.max(1, online - Math.min(excluded, online - 1));
+            //the denominator never drops below the configured minimum: without that floor a single
+            //player would pass any vote the moment everybody else stayed silent
+            int floor = Math.max(1, CampaignConfig.data().voteMinPlayers);
+            int participants = Math.max(floor, online - Math.min(excluded, Math.max(0, online - floor)));
             return Math.max(1, (int)Math.ceil(participants * CampaignConfig.data().votePercent));
         }
         /** When the ballot dialog should pop up (near the end of the window). */
