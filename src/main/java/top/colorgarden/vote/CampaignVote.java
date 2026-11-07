@@ -842,13 +842,29 @@ public class CampaignVote{
         public String starterName = "";
         public String starterUuid = "";
         public long startedAt, endsAt;
-        /** Quorum frozen when the vote started, so displays never disagree. */
+        /** Players online when the vote started; the denominator is derived from it. */
         public int onlineAtStart = 1, requiredAtStart = 1;
         /** Idle timeout actually in force for this vote (clamped below the lead time). */
         public float effectiveTimeout;
 
+        /**
+         * @return how many yes votes are needed right now.
+         *
+         * <p>Abstaining players are not participants, so they leave the denominator: a ballot where
+         * half the server walks away must not need the same number of yes votes as one where everybody
+         * takes part. With {@code unvoted = abstain} the silent players count the same way, which is
+         * what stops an AFK player from inflating the bar.</p>
+         */
         public int required(){
-            return requiredAtStart > 0 ? requiredAtStart : CampaignVote.requiredVotes();
+            int online = onlineAtStart > 0 ? onlineAtStart : CampaignVote.requiredVotes();
+            int excluded = abstain.size;
+
+            if("abstain".equals(CampaignConfig.data().unvoted)){
+                excluded += Math.max(0, online - yes.size - no.size - abstain.size);
+            }
+
+            int participants = Math.max(1, online - Math.min(excluded, online - 1));
+            return Math.max(1, (int)Math.ceil(participants * CampaignConfig.data().votePercent));
         }
         /** When the ballot dialog should pop up (near the end of the window). */
         public long pushAt;
