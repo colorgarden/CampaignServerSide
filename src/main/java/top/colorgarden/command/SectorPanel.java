@@ -283,7 +283,7 @@ public class SectorPanel{
             if(shown ++ >= 6) break;
             if(out.length() > 0) out.append('\n');
             //the glyph has to stay outside any colour tag: a tag in front of it tints the icon itself
-            out.append("[]  ").append(top.colorgarden.util.Icons.item(stack.item))
+            out.append("[white]  ").append(top.colorgarden.util.Icons.item(stack.item))
                 .append("[white]").append(stack.item.localizedName).append(" x").append(stack.amount);
         }
         return out.toString();
@@ -292,27 +292,40 @@ public class SectorPanel{
     private static String formatStats(ObjectMap<Item, SectorInfo.ExportStat> stats){
         if(stats == null || stats.size == 0) return I18n.get("campaign.sector.detail-none");
 
-        Seq<ObjectMap.Entry<Item, SectorInfo.ExportStat>> entries = new Seq<>();
+        //arc's ObjectMap iterator hands out one reused Entry, so sorting those entries afterwards would
+        //leave every row pointing at the last item. Copy the pair out first.
+        Seq<Stat> entries = new Seq<>();
         for(ObjectMap.Entry<Item, SectorInfo.ExportStat> entry : stats){
             if(entry.value == null || entry.value.mean < 0.05f) continue;
-            entries.add(entry);
+            entries.add(new Stat(entry.key, entry.value.mean));
         }
         if(entries.isEmpty()) return I18n.get("campaign.sector.detail-none");
 
-        entries.sort(e -> -e.value.mean);
+        entries.sort(s -> -s.mean);
 
         StringBuilder out = new StringBuilder();
         int shown = 0;
-        for(ObjectMap.Entry<Item, SectorInfo.ExportStat> entry : entries){
+        for(Stat stat : entries){
             if(shown ++ >= 6) break;
             if(out.length() > 0) out.append('\n');
             //icon first, colour tag after it, so the glyph keeps its own tint
-            out.append("[]  ").append(top.colorgarden.util.Icons.item(entry.key))
-                .append("[white]").append(entry.key.localizedName).append(" +")
-                .append(Strings.fixed(entry.value.mean, 1))
+            out.append("[white]  ").append(top.colorgarden.util.Icons.item(stat.item))
+                .append("[white]").append(stat.item.localizedName).append(" +")
+                .append(Strings.fixed(stat.mean, 1))
                 .append(I18n.get("campaign.sector.per-minute"));
         }
         return out.toString();
+    }
+
+    /** One item/rate pair, detached from the map entry it came from. */
+    private static class Stat{
+        final Item item;
+        final float mean;
+
+        Stat(Item item, float mean){
+            this.item = item;
+            this.mean = mean;
+        }
     }
 
     /**

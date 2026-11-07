@@ -62,18 +62,23 @@ public class MainMenu{
     private static void onMain(Player player, int option){
         if(player == null || player.con == null) return;
 
+        //followUpMenu stacks on the client instead of replacing, so the hub has to be closed before a
+        //sub-panel opens, otherwise both stay visible underneath each other
+        Call.hideFollowUpMenu(player.con, mainId);
+
         switch(option){
             case 0 -> VoteMenu.openMain(player);
             case 1 -> {
                 if(player.admin){
                     AdminPanel.openMain(player);
                 }else{
-                    Call.hideFollowUpMenu(player.con, mainId);
                     player.sendMessage(I18n.get("campaign.error.admin-only"));
                 }
             }
             case 2 -> SectorPanel.openMain(player);
-            default -> Call.hideFollowUpMenu(player.con, mainId);
+            default -> {
+                //closed: the menu is already hidden above
+            }
         }
     }
 
