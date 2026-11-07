@@ -571,14 +571,15 @@ public class SectorService{
 
         Log.info("[CampaignServer] launch: initiator=@ prompt=@ needsGeneration=@ hasBase=@ sector=@", initiator == null ? "-" : initiator.plainName(), CampaignConfig.data().promptLaunch, sector != null && needsGeneration(sector), sector != null && sector.hasBase(), sector == null ? "-" : sector.name());
 
-        //the client planet map and the automatic startup entry reach the server without a player,
-        //so fall back to an admin that is online; without one there is nobody to ask
-        if(initiator == null && launchSetup && CampaignConfig.data().promptLaunch){
-            initiator = firstAdminOnline();
+        //a vote, the automatic startup or a console command has no player to ask: the switch runs with
+        //the launch configuration that is already selected instead of waiting for an admin to confirm
+        if(initiator == null){
+            enterInternal(sector, fresh, force);
+            return;
         }
 
         //a sector without a standing base will be set up from scratch, so ask for the configuration
-        if(initiator != null && CampaignConfig.data().promptLaunch && launchSetup){
+        if(CampaignConfig.data().promptLaunch && launchSetup){
             top.colorgarden.command.LaunchPanel.show(initiator, new PendingLaunch(sector, fresh, force));
             return;
         }
