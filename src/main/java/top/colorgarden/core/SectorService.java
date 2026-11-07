@@ -977,21 +977,31 @@ public class SectorService{
     }
 
     /**
-     * One-click version of the vanilla landing-pad "redirect exports" button: every other sector that
-     * has a base is pointed at {@code target}.
+     * One-click version of the vanilla landing-pad "redirect exports" button.
      *
-     * <p>The export statistics gate was removed on purpose: a sector whose pads are running but whose
-     * destination is unset or different has no exports yet, so requiring `anyExports()` made the
-     * redirect silently do nothing exactly when it was needed.</p>
+     * <p>Vanilla {@code LandingPad#canRedirectExports} requires a base, a different source sector,
+     * recorded exports of the pad's configured item, and a destination that is not us yet. The
+     * statistics requirement is kept on purpose: without it this would blanket-repoint every sector on
+     * the planet and silently undo hand-made routes. When no item is given, any recorded export
+     * qualifies, which is the closest server-side equivalent of "this pad's item ships here".</p>
      *
      * @return how many sectors were actually changed
      */
     public static int redirectAllExports(Sector target){
+        return redirectAllExports(target, null);
+    }
+
+    /**
+     * @param item when non-null, only sectors exporting exactly this item are repointed
+     *             (vanilla checks {@code SectorInfo#hasExport(item)})
+     */
+    public static int redirectAllExports(Sector target, @Nullable mindustry.type.Item item){
         int count = 0;
 
         for(Sector sector : target.planet.sectors){
             if(sector == null || sector == target || !sector.hasBase()) continue;
             if(sector.info.destination == target) continue;
+            if(item == null ? !sector.info.anyExports() : !sector.info.hasExport(item)) continue;
 
             sector.info.destination = target;
             sector.saveInfo();
