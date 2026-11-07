@@ -348,6 +348,8 @@ public class AdminPanel{
             {I18n.get("campaign.admin.minplayers", config.voteMinPlayers), "-1", "+1"},
             {I18n.get("campaign.admin.skipcd", (int)config.skipWaveCooldown), "-5", "+5"},
             {I18n.get("campaign.admin.afk", (int)config.afkSeconds), "-10", "+10"},
+            {I18n.get("campaign.admin.unvoted", I18n.get("campaign.unvoted." + config.unvoted)),
+                I18n.get("campaign.admin.cycle")},
             {I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")}
         };
 
@@ -380,8 +382,15 @@ public class AdminPanel{
             case 20 -> config.skipWaveCooldown = clamp(config.skipWaveCooldown + 5f, 0f, 600f);
             case 22 -> config.afkSeconds = clamp(config.afkSeconds - 10f, 10f, 600f);
             case 23 -> config.afkSeconds = clamp(config.afkSeconds + 10f, 10f, 600f);
+            //un-voted players: abstain -> yes -> no -> abstain
+            case 25 -> config.unvoted = switch(config.unvoted){
+                case "yes" -> "no";
+                case "no" -> "abstain";
+                default -> "yes";
+            };
             case 24 -> changed = false;
-            case 25 -> changed = false;
+            case 26 -> changed = false;
+            case 27 -> changed = false;
             default -> changed = false;
         }
 
@@ -390,10 +399,10 @@ public class AdminPanel{
             CampaignConfig.save();
         }
 
-        if(option == 24){
+        if(option == 26){
             hide(player, settingsId);
             openMain(player);
-        }else if(option == 25){
+        }else if(option == 27){
             hide(player, settingsId);
         }else{
             openSettings(player);

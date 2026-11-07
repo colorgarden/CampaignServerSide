@@ -597,10 +597,8 @@ public class CampaignVote{
             }
 
             if(now >= vote.endsAt){
-                Boolean decided = decide(vote);
-                //running out of time is a failure, and the reason names the missing quorum
-                finish(vote, decided != null && decided,
-                    decided != null && decided ? null : failReason(vote));
+                boolean passed = settle(vote);
+                finish(vote, passed, passed ? null : failReason(vote));
                 continue;
             }
 
@@ -608,9 +606,8 @@ public class CampaignVote{
             //would settle before anyone was ever asked (window tail vs idle timeout collision)
             long idleFrom = Math.max(vote.lastCastAt, vote.pushAt);
             if(vote.pushed && vote.effectiveTimeout > 0f && now - idleFrom >= (long)(vote.effectiveTimeout * 1000f)){
-                Boolean decided = decide(vote);
-                if(decided == null) decided = fallback(vote);
-                finish(vote, decided, decided ? null : I18n.get("campaign.vote.timeout-no", vote.yes.size, vote.no.size));
+                boolean passed = settle(vote);
+                finish(vote, passed, passed ? null : failReason(vote));
             }
         }
     }
@@ -630,8 +627,9 @@ public class CampaignVote{
 
         //enough yes votes: the result cannot change any more
         if(yes >= required) return true;
-        //not even every remaining player voting yes could reach the bar
-        if(yes + remaining < required) return false;
+        //not even every remaining player voting yes could reach the bar; with un-voted players
+        //counting as yes the outcome is only known at the end, so an early failure is skipped there
+        if(!"yes".equals(CampaignConfig.data().unvoted) && yes + remaining < required) return false;
 
         if("veto".equals(mode)){
             return no > 0 ? Boolean.FALSE : null;
@@ -645,10 +643,31 @@ public class CampaignVote{
         return no >= required ? Boolean.FALSE : null;
     }
 
-    /** Resolution when a timed-out vote is still undecided: the quorum is mandatory. */
-    private static boolean fallback(Vote vote){
-        return vote.yes.size >= vote.required()
-            && "majority".equals(CampaignConfig.data().voteDecision) && vote.yes.size > vote.no.size;
+    /**
+     * Final decision once the ballot is over: how players who never voted count is configured
+     * ({@code unvoted}: abstain, yes or no), and the yes quorum remains mandatory in every mode.
+     */
+    private static boolean settle(Vote vote){
+        int online = vote.onlineAtStart > 0 ? vote.onlineAtStart
+            : Math.max(1, top.colorgarden.core.ActivityTracker.activeCount());
+        int unvoted = Math.max(0, online - vote.yes.size - vote.no.size - vote.abstain.size);
+
+        int yes = vote.yes.size, no = vote.no.size;
+        switch(CampaignConfig.data().unvoted){
+            case "yes" -> yes += unvoted;
+            case "no" -> no += unvoted;
+            default -> {
+                //abstain: un-voted players count for neither side
+            }
+        }
+
+        if(yes < vote.required()) return false;
+
+        return switch(CampaignConfig.data().voteDecision){
+            case "veto" -> no == 0;
+            case "majority" -> yes > no;
+            default -> true;
+        };
     }
 
     private static String failReason(Vote vote){

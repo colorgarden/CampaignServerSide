@@ -164,6 +164,12 @@ public class CampaignConfig{
      * </ul>
      */
     public String voteDecision = "majority";
+    /**
+     * How players who never cast a ballot are counted when a vote ends:
+     * {@code abstain} (neither side), {@code yes} or {@code no}. The yes quorum is required in all
+     * three cases; this only decides the side those silent players land on.
+     */
+    public String unvoted = "abstain";
     /** Seconds without a new vote before the vote resolves; <= 0 disables the idle timeout. */
     public float voteTimeout = 10f;
 
@@ -228,6 +234,11 @@ public class CampaignConfig{
             data.voteDecision = "threshold";
         }else{
             data.voteDecision = data.voteDecision.toLowerCase();
+        }
+        if(!"yes".equalsIgnoreCase(data.unvoted) && !"no".equalsIgnoreCase(data.unvoted)){
+            data.unvoted = "abstain";
+        }else{
+            data.unvoted = data.unvoted.toLowerCase();
         }
 
         if(data.autosaveSeconds < 0f){
