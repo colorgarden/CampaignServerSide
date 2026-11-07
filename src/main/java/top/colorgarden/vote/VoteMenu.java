@@ -192,7 +192,9 @@ public class VoteMenu{
 
         if(!CampaignVote.activeVotes().contains(vote)) return;
 
-        //the starter already counted a yes; re-popping the ballot for them is just noise
+        //the starter does not vote on their own ballot, and re-popping it for someone who already
+        //voted is just noise
+        if(vote.starterUuid != null && vote.starterUuid.equals(player.uuid())) return;
         if(vote.yes.contains(player.uuid()) || vote.no.contains(player.uuid())) return;
 
         String message = I18n.get("campaign.menu.vote-message", CampaignVote.describe(vote),

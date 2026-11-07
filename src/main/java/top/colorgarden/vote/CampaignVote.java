@@ -283,6 +283,11 @@ public class CampaignVote{
             return I18n.get("campaign.vote.not-enough-players");
         }
 
+        //the starter cannot vote on their own ballot, so somebody else has to be around to decide it
+        if(top.colorgarden.core.ActivityTracker.activeCount() <= 1){
+            return I18n.get("campaign.vote.need-other-voters");
+        }
+
         Long until = cooldownUntil.get(starter.uuid());
         if(until != null && Time.millis() < until){
             return I18n.get("campaign.vote.cooldown", (until - Time.millis()) / 1000 + 1);
@@ -403,10 +408,10 @@ public class CampaignVote{
         float lead = Math.max(0f, Math.min(config.votePushSeconds, config.voteDuration - 1f));
         vote.effectiveTimeout = Math.max(0f, Math.min(config.voteTimeout, lead));
         vote.pushAt = vote.endsAt - (long)(lead * 1000f);
-        vote.yes.add(starter.uuid());
 
-        //freeze the quorum at start: the bar must not move while the vote runs
-        vote.onlineAtStart = Math.max(1, top.colorgarden.core.ActivityTracker.activeCount());
+        //freeze the quorum at start: the bar must not move while the vote runs. The starter is not a
+        //voter here, so the eligible set is everyone else.
+        vote.onlineAtStart = Math.max(1, top.colorgarden.core.ActivityTracker.activeCount() - 1);
         vote.requiredAtStart = requiredVotes(vote.onlineAtStart);
 
         votes.add(vote);
@@ -493,6 +498,12 @@ public class CampaignVote{
             if(!player.admin) return I18n.get("campaign.vote.cancel-admin-only");
             finish(vote, false, I18n.get("campaign.vote.cancelled-by", player.plainName()));
             return null;
+        }
+
+        //the starter already made their point by calling the vote; letting them vote too would let a
+        //single player reach the quorum on their own
+        if(vote.starterUuid != null && vote.starterUuid.equals(player.uuid())){
+            return I18n.get("campaign.vote.starter-cannot-cast");
         }
 
         boolean yes;
