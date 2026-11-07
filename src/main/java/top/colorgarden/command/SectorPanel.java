@@ -284,7 +284,8 @@ public class SectorPanel{
             if(out.length() > 0) out.append('\n');
             //the glyph has to stay outside any colour tag: a tag in front of it tints the icon itself
             out.append("[white]  ").append(top.colorgarden.util.Icons.item(stack.item))
-                .append("[white]").append(stack.item.localizedName).append(" x").append(stack.amount);
+                .append("[white]").append(stack.item.localizedName).append(" x")
+                .append(formatAmount(stack.amount));
         }
         return out.toString();
     }
@@ -296,12 +297,15 @@ public class SectorPanel{
         //leave every row pointing at the last item. Copy the pair out first.
         Seq<Stat> entries = new Seq<>();
         for(ObjectMap.Entry<Item, SectorInfo.ExportStat> entry : stats){
-            if(entry.value == null || entry.value.mean < 0.05f) continue;
-            entries.add(new Stat(entry.key, entry.value.mean));
+            if(entry.value == null) continue;
+            //the mean is per second; vanilla PlanetDialog shows it per minute as (int)(mean * 60)
+            long perMinute = (long)(entry.value.mean * 60f);
+            if(perMinute <= 1) continue;
+            entries.add(new Stat(entry.key, perMinute));
         }
         if(entries.isEmpty()) return I18n.get("campaign.sector.detail-none");
 
-        entries.sort(s -> -s.mean);
+        entries.sort(s -> -s.perMinute);
 
         StringBuilder out = new StringBuilder();
         int shown = 0;
@@ -311,7 +315,7 @@ public class SectorPanel{
             //icon first, colour tag after it, so the glyph keeps its own tint
             out.append("[white]  ").append(top.colorgarden.util.Icons.item(stat.item))
                 .append("[white]").append(stat.item.localizedName).append(" +")
-                .append(Strings.fixed(stat.mean, 1))
+                .append(formatAmount(stat.perMinute))
                 .append(I18n.get("campaign.sector.per-minute"));
         }
         return out.toString();
@@ -320,12 +324,23 @@ public class SectorPanel{
     /** One item/rate pair, detached from the map entry it came from. */
     private static class Stat{
         final Item item;
-        final float mean;
+        final long perMinute;
 
-        Stat(Item item, float mean){
+        Stat(Item item, long perMinute){
             this.item = item;
-            this.mean = mean;
+            this.perMinute = perMinute;
         }
+    }
+
+    /** Same thresholds as vanilla {@code UI#formatAmount}: 196000 reads as "196k". */
+    private static String formatAmount(long number){
+        long mag = Math.abs(number);
+
+        if(mag >= 1_000_000_000L) return Strings.fixed(mag / 1_000_000_000f, 1) + "G";
+        if(mag >= 1_000_000L) return Strings.fixed(mag / 1_000_000f, 1) + "M";
+        if(mag >= 10_000L) return (number / 1000) + "k";
+        if(mag >= 1000L) return Strings.fixed(mag / 1000f, 1) + "k";
+        return Long.toString(number);
     }
 
     /**
