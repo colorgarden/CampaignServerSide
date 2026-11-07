@@ -283,6 +283,12 @@ public class SectorPanel{
         out.append('\n').append(I18n.get("campaign.sector.detail-export")).append('\n')
             .append(formatStats(info.export)).append('\n');
 
+        //a launch pad with no destination throws its payload away without recording anything, so the
+        //empty export list above would look like a broken panel instead of a missing setting
+        if(info.destination == null){
+            out.append(I18n.get("campaign.sector.detail-no-destination")).append('\n');
+        }
+
         String destination = info.destination == null
             ? I18n.get("campaign.sector.detail-none") : info.destination.name();
 
