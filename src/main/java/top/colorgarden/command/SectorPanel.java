@@ -55,17 +55,23 @@ public class SectorPanel{
     /** @return every sector that has something worth showing, by id. */
     private static Seq<Sector> sectors(){
         Seq<Sector> out = new Seq<>();
-        if(!Vars.state.isGame() || Vars.state.getPlanet() == null) return out;
+        mindustry.type.Planet planet = SectorService.planet();
+        if(planet == null) return out;
 
-        for(Sector sector : Vars.state.getPlanet().sectors){
-            if(sector == null) continue;
-
-            SectorInfo info = sector.info;
-            boolean seen = sector.save != null || info.hasCore || info.wasCaptured
-                || info.storageCapacity > 0 || info.items.total > 0 || info.wave > 1;
-            if(seen) out.add(sector);
+        //same order the vote list uses: named campaign presets first, then the numbered/community
+        //slots, so both panels read as one list
+        for(mindustry.type.SectorPreset preset : SectorService.presets(planet)){
+            Sector sector = preset.sector;
+            if(sector == null || SectorService.isNumbered(sector)) continue;
+            out.add(sector);
         }
-        out.sort(s -> s.id);
+
+        for(Sector sector : planet.sectors){
+            if(sector == null) continue;
+            if(sector.preset != null && !SectorService.isNumbered(sector)) continue;
+            out.add(sector);
+        }
+
         return out;
     }
 
@@ -243,7 +249,30 @@ public class SectorPanel{
         return out.toString();
     }
 
+    /**
+     * Mirrors the vote list verbatim: the preset name (or {@code #id} for numbered/community slots),
+     * the "this sector" marker, the state, then the reason a locked sector cannot be entered yet.
+     */
     private static String label(Sector sector){
-        return "#" + sector.id + " " + sector.name() + " " + CampaignVote.sectorStatus(sector);
+        String name = sector.preset != null && !SectorService.isNumbered(sector)
+            ? I18n.content(sector.preset)
+            : "#" + sector.id;
+
+        String current = sector == SectorService.current()
+            ? " " + I18n.get("campaign.sector.current")
+            : "";
+
+        return name + current + " " + CampaignVote.sectorStatus(sector) + lockSuffix(sector);
+    }
+
+    /** Same wording the vote list uses for sectors that cannot be entered yet. */
+    private static String lockSuffix(Sector sector){
+        if(SectorService.canEnter(sector)) return "";
+
+        String hint = SectorService.launchHint(sector);
+        String reason = hint == null || hint.isEmpty()
+            ? I18n.get("campaign.sector.locked-short")
+            : hint;
+        return " [scarlet]— " + reason + "[]";
     }
 }
