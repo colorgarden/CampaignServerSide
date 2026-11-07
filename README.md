@@ -314,6 +314,7 @@ gradle installToServer -PserverDir=/path/to/server
 
 ```powershell
 ./build.ps1 -MindustryJar /path/to/server-release.jar
+./build.ps1 -Dev      # 版本号追加 -devbuild-<yyyyMMdd-HHmm>，仅写入 jar 内的 mod.hjson
 ```
 
 `build.ps1` 用 `javac --release 17` 编译，并把 `mod.hjson`、`bundles/` 打到 jar 根目录。

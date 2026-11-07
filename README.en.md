@@ -323,6 +323,7 @@ gradle installToServer -PserverDir=/path/to/server
 
 ```powershell
 ./build.ps1 -MindustryJar /path/to/server-release.jar
+./build.ps1 -Dev      # appends -devbuild-<yyyyMMdd-HHmm> to the version, jar copy only
 ```
 
 `build.ps1` compiles with `javac --release 17` and packs `mod.hjson` plus `bundles/` into the jar root.

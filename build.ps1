@@ -3,12 +3,15 @@
 #   .\build.ps1                             # uses .ref/dl/server-release.jar if present
 #   .\build.ps1 -MindustryJar C:\mindustry\Mindustry.jar
 #   .\build.ps1 -Output build\CampaignServerSide.jar
+#   .\build.ps1 -Dev                        # appends -devbuild-<yyyyMMdd-HHmm> to the version
 #
-# The mod only needs Mindustry on the classpath at compile time; nothing is bundled.
+# -Dev only rewrites the copy of mod.hjson that goes into the jar; the repository file keeps its
+# release version, so a dev build never looks like a release.
 
 param(
     [string] $MindustryJar = $env:MINDUSTRY_JAR,
-    [string] $Output = "build/CampaignServerSide.jar"
+    [string] $Output = "build/CampaignServerSide.jar",
+    [switch] $Dev
 )
 
 $ErrorActionPreference = "Stop"
@@ -59,6 +62,16 @@ if (Test-Path (Join-Path $root "icon.png")) {
 $modJson = Join-Path $classes "mod.hjson"
 $modJsonText = [System.IO.File]::ReadAllText($modJson)
 if ($modJsonText.Length -gt 0 -and $modJsonText[0] -eq [char]0xFEFF) { $modJsonText = $modJsonText.Substring(1) }
+
+if ($Dev) {
+    $stamp = Get-Date -Format "yyyyMMdd-HHmm"
+    $modJsonText = [regex]::Replace($modJsonText, '(?m)^(\s*version:\s*")([^"]*)(")', {
+        param($match)
+        $match.Groups[1].Value + $match.Groups[2].Value + "-devbuild-" + $stamp + $match.Groups[3].Value
+    })
+    Write-Host "Dev build: version tagged -devbuild-$stamp"
+}
+
 [System.IO.File]::WriteAllText($modJson, $modJsonText, (New-Object System.Text.UTF8Encoding($false)))
 if (Test-Path (Join-Path $root "bundles")) {
     Copy-Item -Recurse (Join-Path $root "bundles") (Join-Path $classes "bundles") -Force
