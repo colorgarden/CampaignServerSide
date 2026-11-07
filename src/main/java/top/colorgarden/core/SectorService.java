@@ -1119,15 +1119,59 @@ public class SectorService{
         //registered by the time the world starts
         if(beforePlay != null) beforePlay.run();
 
+        //the launch loadout is placed before the world runs, exactly where vanilla generation puts it
+        //(FileMapGenerator#placeLaunchLoadout). Placing it afterwards left logic blocks, item links and
+        //power graphs uninitialised, which is what broke an entire map.
+        if(origin != null) applyCoreBlueprint(sector, origin);
+
         logic.play();
 
-        //the blueprint goes on top of the running world; the caller decides whether it applies
-        if(origin != null) applyCoreBlueprint(sector, origin);
+        //anything the loadout added needs its neighbours and power links rebuilt now that the world runs
+        if(origin != null) refreshPlacedBuildings();
 
         saveSector(sector);
         Events.fire(new SectorLaunchEvent(sector));
 
         Log.info("[CampaignServer] " + I18n.get("campaign.log.sector-started", sector.name(), sector.id));
+    }
+
+    /** @return how many buildings were rewired. */
+    public static int refreshBuildings(){
+        return refreshPlacedBuildings();
+    }
+
+    /**
+     * Rebuilds the neighbour and power wiring of the team's buildings after a loadout placement.
+     *
+     * <p>{@code Tile#setBlock} creates the building but does not rebuild every derived structure, and
+     * the loadout removes whatever stood in its footprint. Blocks that end up without a valid power
+     * graph or proximity cache stop accepting items and stop driving their logic - the symptom is a
+     * whole sector where logistics and world processors silently do nothing.</p>
+     */
+    private static int refreshPlacedBuildings(){
+        try{
+            int touched = 0;
+            for(mindustry.gen.Building build : state.rules.defaultTeam.data().buildings){
+                if(build == null || build.tile == null) continue;
+
+                if(build.power != null){
+                    //the old graph still references tiles that the loadout removed
+                    build.power.graph = new mindustry.world.blocks.power.PowerGraph();
+                    build.power.links.clear();
+                }
+
+                build.updateProximity();
+                touched ++;
+            }
+
+            if(touched > 0){
+                Log.info("[CampaignServer] " + I18n.get("campaign.log.buildings-refreshed", touched));
+            }
+            return touched;
+        }catch(Throwable t){
+            Log.err("[CampaignServer] " + I18n.get("campaign.log.buildings-refresh-failed", Strings.getSimpleMessage(t)));
+            return 0;
+        }
     }
 
     /**

@@ -541,6 +541,15 @@ public class CampaignCommands{
             }
         });
 
+        handler.register("campaign-refresh-buildings", "Rebuild proximity caches and power graphs of the current sector's buildings (repairs a sector where logistics/logic stopped working).", args -> {
+            if(!state.isGame()){
+                err("campaign.msg.not-playing");
+                return;
+            }
+            int touched = SectorService.refreshBuildings();
+            info("campaign.log.buildings-refreshed", touched);
+        });
+
         handler.register("campaign-exports", "List every sector of the planet with its destination, export statistics and whether a redirect would touch it.", args -> {
             var planet = SectorService.planet();
             if(planet == null){
