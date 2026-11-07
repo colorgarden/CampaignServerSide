@@ -4,14 +4,15 @@ import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.Log;
 import arc.util.Strings;
-import mindustry.Vars;
 import mindustry.game.SectorInfo;
 import mindustry.gen.Call;
 import mindustry.gen.Player;
-import mindustry.ui.Menus;
 import mindustry.type.Item;
 import mindustry.type.ItemStack;
+import mindustry.type.Planet;
 import mindustry.type.Sector;
+import mindustry.type.SectorPreset;
+import mindustry.ui.Menus;
 import top.colorgarden.core.SectorService;
 import top.colorgarden.util.I18n;
 import top.colorgarden.vote.CampaignVote;
@@ -19,26 +20,37 @@ import top.colorgarden.vote.CampaignVote;
 /**
  * Sector browser: pick a sector, then read its stored items, production and exports.
  *
- * <p>The numbers come straight from {@link SectorInfo}, the same fields the vanilla planet dialog
- * reads, so a sector that has been played keeps the statistics it accumulated while it was live.
- * Statistics of a sector that is not loaded are as old as its last visit - that is vanilla behaviour,
- * not a bug, and the detail page says so.</p>
+ * <p>The list mirrors the vote sector picker exactly - one entry per row, six per page, the same
+ * "show numbered" filter, the same "only available / show all" switch and the same button order - so
+ * the two panels are interchangeable. The numbers come from {@link SectorInfo}, the fields the vanilla
+ * planet dialog reads; a sector that is not loaded shows the statistics of its last visit.</p>
  */
 public class SectorPanel{
-    private static final int perPage = 8;
+    /** Same page size as the vote picker: six rows. */
+    private static final int perPage = 6;
 
-    private static int listId = -1, detailId = -1;
+    private static int listId = -1, detailId = -1, searchId = -1;
     private static boolean available;
 
     /** Sector currently browsed per player, so the detail page knows what to render. */
     private static final ObjectMap<Player, Sector> viewing = new ObjectMap<>();
-    /** Page the player is on, so the option index maps back to the right row. */
-    private static final ObjectMap<Player, Integer> listPage = new ObjectMap<>();
+    /** Per player list state: page, filters and the entries of the current page. */
+    private static final ObjectMap<Player, ListState> listStates = new ObjectMap<>();
+    /** Per player: whether numbered sectors are listed, same as the vote picker. */
+    private static final ObjectMap<Player, Boolean> numberedView = new ObjectMap<>();
+
+    private static class ListState{
+        int page;
+        boolean showAll, numbered;
+        String query = "";
+        Seq<Sector> entries = new Seq<>();
+    }
 
     public static void init(){
         try{
             listId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onList(p, o)));
             detailId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onDetail(p, o)));
+            searchId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onSearch(p, s)));
             available = true;
         }catch(Throwable t){
             available = false;
@@ -47,85 +59,128 @@ public class SectorPanel{
     }
 
     public static void openMain(Player player){
-        openList(player, 0);
+        openList(player, "", 0, false);
     }
 
     // ---------------------------------------------------------------- list
 
-    /** @return every sector that has something worth showing, by id. */
-    private static Seq<Sector> sectors(){
+    /**
+     * @return the candidate sectors in the vote picker's order: named campaign presets first, then the
+     *         numbered/community slots, filtered by the same two switches.
+     */
+    private static Seq<Sector> candidates(String query, boolean showAll, boolean numbered){
         Seq<Sector> out = new Seq<>();
-        mindustry.type.Planet planet = SectorService.planet();
+        Planet planet = SectorService.planet();
         if(planet == null) return out;
 
-        //same order the vote list uses: named campaign presets first, then the numbered/community
-        //slots, so both panels read as one list
-        for(mindustry.type.SectorPreset preset : SectorService.presets(planet)){
+        String needle = query == null ? "" : query.trim().toLowerCase();
+
+        for(SectorPreset preset : SectorService.presets(planet)){
             Sector sector = preset.sector;
             if(sector == null || SectorService.isNumbered(sector)) continue;
-            out.add(sector);
+            if(accepts(sector, preset.name, needle, showAll)) out.add(sector);
         }
 
-        for(Sector sector : planet.sectors){
+        if(numbered) for(Sector sector : planet.sectors){
             if(sector == null) continue;
             if(sector.preset != null && !SectorService.isNumbered(sector)) continue;
-            out.add(sector);
+            if(accepts(sector, "", needle, showAll)) out.add(sector);
         }
 
         return out;
     }
 
-    private static void openList(Player player, int page){
+    private static boolean accepts(Sector sector, String presetName, String needle, boolean showAll){
+        if(!showAll && top.colorgarden.config.CampaignConfig.data().enforceSectorUnlock
+            && !SectorService.canEnter(sector)) return false;
+
+        if(needle.isEmpty()) return true;
+
+        String name = sector.preset == null ? "" : sector.preset.localizedName;
+        return String.valueOf(sector.id).contains(needle)
+            || (name != null && name.toLowerCase().contains(needle))
+            || (presetName != null && presetName.toLowerCase().contains(needle));
+    }
+
+    private static void openList(Player player, String query, int page, boolean showAll){
         if(!available || player == null || player.con == null) return;
 
-        Seq<Sector> all = sectors();
-        int pages = Math.max(1, (all.size + perPage - 1) / perPage);
-        int current = Math.max(0, Math.min(page, pages - 1));
-        int from = current * perPage;
-        int to = Math.min(all.size, from + perPage);
+        boolean numbered = numberedView.get(player, false);
+        Seq<Sector> found = candidates(query, showAll, numbered);
+
+        ListState state = new ListState();
+        state.query = query == null ? "" : query;
+        state.showAll = showAll;
+        state.numbered = numbered;
+        state.entries = found;
+
+        int pages = Math.max(1, (found.size + perPage - 1) / perPage);
+        state.page = Math.max(0, Math.min(page, pages - 1));
+        listStates.put(player, state);
+
+        int start = state.page * perPage;
+        int end = Math.min(found.size, start + perPage);
 
         Seq<String[]> rows = new Seq<>();
-        for(int i = from; i < to; i += 2){
-            String first = label(all.get(i));
-            String second = i + 1 < to ? label(all.get(i + 1)) : "";
-            rows.add(new String[]{first, second});
+
+        //one entry per row, exactly like the vote sector picker
+        for(int i = start; i < end; i++){
+            rows.add(new String[]{label(found.get(i))});
         }
-        rows.add(new String[]{I18n.get("campaign.sector.prev"), I18n.get("campaign.sector.next")});
-        rows.add(new String[]{I18n.get("campaign.sector.back"), I18n.get("campaign.menu.close")});
 
-        String message = all.isEmpty()
-            ? I18n.get("campaign.sector.list-empty")
-            : I18n.get("campaign.sector.list-message", current + 1, pages, all.size);
+        rows.add(new String[]{I18n.get(numbered ? "campaign.menu.hide-numbered" : "campaign.menu.show-numbered")});
+        rows.add(new String[]{I18n.get("campaign.menu.prev"), I18n.get("campaign.menu.next")});
+        rows.add(new String[]{I18n.get("campaign.menu.search"),
+            I18n.get(showAll ? "campaign.menu.show-ready" : "campaign.menu.show-all")});
+        rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
 
-        listPage.put(player, current);
-        Call.followUpMenu(player.con, listId, I18n.get("campaign.sector.title"), message,
+        String message = I18n.get("campaign.menu.list-message", state.page + 1, pages,
+            I18n.get("campaign.vote.kind.sector"),
+            I18n.get(showAll ? "campaign.menu.mode-all" : "campaign.menu.mode-ready"));
+
+        Call.followUpMenu(player.con, listId, I18n.get("campaign.menu.list-title"), message,
             rows.toArray(String[].class));
     }
 
     private static void onList(Player player, int option){
         if(player == null || player.con == null || option < 0) return;
 
-        Seq<Sector> all = sectors();
-        int page = listPage.get(player, 0);
-        int start = page * perPage;
-        int visible = Math.max(0, Math.min(perPage, all.size - start));
-        int entrySlots = (visible + 1) / 2 * 2;
+        ListState state = listStates.get(player);
+        if(state == null) return;
 
-        if(option < entrySlots && start + option < all.size){
-            showDetail(player, all.get(start + option));
+        int start = state.page * perPage;
+        int shown = Math.max(0, Math.min(state.entries.size, start + perPage) - start);
+
+        if(option < shown){
+            showDetail(player, state.entries.get(start + option));
             return;
         }
 
-        int rest = option - entrySlots;
-        if(rest == 0){
-            openList(player, page - 1);
-        }else if(rest == 1){
-            openList(player, page + 1);
-        }else if(rest == 2){
+        int base = shown;
+        if(option == base){
+            numberedView.put(player, !state.numbered);
+            openList(player, state.query, 0, state.showAll);
+        }else if(option == base + 1){
+            openList(player, state.query, state.page - 1, state.showAll);
+        }else if(option == base + 2){
+            openList(player, state.query, state.page + 1, state.showAll);
+        }else if(option == base + 3){
+            Call.textInput(player.con, searchId, I18n.get("campaign.menu.search-title"),
+                I18n.get("campaign.menu.search-message"), 32, state.query, false);
+        }else if(option == base + 4){
+            openList(player, state.query, 0, !state.showAll);
+        }else if(option == base + 5){
             MainMenu.openMain(player);
         }else{
             Call.hideFollowUpMenu(player.con, listId);
         }
+    }
+
+    private static void onSearch(Player player, String text){
+        if(player == null || player.con == null) return;
+
+        ListState state = listStates.get(player);
+        openList(player, text == null ? "" : text, 0, state != null && state.showAll);
     }
 
     // ---------------------------------------------------------------- detail
@@ -150,7 +205,9 @@ public class SectorPanel{
         if(option == 0 && sector != null){
             showDetail(player, sector);
         }else if(option == 1){
-            openList(player, 0);
+            ListState state = listStates.get(player);
+            openList(player, state == null ? "" : state.query, state == null ? 0 : state.page,
+                state != null && state.showAll);
         }else{
             Call.hideFollowUpMenu(player.con, detailId);
         }
