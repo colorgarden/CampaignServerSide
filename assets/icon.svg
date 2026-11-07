@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Campaign Server Side">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#16212e"/>
+      <stop offset="100%" stop-color="#0b1016"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffd97a"/>
+      <stop offset="100%" stop-color="#f0a93c"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8ecae6"/>
+      <stop offset="100%" stop-color="#4a9fc4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- rounded slab -->
+  <rect x="6" y="6" width="244" height="244" rx="46" fill="url(#bg)"/>
+  <rect x="6" y="6" width="244" height="244" rx="46" fill="none" stroke="#243447" stroke-width="4"/>
+
+  <!-- orbital ring: the campaign's sector ring -->
+  <circle cx="128" cy="118" r="72" fill="none" stroke="#1d2b3a" stroke-width="22"/>
+  <circle cx="128" cy="118" r="72" fill="none" stroke="url(#ring)" stroke-width="10"
+          stroke-dasharray="300 152" stroke-linecap="round" transform="rotate(-58 128 118)"/>
+
+  <!-- sector facets -->
+  <circle cx="128" cy="118" r="48" fill="#101a24" stroke="#2d4257" stroke-width="4"/>
+  <path d="M128 70 L170 94 L170 142 L128 166 L86 142 L86 94 Z" fill="#16232f" stroke="#33506b" stroke-width="4"/>
+
+  <!-- the core: three stacked plates, the Mindustry storage silhouette -->
+  <rect x="106" y="96" width="44" height="44" rx="8" fill="url(#core)"/>
+  <rect x="114" y="104" width="28" height="28" rx="5" fill="#1b1206" opacity="0.35"/>
+  <rect x="118" y="108" width="20" height="20" rx="4" fill="#ffd97a"/>
+  <rect x="100" y="90" width="56" height="8" rx="4" fill="#8a6a24" opacity="0.55"/>
+
+  <!-- vote tick: the check that passed -->
+  <circle cx="188" cy="182" r="34" fill="#12301f" stroke="#47c66a" stroke-width="6"/>
+  <path d="M172 182 l11 12 l22 -26" fill="none" stroke="#47c66a" stroke-width="10"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- server rails on the left, hinting at the dedicated server -->
+  <g fill="#33506b">
+    <rect x="34" y="150" width="10" height="10" rx="2"/>
+    <rect x="34" y="168" width="10" height="10" rx="2"/>
+    <rect x="34" y="186" width="10" height="10" rx="2"/>
+  </g>
+</svg>

@@ -51,6 +51,10 @@ Write-Host "Compiling $($sources.Count) source file(s) against $MindustryJar ...
 if ($LASTEXITCODE -ne 0) { throw "Compilation failed." }
 
 Copy-Item (Join-Path $root "mod.hjson") (Join-Path $classes "mod.hjson") -Force
+# Mindustry reads the mod icon from the jar root: mod.root.child("icon.png")
+if (Test-Path (Join-Path $root "icon.png")) {
+    Copy-Item (Join-Path $root "icon.png") (Join-Path $classes "icon.png") -Force
+}
 #a leading BOM breaks the hjson key ("\uFEFFname"), which makes the game silently skip the mod
 $modJson = Join-Path $classes "mod.hjson"
 $modJsonText = [System.IO.File]::ReadAllText($modJson)
