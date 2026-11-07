@@ -331,12 +331,7 @@ public class SectorPanel{
 
         if(names.isEmpty()) return I18n.get("campaign.sector.detail-none");
 
-        //long lists would push the page apart; the count is enough past three
-        if(names.size <= 3) return names.toString(", ");
-
-        Seq<String> head = new Seq<>();
-        for(int i = 0; i < 3; i++) head.add(names.get(i));
-        return head.toString(", ") + " +" + (names.size - 3);
+        return names.toString(", ");
     }
 
     // ---------------------------------------------------------------- formatting
@@ -357,9 +352,7 @@ public class SectorPanel{
         if(stacks.isEmpty()) return I18n.get("campaign.sector.detail-none");
 
         StringBuilder out = new StringBuilder();
-        int shown = 0;
         for(ItemStack stack : stacks){
-            if(shown ++ >= 6) break;
             if(out.length() > 0) out.append('\n');
             //the glyph has to stay outside any colour tag: a tag in front of it tints the icon itself
             out.append("[white]  ").append(top.colorgarden.util.Icons.item(stack.item))
@@ -387,9 +380,7 @@ public class SectorPanel{
         entries.sort(s -> -s.perMinute);
 
         StringBuilder out = new StringBuilder();
-        int shown = 0;
         for(Stat stat : entries){
-            if(shown ++ >= 6) break;
             if(out.length() > 0) out.append('\n');
             //icon first, colour tag after it, so the glyph keeps its own tint
             out.append("[white]  ").append(top.colorgarden.util.Icons.item(stat.item))
