@@ -295,9 +295,14 @@ public class SectorPanel{
         out.append('\n').append(I18n.get("campaign.sector.detail-route", importSources(sector), destination))
             .append('\n');
 
-        if(info.imports != null && info.imports.size > 0){
+        //imports: info.imports only holds what this sector recorded while it was loaded, while
+        //importStats() derives what the other sectors' exports add up to - the latter is the complete
+        //picture and matches the planet dialog
+        ObjectMap<Item, SectorInfo.ExportStat> imports = sector.planet == null
+            ? info.imports : info.importStats(sector.planet);
+        if(imports != null && imports.size > 0){
             out.append(I18n.get("campaign.sector.detail-import")).append('\n')
-                .append(formatStats(info.imports)).append('\n');
+                .append(formatStats(imports)).append('\n');
         }
 
         if(sector != SectorService.current()){
@@ -351,13 +356,39 @@ public class SectorPanel{
     private static String formatItems(Seq<ItemStack> stacks){
         if(stacks.isEmpty()) return I18n.get("campaign.sector.detail-none");
 
-        StringBuilder out = new StringBuilder();
+        Seq<String> cells = new Seq<>();
         for(ItemStack stack : stacks){
-            if(out.length() > 0) out.append('\n');
             //the glyph has to stay outside any colour tag: a tag in front of it tints the icon itself
-            out.append("[white]  ").append(top.colorgarden.util.Icons.item(stack.item))
-                .append("[white]").append(stack.item.localizedName).append(" x")
-                .append(formatAmount(stack.amount));
+            cells.add("[white]  " + top.colorgarden.util.Icons.item(stack.item)
+                + "[white]" + stack.item.localizedName + " x" + formatAmount(stack.amount));
+        }
+        return layout(cells);
+    }
+
+    /**
+     * Lays cells out three per line, padding each to a fixed visible width so the columns line up.
+     * The page was a long single column before; three per row keeps it on one screen.
+     */
+    private static String layout(Seq<String> cells){
+        final int perRow = 3;
+        final int columnWidth = 17;
+
+        StringBuilder out = new StringBuilder();
+        for(int i = 0; i < cells.size; i++){
+            String cell = cells.get(i);
+            if(i % perRow == 0){
+                if(i > 0) out.append('\n');
+            }else{
+                out.append(" ");
+            }
+
+            if(i % perRow == perRow - 1 || i == cells.size - 1){
+                out.append(cell);
+            }else{
+                int visible = arc.util.Strings.stripColors(cell).length();
+                out.append(cell);
+                for(int pad = visible; pad < columnWidth; pad++) out.append(' ');
+            }
         }
         return out.toString();
     }
@@ -379,16 +410,14 @@ public class SectorPanel{
 
         entries.sort(s -> -s.perMinute);
 
-        StringBuilder out = new StringBuilder();
+        Seq<String> cells = new Seq<>();
         for(Stat stat : entries){
-            if(out.length() > 0) out.append('\n');
             //icon first, colour tag after it, so the glyph keeps its own tint
-            out.append("[white]  ").append(top.colorgarden.util.Icons.item(stat.item))
-                .append("[white]").append(stat.item.localizedName).append(" +")
-                .append(formatAmount(stat.perMinute))
-                .append(I18n.get("campaign.sector.per-minute"));
+            cells.add("[white]  " + top.colorgarden.util.Icons.item(stat.item)
+                + "[white]" + stat.item.localizedName + " +" + formatAmount(stat.perMinute)
+                + I18n.get("campaign.sector.per-minute"));
         }
-        return out.toString();
+        return layout(cells);
     }
 
     /** One item/rate pair, detached from the map entry it came from. */
