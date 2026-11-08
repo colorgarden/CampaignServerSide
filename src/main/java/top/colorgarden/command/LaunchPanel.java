@@ -122,7 +122,7 @@ public class LaunchPanel{
 
         String message = I18n.get("campaign.launch.message", launch.sector.name())
             + "\n" + CoreBlueprints.describe()
-            + "\n" + I18n.get("campaign.launch.cargo", LaunchCargo.describeGrid());
+            + "\n" + I18n.get("campaign.launch.cargo", "\n" + LaunchCargo.describeGrid());
 
         String[][] options = {
             {I18n.get("campaign.launch.blueprints"), I18n.get("campaign.launch.cargo-edit")},
