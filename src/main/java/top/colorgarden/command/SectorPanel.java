@@ -359,19 +359,23 @@ public class SectorPanel{
         Seq<String> cells = new Seq<>();
         for(ItemStack stack : stacks){
             //the glyph has to stay outside any colour tag: a tag in front of it tints the icon itself
-            cells.add("[white]  " + top.colorgarden.util.Icons.item(stack.item)
+            cells.add(top.colorgarden.util.Icons.item(stack.item)
                 + "[white]" + stack.item.localizedName + " x" + formatAmount(stack.amount));
         }
         return layout(cells);
     }
 
     /**
-     * Lays cells out three per line, padding each to a fixed visible width so the columns line up.
-     * The page was a long single column before; three per row keeps it on one screen.
+     * Lays cells out in columns, padding each to a fixed display width.
+     *
+     * <p>The dialog label is fixed at 400px and wraps, so the column count and width have to respect
+     * that: CJK glyphs take roughly twice the width of a latin one, which is why padding by
+     * {@code String#length} produced the ragged, overlapping lines. Two columns of 24 width units fit
+     * the 400px label; more than that wraps.</p>
      */
     private static String layout(Seq<String> cells){
-        final int perRow = 3;
-        final int columnWidth = 17;
+        final int perRow = 2;
+        final int columnWidth = 24;
 
         StringBuilder out = new StringBuilder();
         for(int i = 0; i < cells.size; i++){
@@ -379,18 +383,34 @@ public class SectorPanel{
             if(i % perRow == 0){
                 if(i > 0) out.append('\n');
             }else{
-                out.append(" ");
+                out.append("  ");
             }
 
             if(i % perRow == perRow - 1 || i == cells.size - 1){
                 out.append(cell);
             }else{
-                int visible = arc.util.Strings.stripColors(cell).length();
+                int width = displayWidth(cell);
                 out.append(cell);
-                for(int pad = visible; pad < columnWidth; pad++) out.append(' ');
+                for(int pad = width; pad < columnWidth; pad++) out.append(' ');
             }
         }
         return out.toString();
+    }
+
+    /** @return the rendered width of a markup string, counting CJK (and full-width) glyphs as two. */
+    private static int displayWidth(String markup){
+        String plain = arc.util.Strings.stripColors(markup);
+        int width = 0;
+
+        for(int i = 0; i < plain.length(); i++){
+            char c = plain.charAt(i);
+            width += (c >= 0x1100 && (c <= 0x115F || (c >= 0x2E80 && c <= 0xA4CF)
+                || (c >= 0xAC00 && c <= 0xD7A3) || (c >= 0xF900 && c <= 0xFAFF)
+                || (c >= 0xFE30 && c <= 0xFE6F) || (c >= 0xFF00 && c <= 0xFF60)
+                || (c >= 0xFFE0 && c <= 0xFFE6))) ? 2 : 1;
+        }
+
+        return width;
     }
 
     private static String formatStats(ObjectMap<Item, SectorInfo.ExportStat> stats){
@@ -413,7 +433,7 @@ public class SectorPanel{
         Seq<String> cells = new Seq<>();
         for(Stat stat : entries){
             //icon first, colour tag after it, so the glyph keeps its own tint
-            cells.add("[white]  " + top.colorgarden.util.Icons.item(stat.item)
+            cells.add(top.colorgarden.util.Icons.item(stat.item)
                 + "[white]" + stat.item.localizedName + " +" + formatAmount(stat.perMinute)
                 + I18n.get("campaign.sector.per-minute"));
         }
