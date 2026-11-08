@@ -358,7 +358,7 @@ public class SectorPanel{
 
         Seq<String> cells = new Seq<>();
         for(ItemStack stack : stacks){
-            cells.add(cell(top.colorgarden.util.Icons.item(stack.item), stack.item.localizedName,
+            cells.add(cell(top.colorgarden.util.Icons.item(stack.item),
                 "x" + formatAmount(stack.amount), ""));
         }
         return layout(cells);
@@ -366,7 +366,6 @@ public class SectorPanel{
 
     /**
      * @param icon  the content glyph
-     * @param name  the (localized) item name, so two similar icons stay distinguishable
      * @param value the amount or rate, right-aligned so the columns line up
      * @param unit  suffix such as {@code /分}, empty for plain amounts
      *
@@ -374,8 +373,8 @@ public class SectorPanel{
      * the icon inherits whatever colour the previous line ended with (that is why the first icons of a
      * row could turn green while the rest stayed white).</p>
      */
-    private static String cell(String icon, String name, String value, String unit){
-        return "[white]" + icon + "[white]" + name + " " + padLeft(value, 5) + unit;
+    private static String cell(String icon, String value, String unit){
+        return "[white]" + icon + "[white]" + padLeft(value, 5) + unit;
     }
 
     /** Pads on the left with spaces until the text is at least {@code width} columns wide. */
@@ -393,12 +392,12 @@ public class SectorPanel{
      *
      * <p>The dialog label is fixed at 400px and wraps, so the column count and width have to respect
      * that: CJK glyphs take roughly twice the width of a latin one, which is why padding by
-     * {@code String#length} produced ragged lines. Two columns of 24 width units fit the label; three
-     * wrapped even without names.</p>
+     * {@code String#length} produced ragged lines. Without names a cell is about 10 units wide, so
+     * three columns of 11 stay well inside the label.</p>
      */
     private static String layout(Seq<String> cells){
-        final int perRow = 2;
-        final int columnWidth = 24;
+        final int perRow = 3;
+        final int columnWidth = 11;
 
         StringBuilder out = new StringBuilder();
         for(int i = 0; i < cells.size; i++){
@@ -455,7 +454,7 @@ public class SectorPanel{
 
         Seq<String> cells = new Seq<>();
         for(Stat stat : entries){
-            cells.add(cell(top.colorgarden.util.Icons.item(stat.item), stat.item.localizedName,
+            cells.add(cell(top.colorgarden.util.Icons.item(stat.item),
                 "+" + formatAmount(stat.perMinute), I18n.get("campaign.sector.per-minute")));
         }
         return layout(cells);
