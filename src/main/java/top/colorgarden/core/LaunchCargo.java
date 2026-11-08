@@ -217,6 +217,68 @@ public class LaunchCargo{
     }
 
     /**
+     * @return the cargo as icon+amount cells, three per row.
+     *
+     * <p>A comma separated sentence wrapped into a block of text in the 400px dialog, which is exactly
+     * what the sector panel looked like before its grid. The dialog label wraps, so the padding has to
+     * be computed in display columns (CJK counts double) instead of string length.</p>
+     */
+    public static String describeGrid(){
+        Seq<ItemStack> cargo = current();
+        if(cargo.isEmpty()) return I18n.get("campaign.cargo.none");
+
+        final int perRow = 3, columnWidth = 10;
+        StringBuilder out = new StringBuilder();
+
+        for(int i = 0; i < cargo.size; i++){
+            ItemStack stack = cargo.get(i);
+            String value = "x" + stack.amount;
+            String cell = "[white]" + top.colorgarden.util.Icons.item(stack.item) + "[white] x"
+                + padLeft(value.substring(1), 5);
+
+            if(i % perRow == 0){
+                if(i > 0) out.append('\n');
+            }else{
+                out.append("  ");
+            }
+
+            out.append(cell);
+            boolean lastInRow = i % perRow == perRow - 1 || i == cargo.size - 1;
+            if(!lastInRow){
+                for(int pad = displayWidth(cell); pad < columnWidth; pad++) out.append(' ');
+            }
+        }
+
+        return out.toString();
+    }
+
+    /** Pads on the left with spaces until the text is at least {@code width} display columns wide. */
+    private static String padLeft(String text, int width){
+        int current = displayWidth(text);
+        if(current >= width) return text;
+
+        StringBuilder out = new StringBuilder();
+        for(int i = current; i < width; i++) out.append(' ');
+        return out.append(text).toString();
+    }
+
+    /** @return the rendered width of a markup string, counting CJK (and full-width) glyphs as two. */
+    private static int displayWidth(String markup){
+        String plain = Strings.stripColors(markup);
+        int width = 0;
+
+        for(int i = 0; i < plain.length(); i++){
+            char c = plain.charAt(i);
+            width += (c >= 0x1100 && (c <= 0x115F || (c >= 0x2E80 && c <= 0xA4CF)
+                || (c >= 0xAC00 && c <= 0xD7A3) || (c >= 0xF900 && c <= 0xFAFF)
+                || (c >= 0xFE30 && c <= 0xFE6F) || (c >= 0xFF00 && c <= 0xFF60)
+                || (c >= 0xFFE0 && c <= 0xFFE6))) ? 2 : 1;
+        }
+
+        return width;
+    }
+
+    /**
      * Writes the cargo into {@code rules.loadout} and into the core that was just placed.
      *
      * @param capacity storage of the core, so the sum can be capped like vanilla does
