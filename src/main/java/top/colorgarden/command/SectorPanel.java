@@ -358,11 +358,32 @@ public class SectorPanel{
 
         Seq<String> cells = new Seq<>();
         for(ItemStack stack : stacks){
-            //the glyph has to stay outside any colour tag: a tag in front of it tints the icon itself
-            cells.add(top.colorgarden.util.Icons.item(stack.item)
-                + "[white]" + formatAmount(stack.amount));
+            cells.add(cell(top.colorgarden.util.Icons.item(stack.item), formatAmount(stack.amount), ""));
         }
         return layout(cells);
+    }
+
+    /**
+     * @param icon  the content glyph
+     * @param value the amount or rate, right-aligned so the columns line up
+     * @param unit  suffix such as {@code /分}, empty for plain amounts
+     *
+     * <p>The colour tag comes first: a tag in front of the glyph tints the icon itself, and without it
+     * the icon inherits whatever colour the previous line ended with (that is why the first two icons
+     * of a row could turn green while the rest stayed white).</p>
+     */
+    private static String cell(String icon, String value, String unit){
+        return "[white]" + icon + "[white]" + padLeft(value, 5) + unit;
+    }
+
+    /** Pads on the left with spaces until the text is at least {@code width} columns wide. */
+    private static String padLeft(String text, int width){
+        int current = displayWidth(text);
+        if(current >= width) return text;
+
+        StringBuilder out = new StringBuilder();
+        for(int i = current; i < width; i++) out.append(' ');
+        return out.append(text).toString();
     }
 
     /**
@@ -370,11 +391,11 @@ public class SectorPanel{
      *
      * <p>The dialog label is fixed at 400px and wraps, so the column count and width have to respect
      * that: CJK glyphs take roughly twice the width of a latin one, which is why padding by
-     * {@code String#length} produced the ragged, overlapping lines. Two columns of 24 width units fit
-     * the 400px label; more than that wraps.</p>
+     * {@code String#length} produced ragged lines. Cells are already fixed width, so three columns of
+     * twelve units stay inside the label.</p>
      */
     private static String layout(Seq<String> cells){
-        final int perRow = 4;
+        final int perRow = 3;
         final int columnWidth = 12;
 
         StringBuilder out = new StringBuilder();
@@ -432,9 +453,8 @@ public class SectorPanel{
 
         Seq<String> cells = new Seq<>();
         for(Stat stat : entries){
-            //icon first, colour tag after it, so the glyph keeps its own tint
-            cells.add(top.colorgarden.util.Icons.item(stat.item)
-                + "[white]" + formatAmount(stat.perMinute) + I18n.get("campaign.sector.per-minute"));
+            cells.add(cell(top.colorgarden.util.Icons.item(stat.item),
+                "+" + formatAmount(stat.perMinute), I18n.get("campaign.sector.per-minute")));
         }
         return layout(cells);
     }
