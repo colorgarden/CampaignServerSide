@@ -360,7 +360,7 @@ public class SectorPanel{
         for(ItemStack stack : stacks){
             //the glyph has to stay outside any colour tag: a tag in front of it tints the icon itself
             cells.add(top.colorgarden.util.Icons.item(stack.item)
-                + "[white]" + stack.item.localizedName + " x" + formatAmount(stack.amount));
+                + "[white]" + formatAmount(stack.amount));
         }
         return layout(cells);
     }
@@ -374,8 +374,8 @@ public class SectorPanel{
      * the 400px label; more than that wraps.</p>
      */
     private static String layout(Seq<String> cells){
-        final int perRow = 2;
-        final int columnWidth = 24;
+        final int perRow = 4;
+        final int columnWidth = 12;
 
         StringBuilder out = new StringBuilder();
         for(int i = 0; i < cells.size; i++){
@@ -434,8 +434,7 @@ public class SectorPanel{
         for(Stat stat : entries){
             //icon first, colour tag after it, so the glyph keeps its own tint
             cells.add(top.colorgarden.util.Icons.item(stat.item)
-                + "[white]" + stat.item.localizedName + " +" + formatAmount(stat.perMinute)
-                + I18n.get("campaign.sector.per-minute"));
+                + "[white]" + formatAmount(stat.perMinute) + I18n.get("campaign.sector.per-minute"));
         }
         return layout(cells);
     }
