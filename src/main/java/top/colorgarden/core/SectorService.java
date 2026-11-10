@@ -1138,6 +1138,10 @@ public class SectorService{
         }
 
         state.rules.sector = sector;
+        //the world-load hook fires before this assignment on the generation path, so the campaign
+        //rules are applied here as well: otherwise a sector keeps the reactor setting carried by its
+        //save and the server-wide value only reaches sectors that happen to load later
+        applyCampaignRules(sector.planet);
         //vanilla Control#playNewSector: a sector you launch into exports its production back to the
         //origin. Entering a sector without a launch (vote, console) must not touch the pair at all -
         //overwriting it with null silently dropped the export destination the players had configured,
