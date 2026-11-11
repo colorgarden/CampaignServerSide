@@ -101,7 +101,7 @@ public class CampaignHooks{
         Events.on(mindustry.game.EventType.BlockBuildEndEvent.class, event -> {
             if(event.unit == null || event.unit.getPlayer() == null || event.tile == null) return;
             mindustry.gen.Player actor = event.unit.getPlayer();
-            Log.debug("[CampaignServer] build @ by @: breaking=@ tile=@,@ block=@ team=@ hasCore=@",
+            Log.debug("[CampaignServer] build @ by @: breaking=@ tile=@,@ team=@ hasCore=@",
                 event.tile.block() == null ? "?" : event.tile.block().name, actor.name, event.breaking,
                 event.tile.x, event.tile.y,
                 event.team == null ? "?" : event.team.name, actor.core() != null);
