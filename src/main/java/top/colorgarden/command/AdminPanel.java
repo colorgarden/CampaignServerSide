@@ -538,6 +538,15 @@ public class AdminPanel{
 
     private static void openCoreTypes(Player player){
         if(!available || player == null || player.con == null || !player.admin) return;
+
+        //planets that disallow launch schematics (Erekir) always start from their own fixed core, so
+        //offering a core list here would only pretend to change something
+        mindustry.type.Sector current = SectorService.current();
+        if(current != null && !current.allowLaunchSchematics()){
+            player.sendMessage(I18n.get("campaign.core.planet-disallows", current.planet.localizedName));
+            return;
+        }
+
         hide(player, mainId);
 
         var cores = top.colorgarden.core.CoreBlueprints.unlockedCores(SectorService.planet());
