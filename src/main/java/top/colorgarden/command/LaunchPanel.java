@@ -120,41 +120,66 @@ public class LaunchPanel{
         SectorService.PendingLaunch launch = pending.get(player);
         if(launch == null) return;
 
-        String message = I18n.get("campaign.launch.message", launch.sector.name())
-            + "\n" + CoreBlueprints.describe()
-            + "\n" + I18n.get("campaign.launch.cargo", "\n" + LaunchCargo.describeGrid());
+        //vanilla only offers a launch loadout where the planet allows it (Erekir does not), so the
+        //blueprint and cargo lines would describe something that is never applied there
+        boolean loadout = launch.sector.allowLaunchSchematics();
+        boolean cargo = launch.sector.allowLaunchLoadout();
 
-        String[][] options = {
-            {I18n.get("campaign.launch.blueprints"), I18n.get("campaign.launch.cargo-edit")},
-            {I18n.get("campaign.launch.confirm"), I18n.get("campaign.launch.cancel")}
-        };
+        StringBuilder message = new StringBuilder(I18n.get("campaign.launch.message", launch.sector.name()));
+        if(loadout){
+            message.append('\n').append(CoreBlueprints.describe());
+        }else{
+            message.append('\n').append(I18n.get("campaign.core.planet-disallows",
+                launch.sector.planet.localizedName));
+        }
+        if(cargo){
+            message.append('\n').append(I18n.get("campaign.launch.cargo", "\n" + LaunchCargo.describeGrid()));
+        }
 
-        Call.followUpMenu(player.con, mainId, I18n.get("campaign.launch.title"), message, options);
+        String[][] options = loadout || cargo
+            ? new String[][]{
+                {loadout ? I18n.get("campaign.launch.blueprints") : "",
+                 cargo ? I18n.get("campaign.launch.cargo-edit") : ""},
+                {I18n.get("campaign.launch.confirm"), I18n.get("campaign.launch.cancel")}
+            }
+            : new String[][]{
+                {I18n.get("campaign.launch.confirm"), I18n.get("campaign.launch.cancel")}
+            };
+
+        Call.followUpMenu(player.con, mainId, I18n.get("campaign.launch.title"), message.toString(), options);
     }
 
     private static void onMain(Player player, int option){
         if(option < 0) return;
 
-        switch(option){
-            case 0 -> openList(player, 0);
-            case 1 -> openCargo(player, 0);
-            case 2 -> {
-                SectorService.PendingLaunch launch = pending.remove(player);
-                Runnable action = voteAction.remove(player);
-                hide(player, mainId);
+        //the buttons are laid out conditionally, so the option index has to be mapped the same way
+        SectorService.PendingLaunch active = pending.get(player);
+        boolean hasBlueprint = active != null && active.sector.allowLaunchSchematics();
+        boolean hasCargo = active != null && active.sector.allowLaunchLoadout();
 
-                if(action != null){
-                    action.run();
-                }else if(launch != null){
-                    SectorService.enterNow(launch);
-                }
+        int blueprints = hasBlueprint ? 0 : -1;
+        int cargo = hasCargo ? (hasBlueprint ? 1 : 0) : -1;
+        int confirm = (hasBlueprint ? 1 : 0) + (hasCargo ? 1 : 0);
+
+        if(option == blueprints){
+            openList(player, 0);
+        }else if(option == cargo){
+            openCargo(player, 0);
+        }else if(option == confirm){
+            SectorService.PendingLaunch launch = pending.remove(player);
+            Runnable action = voteAction.remove(player);
+            hide(player, mainId);
+
+            if(action != null){
+                action.run();
+            }else if(launch != null){
+                SectorService.enterNow(launch);
             }
-            default -> {
-                pending.remove(player);
-                voteAction.remove(player);
-                hide(player, mainId);
-                player.sendMessage(I18n.get("campaign.launch.cancelled"));
-            }
+        }else{
+            pending.remove(player);
+            voteAction.remove(player);
+            hide(player, mainId);
+            player.sendMessage(I18n.get("campaign.launch.cancelled"));
         }
     }
 

@@ -36,16 +36,24 @@ public class CoreBlueprints{
         public final boolean singleCore;
         /** File name without extension for uploaded blueprints; null for the generated presets. */
         public final @Nullable String slug;
+        /** Planet this blueprint belongs to; cores differ between planets, so the lists must too. */
+        public final @Nullable Planet planet;
 
         public Entry(String name, Schematic schematic, boolean singleCore){
             this(name, schematic, singleCore, null);
         }
 
         public Entry(String name, Schematic schematic, boolean singleCore, @Nullable String slug){
+            this(name, schematic, singleCore, slug, SectorService.planet());
+        }
+
+        public Entry(String name, Schematic schematic, boolean singleCore, @Nullable String slug,
+                     @Nullable Planet planet){
             this.name = name;
             this.schematic = schematic;
             this.singleCore = singleCore;
             this.slug = slug;
+            this.planet = planet;
         }
 
         /** @return true when this blueprint was uploaded, so it may be renamed or deleted. */
@@ -66,19 +74,73 @@ public class CoreBlueprints{
         return MAX_PAD;
     }
 
-    private static @Nullable Seq<Entry> cache;
-    private static @Nullable String selected;
+    /** Cached blueprint list per planet name; blueprints are planet specific (cores differ). */
+    private static final arc.struct.ObjectMap<String, Seq<Entry>> caches = new arc.struct.ObjectMap<>();
+    /** Selected blueprint name per planet name. */
+    private static final arc.struct.ObjectMap<String, String> selections = new arc.struct.ObjectMap<>();
 
-    private static Fi folder(){
-        Fi dir = dataDirectory.child("campaign").child("blueprints");
+    /** @return a stable directory name for the planet, falling back to {@code serpulo}. */
+    private static String planetKey(@Nullable Planet planet){
+        Planet target = planet != null ? planet : SectorService.planet();
+        return target == null ? "serpulo" : target.name;
+    }
+
+    /**
+     * @return the blueprint folder of one planet.
+     *
+     * <p>Erekir and Serpulo have different core blocks, so a single library let players launch into
+     * the other planet with a blueprint that cannot exist there. Each planet now gets its own folder;
+     * the old shared folder is copied over once so nothing is lost.</p>
+     */
+    private static Fi folderFor(@Nullable Planet planet){
+        Fi dir = dataDirectory.child("campaign").child("blueprints").child(planetKey(planet));
         dir.mkdirs();
+
+        try{
+            Fi legacy = dataDirectory.child("campaign").child("blueprints");
+            if(legacy.exists() && dir.list().length == 0){
+                int copied = 0;
+                for(Fi file : legacy.list()){
+                    if(file.isDirectory() || !file.extension().equals("msch")) continue;
+                    file.copyTo(dir);
+                    Fi sidecar = file.parent().child(file.nameWithoutExtension() + ".name");
+                    if(sidecar.exists()) sidecar.copyTo(dir);
+                    copied ++;
+                }
+                if(copied > 0){
+                    Log.info("[CampaignServer] migrated @ blueprint(s) into '@'", copied, planetKey(planet));
+                }
+            }
+        }catch(Throwable t){
+            Log.err("[CampaignServer] " + I18n.get("campaign.core.load-failed", String.valueOf(t)));
+        }
+
         return dir;
     }
 
-    private static Fi selectionFile(){
+    /** @return the blueprint folder of the current planet. */
+    private static Fi folder(){
+        return folderFor(SectorService.planet());
+    }
+
+    private static Fi selectionFile(@Nullable Planet planet){
         Fi dir = dataDirectory.child("campaign");
         dir.mkdirs();
-        return dir.child("selected-blueprint.txt");
+
+        Fi file = dir.child("selected-blueprint-" + planetKey(planet) + ".txt");
+        if(file.exists()) return file;
+
+        //one-time migration from the single global selection file
+        try{
+            Fi legacy = dir.child("selected-blueprint.txt");
+            if(legacy.exists()){
+                file.writeString(legacy.readString("UTF-8"), false, "UTF-8");
+            }
+        }catch(Throwable ignored){
+            //a failed migration only costs the remembered choice
+        }
+
+        return file;
     }
 
     /** @return the readable name of a stored blueprint, falling back to the file name. */
@@ -97,7 +159,8 @@ public class CoreBlueprints{
 
     /** @return every selectable blueprint: generated single-core presets first, then uploaded ones. */
     public static Seq<Entry> entries(){
-        if(cache != null) return cache;
+        String key = planetKey(null);
+        if(caches.containsKey(key)) return caches.get(key);
 
         Seq<Entry> out = new Seq<>();
 
@@ -115,13 +178,23 @@ public class CoreBlueprints{
 
                 //the file name is ASCII-only; the human readable name lives in a sidecar file because
                 //JVM file names go through sun.jnu.encoding and turn Chinese into "?"
-                out.add(new Entry(displayName(file), Schematics.readBase64(text), false, file.nameWithoutExtension()));
+                Schematic schematic = Schematics.readBase64(text);
+                CoreBlock core = schematic.findCore();
+
+                //a core from the other planet cannot be built here, so such a file is skipped instead
+                //of being offered (that is what carried a Serpulo core into an Erekir launch)
+                if(core != null && planet != null && !core.shownPlanets.isEmpty()
+                    && !core.shownPlanets.contains(planet)){
+                    continue;
+                }
+
+                out.add(new Entry(displayName(file), schematic, false, file.nameWithoutExtension()));
             }catch(Throwable t){
                 Log.err("[CampaignServer] " + I18n.get("campaign.core.load-failed", file.name()));
             }
         }
 
-        cache = out;
+        caches.put(key, out);
         return out;
     }
 
@@ -144,8 +217,8 @@ public class CoreBlueprints{
 
         try{
             folder().child(entry.slug + ".name").writeString(name, false, "UTF-8");
-            if(entry.name.equals(selected)) select(name);
-            cache = null;
+            if(entry.name.equals(selectedOf(entry.planet))) select(name);
+            caches.remove(planetKey(entry.planet));
             return true;
         }catch(Throwable t){
             Log.err("[CampaignServer] " + I18n.get("campaign.core.rename-failed", String.valueOf(t)));
@@ -167,8 +240,8 @@ public class CoreBlueprints{
             if(schematic.exists()) schematic.delete();
             if(sidecar.exists()) sidecar.delete();
 
-            if(entry.name.equals(selected)) select(null);
-            cache = null;
+            if(entry.name.equals(selectedOf(entry.planet))) select(null);
+            caches.remove(planetKey(entry.planet));
             return true;
         }catch(Throwable t){
             Log.err("[CampaignServer] " + I18n.get("campaign.core.remove-failed", String.valueOf(t)));
@@ -180,14 +253,8 @@ public class CoreBlueprints{
         Seq<Entry> all = entries();
         if(all.isEmpty()) return null;
 
-        if(selected == null){
-            try{
-                Fi file = selectionFile();
-                selected = file.exists() ? file.readString("UTF-8").trim() : "";
-            }catch(Throwable ignored){
-                selected = "";
-            }
-        }
+        String selected = selectedOf(SectorService.planet());
+        if(selected.isEmpty()) return null;
 
         for(Entry entry : all){
             if(entry.name.equals(selected)) return entry;
@@ -196,12 +263,32 @@ public class CoreBlueprints{
         return null;
     }
 
+    /** @return the remembered blueprint name of a planet, loaded from disk once. */
+    private static String selectedOf(@Nullable Planet planet){
+        String key = planetKey(planet);
+        String cached = selections.get(key);
+        if(cached != null) return cached;
+
+        String value = "";
+        try{
+            Fi file = selectionFile(planet);
+            value = file.exists() ? file.readString("UTF-8").trim() : "";
+        }catch(Throwable ignored){
+            value = "";
+        }
+
+        selections.put(key, value);
+        return value;
+    }
+
     /** Remembers the selected blueprint by name. */
     public static void select(@Nullable String name){
-        selected = name == null ? "" : name;
+        Planet planet = SectorService.planet();
+        String value = name == null ? "" : name;
+        selections.put(planetKey(planet), value);
 
         try{
-            selectionFile().writeString(selected, false, "UTF-8");
+            selectionFile(planet).writeString(value, false, "UTF-8");
         }catch(Throwable t){
             Log.err("[CampaignServer] " + I18n.get("campaign.core.save-failed", String.valueOf(t)));
         }
@@ -289,7 +376,7 @@ public class CoreBlueprints{
             //the readable name is stored next to it, in UTF-8
             folder().child(base + ".name").writeString(name.trim(), false, "UTF-8");
 
-            cache = null;
+            caches.remove(planetKey(null));
             return name.trim();
         }catch(Throwable t){
             Log.err("[CampaignServer] " + I18n.get("campaign.core.save-failed", String.valueOf(t)));
@@ -301,7 +388,7 @@ public class CoreBlueprints{
     public static void remove(String name){
         try{
             folder().child(name + ".msch").delete();
-            cache = null;
+            caches.remove(planetKey(null));
         }catch(Throwable ignored){
             //best effort
         }

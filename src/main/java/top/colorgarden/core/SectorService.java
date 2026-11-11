@@ -1235,6 +1235,13 @@ public class SectorService{
      * registers the new core. The spawn position is updated so the player lands on the new core.</p>
      */
     private static void applyCoreBlueprint(Sector sector, @Nullable Sector origin){
+        //vanilla only offers a schematic loadout where the planet allows it; Erekir does not, so its
+        //sectors always start from the planet's default core and cargo must not be applied either
+        if(!sector.allowLaunchSchematics()){
+            Log.info("[CampaignServer] " + I18n.get("campaign.core.planet-disallows", sector.planet.localizedName));
+            return;
+        }
+
         try{
             mindustry.gen.Building coreBuild = state.rules.defaultTeam.core();
             CoreBlueprints.Entry entry = CoreBlueprints.selectedEntry();
