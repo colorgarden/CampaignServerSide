@@ -675,6 +675,9 @@ public class SectorService{
     /** Throws when the origin sector cannot supply the configured launch cargo. */
     private static void requireCargo(@Nullable Sector origin, Sector target) throws CampaignException{
         if(origin == null || origin == target) return;
+        //planets that do not allow a launch loadout (Erekir) never carry core items, so demanding
+        //them would abort every launch there with "库存不足"
+        if(!target.allowLaunchLoadout()) return;
         if(!needsGeneration(target) && target.hasBase()) return;
 
         arc.struct.Seq<mindustry.type.ItemStack> cargo = LaunchCargo.current();

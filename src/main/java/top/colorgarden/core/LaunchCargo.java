@@ -304,6 +304,11 @@ public class LaunchCargo{
         return carried;
     }
     public static void apply(@Nullable mindustry.world.modules.ItemModule coreItems, int capacity, @Nullable mindustry.type.Sector origin){
+        //vanilla only carries a loadout on planets that allow one; Erekir has no launch cargo at all
+        if(state.isCampaign() && state.rules.sector != null && !state.rules.sector.allowLaunchLoadout()){
+            return;
+        }
+
         Seq<ItemStack> cargo = current();
         if(cargo.isEmpty()) return;
 
