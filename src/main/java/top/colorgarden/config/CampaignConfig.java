@@ -125,7 +125,16 @@ public class CampaignConfig{
     // --- campaign rules (the same dialog the vanilla campaign offers) ---
 
     /** Campaign difficulty: casual / easy / normal / hard / eradication. */
+    /**
+     * Campaign rules are per planet: the fields below are only the <em>seed</em> used the first time a
+     * planet is played. After that the planet's own {@code campaignRules} own the values, so Serpulo
+     * and Erekir can use different difficulties and rule flags.
+     */
     public String difficulty = "normal";
+    /** Planets whose rules were already seeded from the values above. */
+    public arc.struct.Seq<String> initializedPlanets = new arc.struct.Seq<>();
+    /** {@code reactorExplosions} per planet: CampaignRules has no field for it. */
+    public arc.struct.ObjectMap<String, Boolean> planetReactorExplosions = new arc.struct.ObjectMap<>();
     /** Enemy sectors invade the ones you own. */
     public boolean ruleSectorInvasion = false;
     /** Fog of war. */

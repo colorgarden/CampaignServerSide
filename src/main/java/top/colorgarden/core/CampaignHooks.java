@@ -517,10 +517,10 @@ public class CampaignHooks{
     private static void onDispose(){
         try{
             //a lost sector whose save was just deleted must not be written back on shutdown; every
-            //other case still saves, including a lost sector that keeps its buildings
-            boolean lostAndCleared = state.gameOver && (CampaignConfig.data().clearSectorOnLose
-                || (state.rules != null && state.rules.sector != null
-                    && (state.rules.sector.planet.clearSectorOnLose || state.rules.sector.planet.campaignRules.clearSectorOnLose)));
+            //other case still saves, including a lost sector that keeps its buildings. The rule is
+            //per planet now, so the current planet decides
+            boolean lostAndCleared = state.gameOver && state.rules != null && state.rules.sector != null
+                && SectorService.lostClears(state.rules.sector);
 
             if(CampaignConfig.data().saveOnExit && SectorService.playing() && !lostAndCleared){
                 SectorService.saveCurrent();

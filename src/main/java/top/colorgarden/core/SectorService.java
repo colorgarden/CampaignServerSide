@@ -314,45 +314,96 @@ public class SectorService{
         return planet.campaignRules;
     }
 
-    /** @return the difficulty named in the config, falling back to normal. */
-    public static mindustry.game.Difficulty difficulty(){
-        String name = CampaignConfig.data().difficulty;
+    /**
+     * Seeds a planet's campaign rules from the config once.
+     *
+     * <p>Vanilla keeps {@code CampaignRules} per planet, so the two campaigns can differ; the config
+     * values are only defaults for a planet that has never been played. Once seeded, everything reads
+     * and writes {@code planet.campaignRules} and the config is left alone.</p>
+     */
+    private static void ensurePlanetRules(@Nullable Planet planet){
+        if(planet == null) return;
 
+        CampaignConfig config = CampaignConfig.data();
+        if(config.initializedPlanets.contains(planet.name)) return;
+
+        mindustry.game.CampaignRules rules = campaignRules(planet);
+
+        //only the very first planet inherits the old global config: that keeps the settings the admin
+        //already had. Every later planet starts from its own vanilla defaults (Erekir ships fog and
+        //RTS AI on) and is then configured independently
+        boolean firstPlanet = config.initializedPlanets.isEmpty();
+        if(firstPlanet){
+            rules.difficulty = difficultyFromConfig(config);
+            rules.sectorInvasion = config.ruleSectorInvasion;
+            rules.fog = config.ruleFog;
+            rules.hideSpawns = config.ruleHideSpawns;
+            rules.randomWaveAI = config.ruleRandomWaveAI;
+            rules.rtsAI = config.ruleRtsAI;
+            rules.pauseDisabled = config.rulePauseDisabled;
+            rules.clearSectorOnLose = config.clearSectorOnLose;
+        }
+
+        if(!config.planetReactorExplosions.containsKey(planet.name)){
+            config.planetReactorExplosions.put(planet.name, config.ruleReactorExplosions);
+        }
+
+        config.initializedPlanets.add(planet.name);
+        CampaignConfig.save();
+
+        try{
+            planet.saveRules();
+        }catch(Throwable ignored){
+            //persisting is best effort; the in-memory rules are what the running game uses
+        }
+    }
+
+    private static mindustry.game.Difficulty difficultyFromConfig(CampaignConfig config){
         for(mindustry.game.Difficulty value : mindustry.game.Difficulty.all){
-            if(value.name().equalsIgnoreCase(name)) return value;
+            if(value.name().equalsIgnoreCase(config.difficulty)) return value;
         }
         return mindustry.game.Difficulty.normal;
     }
 
+    /** @return the difficulty of the current planet (before any planet is played: the config seed). */
+    public static mindustry.game.Difficulty difficulty(){
+        Planet planet = planet();
+        if(planet == null) return difficultyFromConfig(CampaignConfig.data());
+
+        ensurePlanetRules(planet);
+        mindustry.game.Difficulty value = campaignRules(planet).difficulty;
+        return value == null ? mindustry.game.Difficulty.normal : value;
+    }
+
+    /** @return {@code reactorExplosions} for a planet; it lives on Rules only, so it is kept here. */
+    public static boolean reactorExplosions(@Nullable Planet planet){
+        if(planet == null) return CampaignConfig.data().ruleReactorExplosions;
+
+        ensurePlanetRules(planet);
+        Boolean value = CampaignConfig.data().planetReactorExplosions.get(planet.name);
+        return value == null || value;
+    }
+
     /**
-     * Copies the config into the planet's campaign rules and applies them to the running rules object,
-     * which is what the vanilla difficulty dialog does.
+     * Applies the planet's own campaign rules to the running rules object, which is what the vanilla
+     * difficulty dialog does. The config is no longer copied in on every call: that is what made the
+     * two campaigns share one set of rules.
      */
     public static void applyCampaignRules(@Nullable Planet planet){
         if(planet == null) return;
 
-        CampaignConfig config = CampaignConfig.data();
+        ensurePlanetRules(planet);
         mindustry.game.CampaignRules rules = campaignRules(planet);
-
-        rules.difficulty = difficulty();
-        rules.sectorInvasion = config.ruleSectorInvasion;
-        rules.fog = config.ruleFog;
-        rules.hideSpawns = config.ruleHideSpawns;
-        rules.randomWaveAI = config.ruleRandomWaveAI;
-        rules.rtsAI = config.ruleRtsAI;
-        rules.pauseDisabled = config.rulePauseDisabled;
-        //vanilla campaign rule: wipe the sector when it is lost instead of keeping the buildings
-        rules.clearSectorOnLose = config.clearSectorOnLose;
 
         if(state.rules != null){
             rules.apply(planet, state.rules);
             //reactors only explode when this is on; it defaults to true but a sector save can carry false,
             //and CampaignRules has no field for it - it lives on Rules only
-            state.rules.reactorExplosions = config.ruleReactorExplosions;
+            state.rules.reactorExplosions = reactorExplosions(planet);
         }
     }
 
-    /** Sets the difficulty by name. @return the applied difficulty, or null when the name is unknown. */
+    /** Sets the current planet's difficulty by name. @return it, or null when the name is unknown. */
     public static @Nullable mindustry.game.Difficulty setDifficulty(String name){
         mindustry.game.Difficulty found = null;
         for(mindustry.game.Difficulty value : mindustry.game.Difficulty.all){
@@ -363,39 +414,79 @@ public class SectorService{
         }
         if(found == null) return null;
 
+        Planet planet = planet();
+        if(planet == null) return null;
+
+        ensurePlanetRules(planet);
+        campaignRules(planet).difficulty = found;
         CampaignConfig.data().difficulty = found.name();
-        applyCampaignRules(planet());
+
+        try{
+            planet.saveRules();
+        }catch(Throwable ignored){
+            //best effort
+        }
+
+        applyCampaignRules(planet);
         return found;
     }
 
     /** @return the new value, or null when the rule name is unknown. */
     public static @Nullable Boolean toggleRule(String name, @Nullable Boolean force){
-        CampaignConfig config = CampaignConfig.data();
-        boolean value;
-        java.util.function.Consumer<Boolean> setter;
+        Planet planet = planet();
+        if(planet == null) return null;
+
+        ensurePlanetRules(planet);
+        mindustry.game.CampaignRules rules = campaignRules(planet);
+        boolean value = force != null ? force : !currentRule(name);
 
         switch(name.toLowerCase(Locale.ROOT)){
-            case "invasion", "sectorinvasion" -> setter = v -> config.ruleSectorInvasion = v;
-            case "fog" -> setter = v -> config.ruleFog = v;
-            case "hidespawns" -> setter = v -> config.ruleHideSpawns = v;
-            case "randomwaveai" -> setter = v -> config.ruleRandomWaveAI = v;
-            case "rtsai" -> setter = v -> config.ruleRtsAI = v;
-            case "pausedisabled" -> setter = v -> config.rulePauseDisabled = v;
-            case "clearonlose", "clear" -> setter = v -> config.clearSectorOnLose = v;
-            case "reactorexplosions", "reactor" -> setter = v -> config.ruleReactorExplosions = v;
+            case "invasion", "sectorinvasion" -> rules.sectorInvasion = value;
+            case "fog" -> rules.fog = value;
+            case "hidespawns" -> rules.hideSpawns = value;
+            case "randomwaveai" -> rules.randomWaveAI = value;
+            case "rtsai" -> rules.rtsAI = value;
+            case "pausedisabled" -> rules.pauseDisabled = value;
+            case "clearonlose", "clear" -> rules.clearSectorOnLose = value;
+            case "reactorexplosions", "reactor" -> CampaignConfig.data().planetReactorExplosions.put(planet.name, value);
             default -> {
                 return null;
             }
         }
 
-        value = force != null ? force : !currentRule(name);
-        setter.accept(value);
-        applyCampaignRules(planet());
+        CampaignConfig.save();
+        try{
+            planet.saveRules();
+        }catch(Throwable ignored){
+            //best effort
+        }
+
+        applyCampaignRules(planet);
         return value;
     }
 
-    /** @return the current value of a campaign rule flag. */
+    /** @return the current value of a campaign rule flag on the current planet. */
     public static boolean currentRule(String name){
+        Planet planet = planet();
+        if(planet == null) return fallbackRule(name);
+
+        ensurePlanetRules(planet);
+        mindustry.game.CampaignRules rules = campaignRules(planet);
+        return switch(name.toLowerCase(Locale.ROOT)){
+            case "invasion", "sectorinvasion" -> rules.sectorInvasion;
+            case "fog" -> rules.fog;
+            case "hidespawns" -> rules.hideSpawns;
+            case "randomwaveai" -> rules.randomWaveAI;
+            case "rtsai" -> rules.rtsAI;
+            case "pausedisabled" -> rules.pauseDisabled;
+            case "clearonlose", "clear" -> rules.clearSectorOnLose;
+            case "reactorexplosions", "reactor" -> reactorExplosions(planet);
+            default -> false;
+        };
+    }
+
+    /** @return the config seed value, used before any planet is being played. */
+    private static boolean fallbackRule(String name){
         CampaignConfig config = CampaignConfig.data();
         return switch(name.toLowerCase(Locale.ROOT)){
             case "invasion", "sectorinvasion" -> config.ruleSectorInvasion;
@@ -940,10 +1031,12 @@ public class SectorService{
         CampaignNetwork.pushInfoToAll();
     }
 
-    /** @return true when losing this sector must discard it ({@code clearSectorOnLose} in any form). */
+    /** @return true when losing this sector must discard it ({@code clearSectorOnLose} of that planet). */
     public static boolean lostClears(Sector sector){
-        if(CampaignConfig.data().clearSectorOnLose) return true;
-        return sector != null && (sector.planet.clearSectorOnLose || sector.planet.campaignRules.clearSectorOnLose);
+        if(sector == null || sector.planet == null) return CampaignConfig.data().clearSectorOnLose;
+
+        ensurePlanetRules(sector.planet);
+        return sector.planet.clearSectorOnLose || campaignRules(sector.planet).clearSectorOnLose;
     }
     /** Loads the sector save or generates the sector, then makes it the active one. */
     private static void startSector(Sector sector, boolean fresh, @Nullable Sector origin) throws CampaignException{
