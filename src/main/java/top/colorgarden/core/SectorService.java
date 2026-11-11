@@ -128,11 +128,28 @@ public class SectorService{
         return null;
     }
 
-    /** @return the sector to enter when switching to this planet: the last one played, else its start. */
+    /**
+     * @return the sector to enter when switching to this planet.
+     *
+     * <p>{@code Planet#getLastSector} remembers the last sector in the server's settings, which may
+     * belong to another campaign or still be locked: entering it failed with "未解锁风化山脉". The
+     * sector is therefore only used when it is unlocked; otherwise the planet's start sector wins, and
+     * if even that is locked the first unlocked sector of the planet is used.</p>
+     */
     public static @Nullable Sector targetFor(@Nullable Planet planet){
         if(planet == null) return null;
+
         Sector last = planet.getLastSector();
-        return last != null ? last : planet.getStartSector();
+        if(last != null && last.unlocked()) return last;
+
+        Sector start = planet.getStartSector();
+        if(start != null && start.unlocked()) return start;
+
+        for(Sector sector : planet.sectors){
+            if(sector != null && sector.unlocked()) return sector;
+        }
+
+        return start != null ? start : last;
     }
 
     /**

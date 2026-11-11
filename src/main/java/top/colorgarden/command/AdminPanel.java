@@ -629,6 +629,7 @@ public class AdminPanel{
     /** Opens the wave-skip picker: presets plus a text input for any number. */
     private static void openSkip(Player player){
         if(!available || player == null || player.con == null || !player.admin) return;
+        Log.info("[CampaignServer] skip menu requested by @ (skipId=@)", player.name, skipId);
         hide(player, mainId);
         hide(player, skipId);
 
@@ -649,6 +650,7 @@ public class AdminPanel{
 
     private static void onSkip(Player player, int option){
         if(option < 0 || player == null || player.con == null || !player.admin) return;
+        Log.info("[CampaignServer] skip menu option @ picked by @", option, player.name);
 
         int slots = (skipPresets.length + 1) / 2 * 2;
         if(option < slots && option < skipPresets.length){
