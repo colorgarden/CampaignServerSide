@@ -175,6 +175,9 @@ public class SectorPanel{
         }else if(option == base + 4){
             openList(player, state.query, 0, !state.showAll);
         }else if(option == base + 5){
+            //followUpMenu stacks on the client instead of replacing, so the browser has to be closed
+            //before the hub is reopened - otherwise both dialogs stay on screen
+            Call.hideFollowUpMenu(player.con, listId);
             MainMenu.openMain(player);
         }else{
             Call.hideFollowUpMenu(player.con, listId);
