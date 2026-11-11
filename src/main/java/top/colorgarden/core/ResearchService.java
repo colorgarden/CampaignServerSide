@@ -313,6 +313,36 @@ public class ResearchService{
         return pendingObjectives(node) == 0;
     }
 
+    /**
+     * Mirrors the "unlock core items" block of {@code Control#update}:
+     * {@code core.items.each((i, a) -> i.unlock())}.
+     *
+     * <p>This is how items become unlocked in the campaign without research - the starting core of a
+     * sector ships with them. It matters on Erekir in particular: beryllium's tech node requires
+     * {@code Produce(beryllium)}, whose {@code complete()} is {@code content.unlockedHost()}, so the
+     * node can only ever come true through this unlock (and every later node, the turbine condenser
+     * included, requires beryllium as its objective).</p>
+     *
+     * @return how many items were unlocked
+     */
+    public static int unlockCoreItems(){
+        if(net.client() || !state.isCampaign() || !state.isGame()) return 0;
+
+        mindustry.gen.Building core = state.rules.defaultTeam.core();
+        if(core == null || core.items == null) return 0;
+
+        int count = 0;
+        for(Item item : content.items()){
+            if(item == null || item.unlocked()) continue;
+            if(core.items.get(item) <= 0) continue;
+
+            unlock(item, true);
+            count ++;
+        }
+
+        return count;
+    }
+
     /** Unlocks a single piece of content without touching its parents. */
     public static void unlock(UnlockableContent unlockable, boolean completeNode){
         TechNode node = unlockable.techNode;

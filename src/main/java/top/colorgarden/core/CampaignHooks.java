@@ -46,6 +46,7 @@ public class CampaignHooks{
     /** Seconds since the last reachable-sector scan. */
     private static float campaignUnlockTimer;
     private static float autoUnlockTimer;
+    private static float coreUnlockTimer;
 
 
     /** True while the simulation is paused only because no player is online. */
@@ -455,6 +456,15 @@ public class CampaignHooks{
         if(autoUnlockTimer >= 120f){
             autoUnlockTimer = 0f;
             if(state.isCampaign()) ResearchService.checkAutoUnlocks();
+        }
+
+        //vanilla Control#update unlocks every item that sits in the player core ("unlock core items").
+        //Items like beryllium have a Produce(self) objective, which can only come true after this
+        //unlock happened - without it the whole Erekir branch of the tech tree stays locked
+        coreUnlockTimer += Time.delta;
+        if(coreUnlockTimer >= 60f){
+            coreUnlockTimer = 0f;
+            ResearchService.unlockCoreItems();
         }
 
         campaignUnlockTimer += Time.delta;
