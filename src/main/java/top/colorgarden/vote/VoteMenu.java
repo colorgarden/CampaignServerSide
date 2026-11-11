@@ -45,6 +45,7 @@ public class VoteMenu{
     private static int votesId = -1;
     private static int mainId = -1, listId = -1, confirmId = -1, voteId = -1, searchId = -1;
     private static int difficultyId = -1, rulesId = -1;
+    private static int waveSkipId = -1, waveSkipInputId = -1;
     private static boolean available;
 
     private static final ObjectMap<Player, ListState> listStates = new ObjectMap<>();
@@ -122,6 +123,8 @@ public class VoteMenu{
             searchId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onSearch(p, s)));
             difficultyId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onDifficulty(p, o)));
             rulesId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onRules(p, o)));
+            waveSkipId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onWaveSkip(p, o)));
+            waveSkipInputId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onWaveSkipInput(p, s)));
             available = true;
             Log.info("[CampaignServer] " + I18n.get("campaign.log.menu-ready"));
         }catch(Throwable t){
@@ -299,7 +302,7 @@ public class VoteMenu{
                 if(!mindustry.Vars.state.isGame()){
                     player.sendMessage(I18n.get("campaign.msg.not-playing"));
                 }else{
-                    askConfirm(player, CampaignVote.Kind.wave, "", I18n.get("campaign.wave.skip-label", 1));
+                    openWaveSkip(player);
                 }
             }
             case 7 -> {
@@ -739,4 +742,75 @@ public class VoteMenu{
         listStates.remove(player);
         pending.remove(player);
     }
-}
+
+    // ---------------------------------------------------------------- wave skip count
+
+    /** Presets offered above the free-form input. */
+    private static final int[] waveSkipPresets = {1, 2, 3, 5, 10};
+
+    /** Asks how many waves to skip before the confirmation step. */
+    private static void openWaveSkip(Player player){
+        if(!available || player == null || player.con == null) return;
+
+        hide(player, mainId);
+        hide(player, waveSkipId);
+
+        Seq<String[]> rows = new Seq<>();
+        for(int i = 0; i < waveSkipPresets.length; i += 2){
+            String left = I18n.get("campaign.wave.skip-label", waveSkipPresets[i]);
+            String right = i + 1 < waveSkipPresets.length
+                ? I18n.get("campaign.wave.skip-label", waveSkipPresets[i + 1]) : "";
+            rows.add(right.isEmpty() ? new String[]{left} : new String[]{left, right});
+        }
+        rows.add(new String[]{I18n.get("campaign.wave.skip-custom")});
+        rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
+
+        Call.followUpMenu(player.con, waveSkipId, I18n.get("campaign.wave.skipmenu-title"),
+            I18n.get("campaign.wave.skipmenu-hint", mindustry.Vars.state.wave,
+                top.colorgarden.command.CampaignCommands.MAX_SKIP_WAVES),
+            rows.toArray(String[].class));
+    }
+
+    private static void onWaveSkip(Player player, int option){
+        if(option < 0 || player == null || player.con == null) return;
+
+        int slots = (waveSkipPresets.length + 1) / 2 * 2;
+        if(option < slots && option < waveSkipPresets.length){
+            startWaveVote(player, waveSkipPresets[option]);
+            return;
+        }
+
+        int rest = option - slots;
+        if(rest == 0){
+            Call.textInput(player.con, waveSkipInputId, I18n.get("campaign.wave.skip-input-title"),
+                I18n.get("campaign.wave.skip-input-message",
+                    top.colorgarden.command.CampaignCommands.MAX_SKIP_WAVES),
+                3, "1", false);
+        }else if(rest == 1){
+            hide(player, waveSkipId);
+            openMain(player);
+        }else{
+            hide(player, waveSkipId);
+        }
+    }
+
+    /** Free-form entry: the dialog hands over whatever the player typed. */
+    private static void onWaveSkipInput(Player player, String text){
+        if(player == null || text == null || text.trim().isEmpty()) return;
+
+        try{
+            startWaveVote(player, Integer.parseInt(text.trim()));
+        }catch(NumberFormatException e){
+            player.sendMessage("[scarlet]" + I18n.get("campaign.wave.invalid-count", text.trim(),
+                top.colorgarden.command.CampaignCommands.MAX_SKIP_WAVES));
+            openWaveSkip(player);
+        }
+    }
+
+    /** Confirms a wave vote carrying the chosen count. */
+    private static void startWaveVote(Player player, int count){
+        int waves = top.colorgarden.command.CampaignCommands.clampWaveCount(count);
+        hide(player, waveSkipId);
+        askConfirm(player, CampaignVote.Kind.wave, String.valueOf(waves),
+            I18n.get("campaign.wave.skip-label", waves));
+    }}

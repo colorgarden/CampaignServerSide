@@ -96,6 +96,7 @@ public class AdminPanel{
     private static void onMain(Player player, int option){
         if(option < 0) return;
         if(!player.admin) return;
+        Log.info("[CampaignServer] admin menu option @ picked by @", option, player.name);
 
         switch(option){
             //research and sector switching behave the same here: both open a pickable list, the only
