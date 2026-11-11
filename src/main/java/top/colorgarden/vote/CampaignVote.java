@@ -378,9 +378,19 @@ public class CampaignVote{
         }else if(kind == Kind.wave){
             if(!mindustry.Vars.state.isGame()) return I18n.get("campaign.msg.not-playing");
 
-            //one wave per vote, like the command
-            resolved = "1";
-            label = I18n.get("campaign.wave.skip-label", 1);
+            //the target is the wave count: /cv wave 3 skips three waves
+            int waves = 1;
+            if(target != null && !target.trim().isEmpty()){
+                try{
+                    waves = top.colorgarden.command.CampaignCommands.clampWaveCount(Integer.parseInt(target.trim()));
+                }catch(NumberFormatException e){
+                    return I18n.get("campaign.wave.invalid-count", target.trim(),
+                        top.colorgarden.command.CampaignCommands.MAX_SKIP_WAVES);
+                }
+            }
+
+            resolved = String.valueOf(waves);
+            label = I18n.get("campaign.wave.skip-label", waves);
         }else{
             UnlockableContent content = ResearchService.find(target);
             if(content == null) return I18n.get("campaign.vote.no-such-content", target) + suggest(kind, target);
@@ -792,10 +802,17 @@ public class CampaignVote{
 
                 announce(I18n.get("campaign.vote.abandoned", vote.arg));
             }else if(vote.kind == Kind.wave){
-                if(mindustry.Vars.state.isGame()){
-                    mindustry.Vars.logic.skipWave();
+                int waves = 1;
+                try{
+                    waves = top.colorgarden.command.CampaignCommands.clampWaveCount(Integer.parseInt(vote.arg));
+                }catch(NumberFormatException ignored){
+                    //a corrupted argument falls back to a single wave
                 }
-                announce(I18n.get("campaign.vote.wave-skipped", 1, mindustry.Vars.state.wave));
+
+                if(mindustry.Vars.state.isGame()){
+                    for(int i = 0; i < waves; i++) mindustry.Vars.logic.skipWave();
+                }
+                announce(I18n.get("campaign.vote.wave-skipped", waves, mindustry.Vars.state.wave));
             }else{
                 UnlockableContent content = ResearchService.find(vote.arg);
                 if(content == null){

@@ -33,6 +33,7 @@ public class AdminPanel{
     private static final int perPage = 12;
 
     private static int mainId = -1, listId = -1, settingsId = -1, difficultyId = -1, rulesId = -1, searchId = -1, coreId = -1, coreTypeId = -1, abandonId = -1;
+    private static int skipId = -1, skipInputId = -1;
     private static boolean available;
 
     private enum Purpose{ research, sector, planet, pad }
@@ -58,6 +59,8 @@ public class AdminPanel{
             coreId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onCoreInput(p, s)));
             coreTypeId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onCoreType(p, o)));
             abandonId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onAbandon(p, o)));
+            skipId = Menus.registerMenu((p, o) -> I18n.withLocale(I18n.localeOf(p), () -> onSkip(p, o)));
+            skipInputId = Menus.registerTextInput((p, s) -> I18n.withLocale(I18n.localeOf(p), () -> onSkipInput(p, s)));
             available = true;
         }catch(Throwable t){
             available = false;
@@ -120,12 +123,7 @@ public class AdminPanel{
                 mindustry.Vars.state.set(pause ? GameState.State.paused : GameState.State.playing);
                 player.sendMessage(I18n.get(pause ? "campaign.sim.paused" : "campaign.sim.resumed"));
             }
-            case 6 -> {
-                String problem = CampaignCommands.skipOneWave(player);
-                player.sendMessage(problem != null
-                    ? "[scarlet]" + problem
-                    : I18n.get("campaign.wave.skipped", 1, mindustry.Vars.state.wave));
-            }
+            case 6 -> openSkip(player);
             case 7 -> openSettings(player);
             case 8 -> openDifficulty(player);
             case 9 -> openRules(player);
@@ -622,4 +620,75 @@ public class AdminPanel{
             player.sendMessage("[scarlet]" + I18n.get("campaign.admin.abandon-failed", String.valueOf(t.getMessage())));
         }
     }
-}
+
+    // ---------------------------------------------------------------- skip waves
+
+    /** Presets offered above the free-form input. */
+    private static final int[] skipPresets = {1, 2, 3, 5, 10};
+
+    /** Opens the wave-skip picker: presets plus a text input for any number. */
+    private static void openSkip(Player player){
+        if(!available || player == null || player.con == null || !player.admin) return;
+        hide(player, mainId);
+        hide(player, skipId);
+
+        Seq<String[]> rows = new Seq<>();
+        for(int i = 0; i < skipPresets.length; i += 2){
+            String left = I18n.get("campaign.wave.skip-label", skipPresets[i]);
+            String right = i + 1 < skipPresets.length
+                ? I18n.get("campaign.wave.skip-label", skipPresets[i + 1]) : "";
+            rows.add(right.isEmpty() ? new String[]{left} : new String[]{left, right});
+        }
+        rows.add(new String[]{I18n.get("campaign.admin.skip-custom")});
+        rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
+
+        Call.followUpMenu(player.con, skipId, I18n.get("campaign.admin.skipmenu-title"),
+            I18n.get("campaign.admin.skipmenu-hint", mindustry.Vars.state.wave, CampaignCommands.MAX_SKIP_WAVES),
+            rows.toArray(String[].class));
+    }
+
+    private static void onSkip(Player player, int option){
+        if(option < 0 || player == null || player.con == null || !player.admin) return;
+
+        int slots = (skipPresets.length + 1) / 2 * 2;
+        if(option < slots && option < skipPresets.length){
+            executeSkip(player, skipPresets[option]);
+            return;
+        }
+
+        int rest = option - slots;
+        if(rest == 0){
+            Call.textInput(player.con, skipInputId, I18n.get("campaign.admin.skip-input-title"),
+                I18n.get("campaign.admin.skip-input-message", CampaignCommands.MAX_SKIP_WAVES),
+                3, "1", false);
+        }else if(rest == 1){
+            hide(player, skipId);
+            openMain(player);
+        }else{
+            hide(player, skipId);
+        }
+    }
+
+    /** Free-form entry: the dialog hands over whatever the admin typed. */
+    private static void onSkipInput(Player player, String text){
+        if(player == null || text == null || text.trim().isEmpty()) return;
+
+        try{
+            executeSkip(player, Integer.parseInt(text.trim()));
+        }catch(NumberFormatException e){
+            player.sendMessage("[scarlet]" + I18n.get("campaign.wave.invalid-count", text.trim(),
+                CampaignCommands.MAX_SKIP_WAVES));
+            openSkip(player);
+        }
+    }
+
+    private static void executeSkip(Player player, int count){
+        String problem = CampaignCommands.skipWaves(player, count);
+        if(problem != null){
+            player.sendMessage("[scarlet]" + problem);
+        }else{
+            player.sendMessage(I18n.get("campaign.wave.skipped",
+                CampaignCommands.clampWaveCount(count), mindustry.Vars.state.wave));
+        }
+        hide(player, skipId);
+    }}

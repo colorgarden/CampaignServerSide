@@ -532,12 +532,22 @@ public class CampaignCommands{
                     core.unlocked() ? I18n.get("campaign.core.unlocked") : I18n.get("campaign.core.locked"));
             }
         });
-        handler.register("campaign-skipwave", "Skip the next wave (one at a time, cooldown applies).", args -> {
-            String problem = skipOneWave(null);
+        handler.register("campaign-skipwave", "[count]", "Skip waves at once (default 1, up to " + MAX_SKIP_WAVES + "; cooldown applies).", args -> {
+            int count = 1;
+            if(args.length > 0){
+                try{
+                    count = clampWaveCount(Integer.parseInt(args[0]));
+                }catch(NumberFormatException e){
+                    err("campaign.wave.invalid-count", args[0], MAX_SKIP_WAVES);
+                    return;
+                }
+            }
+
+            String problem = skipWaves(null, count);
             if(problem != null){
                 err(problem);
             }else{
-                info("campaign.wave.skipped", 1, state.wave);
+                info("campaign.wave.skipped", count, state.wave);
             }
         });
 
@@ -1162,14 +1172,24 @@ public class CampaignCommands{
         arc.util.CommandHandler.CommandRunner<Player> skip = (args, player) -> {
             if(!requirePermission(player, true)) return;
 
-            String problem = skipOneWave(player);
+            int count = 1;
+            if(args.length > 0){
+                try{
+                    count = clampWaveCount(Integer.parseInt(args[0]));
+                }catch(NumberFormatException e){
+                    player.sendMessage("[scarlet]" + I18n.get("campaign.wave.invalid-count", args[0], MAX_SKIP_WAVES));
+                    return;
+                }
+            }
+
+            String problem = skipWaves(player, count);
             player.sendMessage(problem != null
                 ? "[scarlet]" + problem
-                : I18n.get("campaign.wave.skipped", 1, state.wave));
+                : I18n.get("campaign.wave.skipped", count, state.wave));
         };
 
-        client(handler, "cj", "[admin] Skip the next wave.", skip);
-        client(handler, "cjump", "[admin] Alias of /cj.", skip);
+        client(handler, "cj", "[count] [admin] Skip waves (default 1).", skip);
+        client(handler, "cjump", "[count] [admin] Alias of /cj.", skip);
 
         client(handler, "difficulty", "[name]", "[admin] Show or set the campaign difficulty.", (args, player) -> {
             if(!requirePermission(player, true)) return;
@@ -1604,13 +1624,30 @@ public class CampaignCommands{
 
         return null;
     }
+    /** Upper bound for one skip action; more waves at once would flood the sector with enemies. */
+    public static final int MAX_SKIP_WAVES = 50;
+
+    /** @return the requested count clamped to a sane range. */
+    public static int clampWaveCount(int count){
+        return Math.max(1, Math.min(MAX_SKIP_WAVES, count));
+    }
+
     /**
-     * Skips exactly one wave with the vanilla routine ({@code Logic#skipWave}, the same call the
-     * campaign's skip-wave button makes), honouring {@code skipWaveCooldown}.
+     * Skips exactly one wave, see {@link #skipWaves}.
      *
      * @return null on success, otherwise a player-readable reason.
      */
     static @Nullable String skipOneWave(@Nullable Player player){
+        return skipWaves(player, 1);
+    }
+
+    /**
+     * Skips {@code count} waves with the vanilla routine ({@code Logic#skipWave}, the same call the
+     * campaign's skip-wave button makes), honouring {@code skipWaveCooldown} once for the whole action.
+     *
+     * @return null on success, otherwise a player-readable reason.
+     */
+    static @Nullable String skipWaves(@Nullable Player player, int count){
         String key = player == null ? "-" : player.uuid();
         long now = arc.util.Time.millis();
 
@@ -1625,7 +1662,11 @@ public class CampaignCommands{
         String blocked = skipBlocked();
         if(blocked != null) return blocked;
 
-        mindustry.Vars.logic.skipWave();
+        int waves = clampWaveCount(count);
+        for(int i = 0; i < waves; i++){
+            mindustry.Vars.logic.skipWave();
+        }
+
         waveSkipUntil.put(key, now + (long)(CampaignConfig.data().skipWaveCooldown * 1000f));
         return null;
     }
