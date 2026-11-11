@@ -95,12 +95,13 @@ public class CampaignHooks{
             top.colorgarden.core.EnvironmentService.onWorldLoad();
         });
         Events.on(RulesLoadEvent.class, event -> applyLogicRules());
-        //diagnostic: proves whether a placement reached the server at all, and what it looked like.
-        //"cannot build" reports turned out to be client-side rejections, which never arrive here
+        //opt-in trace: a placement that never arrives here was rejected client-side, which is how the
+        //"cannot build" reports were tracked down. It must stay at debug level - at info it filled the
+        //log with one line per placed tile
         Events.on(mindustry.game.EventType.BlockBuildEndEvent.class, event -> {
             if(event.unit == null || event.unit.getPlayer() == null || event.tile == null) return;
             mindustry.gen.Player actor = event.unit.getPlayer();
-            Log.info("[CampaignServer] build @ by @: breaking=@ tile=@,@ block=@ team=@ hasCore=@",
+            Log.debug("[CampaignServer] build @ by @: breaking=@ tile=@,@ block=@ team=@ hasCore=@",
                 event.tile.block() == null ? "?" : event.tile.block().name, actor.name, event.breaking,
                 event.tile.x, event.tile.y,
                 event.team == null ? "?" : event.team.name, actor.core() != null);
