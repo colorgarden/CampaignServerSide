@@ -95,6 +95,16 @@ public class CampaignHooks{
             top.colorgarden.core.EnvironmentService.onWorldLoad();
         });
         Events.on(RulesLoadEvent.class, event -> applyLogicRules());
+        //diagnostic: proves whether a placement reached the server at all, and what it looked like.
+        //"cannot build" reports turned out to be client-side rejections, which never arrive here
+        Events.on(mindustry.game.EventType.BlockBuildEndEvent.class, event -> {
+            if(event.unit == null || event.unit.getPlayer() == null || event.tile == null) return;
+            mindustry.gen.Player actor = event.unit.getPlayer();
+            Log.info("[CampaignServer] build @ by @: breaking=@ tile=@,@ block=@ team=@ hasCore=@",
+                event.tile.block() == null ? "?" : event.tile.block().name, actor.name, event.breaking,
+                event.tile.x, event.tile.y,
+                event.team == null ? "?" : event.team.name, actor.core() != null);
+        });
         Events.on(SectorCaptureEvent.class, event -> onSectorCapture(event.sector));
         Events.on(SaveWriteEvent.class, event -> onSaveWrite());
         Events.run(Trigger.update, CampaignHooks::update);
@@ -396,6 +406,12 @@ public class CampaignHooks{
         lines.add(I18n.get("campaign.join.current", sector.planet.localizedName, sector.name(), sector.id,
             state.wave, ResearchService.lockedCount(sector.planet)));
         lines.add(I18n.get("campaign.join.commands"));
+
+        //a paused world cannot build anything, and until now nothing said so: players just saw every
+        //placement fail. Name the state and the two ways out of it
+        if(state.isPaused()){
+            lines.add(I18n.get("campaign.join.paused"));
+        }
 
         //everything else lives in /cv help, so the welcome stays short
         return lines;
