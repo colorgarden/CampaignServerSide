@@ -47,6 +47,7 @@ public class CampaignHooks{
     private static float campaignUnlockTimer;
     private static float autoUnlockTimer;
     private static float coreUnlockTimer;
+    private static float physicsTimer;
 
 
     /** True while the simulation is paused only because no player is online. */
@@ -92,6 +93,8 @@ public class CampaignHooks{
         top.colorgarden.core.EnvironmentService.init();
         Events.on(WorldLoadEvent.class, event -> {
             applyLogicRules();
+            //a new sector must not inherit the physics bodies of the previous one
+            SectorService.resetPhysics();
             top.colorgarden.core.EnvironmentService.onWorldLoad();
         });
         Events.on(RulesLoadEvent.class, event -> applyLogicRules());
@@ -482,6 +485,16 @@ public class CampaignHooks{
         if(coreUnlockTimer >= 60f){
             coreUnlockTimer = 0f;
             ResearchService.unlockCoreItems();
+        }
+
+        //Mindustry never removes the physics body of a unit that despawns, so mass spawns (wave skipping,
+        //big attacks) leave thousands of bodies in the collision quadtree. The server then spends seconds
+        //per frame intersecting them: 0.5 tps with an idle CPU. Rebuilding the physics world from the live
+        //units costs O(units) and is the only safe way to drop the leaked bodies
+        physicsTimer += Time.delta;
+        if(physicsTimer >= 300f){
+            physicsTimer = 0f;
+            SectorService.resetPhysics();
         }
 
         campaignUnlockTimer += Time.delta;

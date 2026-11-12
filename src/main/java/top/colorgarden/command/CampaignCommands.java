@@ -560,6 +560,15 @@ public class CampaignCommands{
             info("campaign.log.buildings-refreshed", touched);
         });
 
+        handler.register("campaign-fixphysics", "Rebuild the physics world from the live units (fixes the slowdown left behind by mass unit spawns).", args -> {
+            if(!state.isGame()){
+                err("campaign.msg.not-playing");
+                return;
+            }
+            int rebuilt = SectorService.resetPhysics();
+            info("campaign.log.physics-reset", rebuilt, mindustry.gen.Groups.unit.size());
+        });
+
         handler.register("campaign-exports", "List every sector of the planet with its destination, export statistics and whether a redirect would touch it.", args -> {
             var planet = SectorService.planet();
             if(planet == null){

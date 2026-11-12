@@ -1031,6 +1031,44 @@ public class SectorService{
         CampaignNetwork.pushInfoToAll();
     }
 
+    /**
+     * Rebuilds the physics world from the live units.
+     *
+     * <p>Mindustry creates a physics body per unit but only removes it when the unit changes collision
+     * layer; a unit that simply despawns leaves its body in the collision quadtree. Mass spawns (the
+     * wave skip, a big attack) therefore leave tens of thousands of stale bodies, and the server spends
+     * seconds per frame intersecting them: it drops to 0.5 tps with an otherwise idle CPU. Rebuilding
+     * the process and clearing the per-unit flag makes the next frame re-register the survivors.</p>
+     *
+     * @return how many physics processes were rebuilt
+     */
+    public static int resetPhysics(){
+        int rebuilt = 0;
+
+        try{
+            if(mindustry.Vars.asyncCore != null && mindustry.Vars.asyncCore.processes != null){
+                for(mindustry.async.AsyncProcess process : mindustry.Vars.asyncCore.processes){
+                    if(process instanceof mindustry.async.PhysicsProcess physics){
+                        physics.reset();
+                        physics.init();
+                        rebuilt ++;
+                    }
+                }
+            }
+
+            if(mindustry.gen.Groups.unit != null){
+                for(mindustry.gen.Unit unit : mindustry.gen.Groups.unit){
+                    unit.hasPhysicsRef(false);
+                }
+            }
+        }catch(Throwable t){
+            Log.err("[CampaignServer] " + I18n.get("campaign.log.physics-reset-failed",
+                Strings.getSimpleMessage(t)));
+        }
+
+        return rebuilt;
+    }
+
     /** @return true when losing this sector must discard it ({@code clearSectorOnLose} of that planet). */
     public static boolean lostClears(Sector sector){
         if(sector == null || sector.planet == null) return CampaignConfig.data().clearSectorOnLose;
