@@ -18,10 +18,12 @@
 - **启动配置界面**：核心蓝图库、负载物品、容量校验，货物从来源区块扣除
 - 定时自动保存（跟随原版 `saveinterval`）、关服保存、区块失守时按规则决定是否存盘
 - 挂机判定：超过 `afkSeconds` 无位移的玩家在投票中被跳过，并公告
+- 战役规则按星球独立：难度、迷雾、入侵、反应堆爆炸等，塞普罗与埃里克尔各存一份
+- 物理世界自动重建：跳波或大量单位死亡后不会因残留刚体掉到 1 TPS，也可用 `campaign-fixphysics` 手动触发
 - 自定义网络包 + Java API，客户端模组可直接调用（见 [`PROTOCOL.md`](PROTOCOL.md)）
 - 所有文案走语言文件，按客户端语言切换（`bundles/bundle.properties` + `bundle_zh_CN.properties`）
 
-当前版本：**0.0.2-alpha**（[发布页](https://github.com/colorgarden/CampaignServerSide/releases/tag/v0.0.2-alpha)）。
+当前版本：**0.0.5.1-beta**（[发布页](https://github.com/colorgarden/CampaignServerSide/releases/tag/v0.0.5.1-beta)）。
 目标版本：Mindustry **v160.x** 专用服务端（`server-release.jar`），JDK 17+。
 许可证：**AGPL-3.0-or-later**（见 [`LICENSE`](LICENSE)）。
 仓库：`https://github.com/colorgarden/CampaignServerSide`
@@ -65,10 +67,11 @@
 | `campaign-research <name>` | 解锁一项科技（含前置） |
 | `campaign-research-all` | 解锁全部科技 |
 | `campaign-relock <name>` | 重新锁上某项科技 |
-| `campaign-rule [name] [on\|off]` | 查看/切换战役规则（`invasion` `fog` `hidespawns` `randomwaveai` `rtsai` `pausedisabled` `clearonlose`） |
+| `campaign-rule [name] [on\|off]` | 查看/切换**当前星球**的战役规则（`invasion` `fog` `hidespawns` `randomwaveai` `rtsai` `pausedisabled` `clearonlose` `reactorexplosions`） |
 | `campaign-difficulty [name]` | 查看/设置战役难度 |
 | `campaign-sim [pause\|resume]` | 直接暂停或恢复模拟 |
-| `campaign-skipwave` | 跳过下一波（等价原版跳过波次按钮） |
+| `campaign-skipwave [count]` | 跳过波次（默认 1，最多 50，等价原版跳过波次按钮） |
+| `campaign-fixphysics` | 按存活单位重建物理世界（清理残留刚体，修复掉到 1 TPS） |
 | `campaign-autopause [on\|off]` | 查看/设置原版 `autoPause`（无人在线时暂停） |
 | `campaign-cores` | 列出全部核心方块、边长与允许的蓝图尺寸 |
 | `campaign-fix-spawn [x] [y]` | 修复当前区块被污染的出生点记录 |
@@ -107,7 +110,7 @@
 | `/ca sector <name>` | 管理员 | 直接切换区块 |
 | `/ca planet <name>` | 管理员 | 直接切换星球 |
 | `/ca rule <name> [on\|off]` | 管理员 | 切换战役规则 |
-| `/cj` `/cjump` | 管理员 | 跳过一波（受 `skipWaveCooldown` 冷却限制） |
+| `/cj [count]` `/cjump [count]` | 管理员 | 跳过指定波数（默认 1，最多 50，受 `skipWaveCooldown` 冷却限制） |
 | `/cv menu` `/cvote menu` | 所有人 | 投票面板 |
 | `/cvote sector <name>` | 所有人 | 发起“切换区块”投票 |
 | `/cvote research <name>` | 所有人 | 发起“解锁科技”投票 |
@@ -115,7 +118,7 @@
 | `/cvote destination <sector>` | 所有人 | 发起“改本区块发射台目标”投票 |
 | `/cvote redirect` | 所有人 | 发起“一键重定向全星球对外运送”投票 |
 | `/cvote pause` | 所有人 | 发起“暂停/恢复模拟”投票 |
-| `/cvote wave` | 所有人 | 发起“跳过一波”投票 |
+| `/cvote wave [count]` | 所有人 | 发起“跳过指定波数”投票 |
 | `/cvote abandon` | 所有人 | 发起“遗弃本区块”投票（等同撤退） |
 | `/cvote yes` / `/cvote no` | 所有人 | 投票 |
 | `/cvote cancel` | 管理员 | 取消投票 |

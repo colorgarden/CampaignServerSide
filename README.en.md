@@ -18,11 +18,13 @@ plus a network API for client mods.
 - **Launch setup UI**: core blueprint library, cargo, capacity checks, cargo deducted from the origin sector
 - Periodic autosave (follows vanilla `saveinterval`), save on shutdown, save-on-loss decided by the campaign rule
 - AFK detection: players idle longer than `afkSeconds` are skipped in votes, with chat announcements both ways
+- Campaign rules are stored per planet: difficulty, fog, invasion, reactor explosions and the rest stay separate for Serpulo and Erekir
+- The physics world rebuilds itself, so mass wave skips and unit deaths no longer leave thousands of stale bodies and drop the server to 1 tps; `campaign-fixphysics` forces it
 - Custom packets + a Java API for client mods (see [`PROTOCOL.md`](PROTOCOL.md))
 - Every string lives in the language files and follows the client locale
   (`bundles/bundle.properties` + `bundle_zh_CN.properties`)
 
-Version: **0.0.2-alpha** ([release](https://github.com/colorgarden/CampaignServerSide/releases/tag/v0.0.2-alpha)).
+Version: **0.0.5.1-beta** ([release](https://github.com/colorgarden/CampaignServerSide/releases/tag/v0.0.5.1-beta)).
 Target: Mindustry **v160.x** dedicated server (`server-release.jar`), JDK 17+.
 License: **AGPL-3.0-or-later** (see [`LICENSE`](LICENSE)).
 Repository: `https://github.com/colorgarden/CampaignServerSide`
@@ -66,10 +68,11 @@ Repository: `https://github.com/colorgarden/CampaignServerSide`
 | `campaign-research <name>` | Unlock one item (including its prerequisites) |
 | `campaign-research-all` | Unlock everything |
 | `campaign-relock <name>` | Lock an item again |
-| `campaign-rule [name] [on\|off]` | Show or toggle campaign rules (`invasion` `fog` `hidespawns` `randomwaveai` `rtsai` `pausedisabled` `clearonlose`) |
+| `campaign-rule [name] [on\|off]` | Show or toggle the **current planet's** campaign rules (`invasion` `fog` `hidespawns` `randomwaveai` `rtsai` `pausedisabled` `clearonlose` `reactorexplosions`) |
 | `campaign-difficulty [name]` | Show or set the campaign difficulty |
 | `campaign-sim [pause\|resume]` | Pause or resume the simulation directly |
-| `campaign-skipwave` | Skip the next wave (same as the vanilla button) |
+| `campaign-skipwave [count]` | Skip waves (default 1, max 50; same as the vanilla button) |
+| `campaign-fixphysics` | Rebuild the physics world from the live units (clears leaked bodies, fixes 1 tps) |
 | `campaign-autopause [on\|off]` | Show or set vanilla `autoPause` |
 | `campaign-cores` | List every core block, its size and the blueprint footprint it allows |
 | `campaign-fix-spawn [x] [y]` | Repair a corrupted spawn position of the current sector |
@@ -108,7 +111,7 @@ Prefix `/`, visible in `/help`.
 | `/ca sector <name>` | admin | Switch sector directly |
 | `/ca planet <name>` | admin | Switch planet directly |
 | `/ca rule <name> [on\|off]` | admin | Toggle a campaign rule |
-| `/cj` `/cjump` | admin | Skip one wave (limited by `skipWaveCooldown`) |
+| `/cj [count]` `/cjump [count]` | admin | Skip waves (default 1, max 50, limited by `skipWaveCooldown`) |
 | `/cv menu` `/cvote menu` | everyone | Vote panel |
 | `/cvote sector <name>` | everyone | Start a sector-switch vote |
 | `/cvote research <name>` | everyone | Start a research vote |
