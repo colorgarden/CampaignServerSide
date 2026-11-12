@@ -767,7 +767,8 @@ public class VoteMenu{
 
         Call.followUpMenu(player.con, waveSkipId, I18n.get("campaign.wave.skipmenu-title"),
             I18n.get("campaign.wave.skipmenu-hint", mindustry.Vars.state.wave,
-                top.colorgarden.command.CampaignCommands.MAX_SKIP_WAVES),
+                Math.min(top.colorgarden.command.CampaignCommands.MAX_SKIP_WAVES,
+                    top.colorgarden.command.CampaignCommands.remainingWaves())),
             rows.toArray(String[].class));
     }
 
@@ -784,7 +785,8 @@ public class VoteMenu{
         if(rest == 0){
             Call.textInput(player.con, waveSkipInputId, I18n.get("campaign.wave.skip-input-title"),
                 I18n.get("campaign.wave.skip-input-message",
-                    top.colorgarden.command.CampaignCommands.MAX_SKIP_WAVES),
+                    Math.min(top.colorgarden.command.CampaignCommands.MAX_SKIP_WAVES,
+                        top.colorgarden.command.CampaignCommands.remainingWaves())),
                 3, "1", false);
         }else if(rest == 1){
             hide(player, waveSkipId);

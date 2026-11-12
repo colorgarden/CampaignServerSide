@@ -390,6 +390,11 @@ public class CampaignVote{
             }
 
             resolved = String.valueOf(waves);
+
+            //never vote for a skip that would run past the wave the sector is won on
+            String overLimit = top.colorgarden.command.CampaignCommands.waveLimitProblem(waves);
+            if(overLimit != null) return overLimit;
+
             label = I18n.get("campaign.wave.skip-label", waves);
         }else{
             UnlockableContent content = ResearchService.find(target);
@@ -809,10 +814,19 @@ public class CampaignVote{
                     //a corrupted argument falls back to a single wave
                 }
 
+                //the wave may have moved while the vote ran, so cap it again instead of running past the win wave
+                int allowed = Math.min(waves, top.colorgarden.command.CampaignCommands.remainingWaves());
+
                 if(mindustry.Vars.state.isGame()){
-                    for(int i = 0; i < waves; i++) mindustry.Vars.logic.skipWave();
+                    for(int i = 0; i < allowed; i++) mindustry.Vars.logic.skipWave();
                 }
-                announce(I18n.get("campaign.vote.wave-skipped", waves, mindustry.Vars.state.wave));
+
+                if(allowed < waves){
+                    announce(I18n.get("campaign.vote.wave-limit", allowed,
+                        mindustry.Vars.state.rules.winWave, mindustry.Vars.state.wave));
+                }else{
+                    announce(I18n.get("campaign.vote.wave-skipped", waves, mindustry.Vars.state.wave));
+                }
             }else{
                 UnlockableContent content = ResearchService.find(vote.arg);
                 if(content == null){

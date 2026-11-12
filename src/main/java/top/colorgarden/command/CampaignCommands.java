@@ -1642,6 +1642,28 @@ public class CampaignCommands{
     }
 
     /**
+     * @return how many waves may still be skipped before the sector's win wave, or
+     *         {@link #MAX_SKIP_WAVES} when the map has no win wave (endless / numbered sectors).
+     *
+     * <p>{@code rules.winWave} is the wave the sector is won on; vanilla resolves the capture as soon as
+     * the wave counter reaches it. Skipping past it would end the sector, so the remaining distance is
+     * the real limit of a skip.</p>
+     */
+    public static int remainingWaves(){
+        int win = state.rules == null ? 0 : state.rules.winWave;
+        if(win <= 0) return MAX_SKIP_WAVES;
+        return Math.max(0, win - state.wave);
+    }
+
+    /** @return null when {@code count} waves fit before the win wave, otherwise the reason. */
+    public static @Nullable String waveLimitProblem(int count){
+        int limit = remainingWaves();
+        if(count <= limit) return null;
+
+        return I18n.get("campaign.wave.would-win", count, state.wave, state.rules.winWave, limit);
+    }
+
+    /**
      * Skips exactly one wave, see {@link #skipWaves}.
      *
      * @return null on success, otherwise a player-readable reason.
@@ -1672,6 +1694,11 @@ public class CampaignCommands{
         if(blocked != null) return blocked;
 
         int waves = clampWaveCount(count);
+
+        //a skip must never run past the wave the sector is won on
+        String overLimit = waveLimitProblem(waves);
+        if(overLimit != null) return overLimit;
+
         for(int i = 0; i < waves; i++){
             mindustry.Vars.logic.skipWave();
         }

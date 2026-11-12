@@ -650,11 +650,12 @@ public class AdminPanel{
                 ? I18n.get("campaign.wave.skip-label", skipPresets[i + 1]) : "";
             rows.add(right.isEmpty() ? new String[]{left} : new String[]{left, right});
         }
-        rows.add(new String[]{I18n.get("campaign.admin.skip-custom")});
+        rows.add(new String[]{I18n.get("campaign.wave.skip-custom")});
         rows.add(new String[]{I18n.get("campaign.menu.back"), I18n.get("campaign.menu.close")});
 
-        Call.followUpMenu(player.con, skipId, I18n.get("campaign.admin.skipmenu-title"),
-            I18n.get("campaign.admin.skipmenu-hint", mindustry.Vars.state.wave, CampaignCommands.MAX_SKIP_WAVES),
+        Call.followUpMenu(player.con, skipId, I18n.get("campaign.wave.skipmenu-title"),
+            I18n.get("campaign.wave.skipmenu-hint", mindustry.Vars.state.wave,
+                Math.min(CampaignCommands.MAX_SKIP_WAVES, CampaignCommands.remainingWaves())),
             rows.toArray(String[].class));
     }
 
@@ -670,8 +671,9 @@ public class AdminPanel{
 
         int rest = option - slots;
         if(rest == 0){
-            Call.textInput(player.con, skipInputId, I18n.get("campaign.admin.skip-input-title"),
-                I18n.get("campaign.admin.skip-input-message", CampaignCommands.MAX_SKIP_WAVES),
+            Call.textInput(player.con, skipInputId, I18n.get("campaign.wave.skip-input-title"),
+                I18n.get("campaign.wave.skip-input-message",
+                    Math.min(CampaignCommands.MAX_SKIP_WAVES, CampaignCommands.remainingWaves())),
                 3, "1", false);
         }else if(rest == 1){
             hide(player, skipId);
