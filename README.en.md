@@ -8,26 +8,15 @@
 >
 > This project **contains AI-generated content**.
 
-A Java plugin for the Mindustry **dedicated server** that makes **campaign mode** playable on a server,
-plus a network API for client mods.
+A server-side plugin that keeps **Mindustry v160.x campaign mode running on a dedicated server**.
 
-- Generates and loads campaign sectors on the server, saving progress the way single-player does
-- Admins can switch sectors and unlock research; the "admin only" switches can be turned off so everyone can
-- Admin panel `/ca menu`: research, sector switch, planet switch, pause, wave skip, difficulty, campaign rules, abandon
-- Eight vote kinds (sector / research / planet / destination / redirect / pause / wave / abandon), all with a confirmation page
-- **Launch setup UI**: core blueprint library, cargo, capacity checks, cargo deducted from the origin sector
-- Periodic autosave (follows vanilla `saveinterval`), save on shutdown, save-on-loss decided by the campaign rule
-- AFK detection: players idle longer than `afkSeconds` are skipped in votes, with chat announcements both ways
-- Campaign rules are stored per planet: difficulty, fog, invasion, reactor explosions and the rest stay separate for Serpulo and Erekir
-- The physics world rebuilds itself, so mass wave skips and unit deaths no longer leave thousands of stale bodies and drop the server to 1 tps; `campaign-fixphysics` forces it
-- Custom packets + a Java API for client mods (see [`PROTOCOL.md`](PROTOCOL.md))
-- Every string lives in the language files and follows the client locale
-  (`bundles/bundle.properties` + `bundle_zh_CN.properties`)
+The vanilla campaign lives on the client: sector maps, launch pad wiring, the planet view and the launch loadout are all client-side, and on a dedicated server `Vars.control` is null while `Logic#sectorCapture()` never saves. This plugin fills those gaps on the server — generating, loading and saving sectors, maintaining the sector economy, resolving capture and loss, and taking over research unlocking and the launch pad chain — and exposes them through vanilla dialogs (`followUpMenu` / `textInput` / `infoPopup`).
 
-Version: **0.0.5.1-beta** ([release](https://github.com/colorgarden/CampaignServerSide/releases/tag/v0.0.5.1-beta)).
-Target: Mindustry **v160.x** dedicated server (`server-release.jar`), JDK 17+.
-License: **AGPL-3.0-or-later** (see [`LICENSE`](LICENSE)).
-Repository: `https://github.com/colorgarden/CampaignServerSide`
+**Players join with an unmodified client.** Client mods that want programmatic access can use the optional protocol (see [`PROTOCOL.md`](PROTOCOL.md)).
+
+- Version: **0.0.5.1-beta** ([release](https://github.com/colorgarden/CampaignServerSide/releases/tag/v0.0.5.1-beta))
+- Runtime: Mindustry **v160.x** dedicated server (`server-release.jar`), **Java 17+**
+- License: **AGPL-3.0-or-later** (see [`LICENSE`](LICENSE))
 
 > [!TIP]
 > **Test server: `colorgarden.top`** (port `6567`, join straight from a v160 client)
@@ -35,316 +24,377 @@ Repository: `https://github.com/colorgarden/CampaignServerSide`
 
 ---
 
-## 1. Installation
+## 1. Features
 
-1. Build `CampaignServerSide.jar` (see section 10) or use `build/CampaignServerSide.jar`.
-2. Drop it into the server's `config/mods/`:
+### Campaign
+
+- Sectors load from their save; without one they are generated from the planet generator and written to disk immediately
+- Saves on a timer, on shutdown, on capture and on loss
+- Sector states: never launched / launched / captured / lost (ruins)
+- Sector economy: core storage, production per minute, exports per minute, imports per minute; the detail page also names the source sectors and the current launch destination
+- Launch/landing pad chain: a new sector points at its origin automatically; can be set by hand or rewired for the whole planet (same planet only)
+- Loss handling: ruins are saved and rebuilt the vanilla way (load old save → place core → damage along enemy paths → restore surviving buildings as derelicts), or the save can be discarded
+
+### UI without a client mod
+
+- `/c` hub: votes / admin / sector browser
+- `/cv` vote menu and `/ca` admin panel
+- Launch setup: core blueprint, cargo, capacity checks, confirm launch
+- Sector detail page: localized name, state, storage, production, exports, imports, sources and destination, refreshed in place every 1.5 s
+
+### Voting
+
+Eight kinds, each with a target list and a confirmation page:
+
+`sector switch` `research unlock` `planet switch` `launch destination` `redirect all exports` `pause/resume` `wave skip` `abandon sector`
+
+### Research
+
+- Server-side research: resolves content, checks tech-tree parents, objectives (sector completion / prior research) and item costs, then pays from the **planet-wide stock** and unlocks
+- Auto unlock: mirrors vanilla `Control#checkAutoUnlocks`, which only runs on a client
+- Core item unlock: mirrors vanilla `Control#update`'s "unlock every item sitting in the core" — Erekir's beryllium depends on it
+- Unlocks travel the vanilla path (`UnlockEvent` → `Call.researched`); late joiners receive them with the world data
+
+### Campaign rules
+
+Stored **per planet**, so Serpulo and Erekir keep separate settings:
+
+`difficulty` `sector invasion` `fog` `hide spawns` `random wave AI` `RTS AI` `pause disabled` `clear sector on loss` `reactor explosions`
+
+### Environment
+
+- Weather: rebuilds the weather schedule from terrain (same rules as vanilla `PlanetGenerator#addWeather`) and drives actual weather events
+- Day/night: derives the time from the planet rotation, maps it to ambient light and broadcasts it at a limited rate
+
+### Maintenance
+
+- **Physics rebuild**: vanilla only recycles a unit's physics body when the unit changes collision layer, so despawned units leak bodies; after wave skips or mass deaths the server drops to 1 tps with an idle CPU. The plugin rebuilds the physics world from the live units on sector load, every five minutes, and on `campaign-fixphysics`
+- **World processors**: vanilla sets `disableWorldProcessors` on capture, which permanently stops logic blocks in that sector on every later load; the plugin clears it on load and after capture
+- Diagnostic commands cover saves, maps, rules, pads, weather, physics and sector accessibility
+
+---
+
+## 2. Installing
+
+1. Download `CampaignServerSide.jar` from [Releases](https://github.com/colorgarden/CampaignServerSide/releases)
+2. Put it in the server's `config/mods/`:
+
    ```
    <server>/
      server-release.jar
      config/mods/CampaignServerSide.jar
    ```
-3. Start the server: `java -jar server-release.jar`
-4. In the console run `campaign-help`, or go straight to `campaign-host groundZero`.
-5. To resume the last sector on boot, set `"autoStart"` to `true` in the config file.
 
-> The campaign maps (`maps/serpulo/*.msav`, `maps/erekir/*.msav`) are already inside `server-release.jar`;
-> no extra `assets.jar` is needed. `campaign-diag` prints something like
-> `Sector preset maps available: 78/78` — anything lower means the server jar is incomplete.
+3. Start the server
+4. Run `campaign-host` (or `campaign-host <sector>`) in the console
+5. To resume the last sector after a restart, set `"autoStart"` to `true`
 
-## 2. Console commands
+Campaign maps (`maps/serpulo/*.msav`, `maps/erekir/*.msav`) ship inside `server-release.jar`; no extra `assets.jar` is needed.
 
-| Command | Description |
-| --- | --- |
-| `campaign-help` | List every command |
-| `campaign-host [sector]` | Enter the campaign (last sector or the starting one) |
-| `campaign-goto <sector>` | Switch sector (saves the current one first) |
-| `campaign-reset <sector>` | Delete a sector save and regenerate it |
-| `campaign-save` | Save the current sector now |
-| `campaign-stop` | Save and stop hosting |
-| `campaign-status` | Current sector, wave, cores, save file, … |
-| `campaign-sectors [page]` | List every sector of the planet and its state |
-| `campaign-capture` | Force the current sector to count as captured (testing) |
-| `campaign-research <name>` | Unlock one item (including its prerequisites) |
-| `campaign-research-all` | Unlock everything |
-| `campaign-relock <name>` | Lock an item again |
-| `campaign-rule [name] [on\|off]` | Show or toggle the **current planet's** campaign rules (`invasion` `fog` `hidespawns` `randomwaveai` `rtsai` `pausedisabled` `clearonlose` `reactorexplosions`) |
-| `campaign-difficulty [name]` | Show or set the campaign difficulty |
-| `campaign-sim [pause\|resume]` | Pause or resume the simulation directly |
-| `campaign-skipwave [count]` | Skip waves (default 1, max 50; same as the vanilla button) |
-| `campaign-fixphysics` | Rebuild the physics world from the live units (clears leaked bodies, fixes 1 tps) |
-| `campaign-autopause [on\|off]` | Show or set vanilla `autoPause` |
-| `campaign-cores` | List every core block, its size and the blueprint footprint it allows |
-| `campaign-fix-spawn [x] [y]` | Repair a corrupted spawn position of the current sector |
-| `campaign-votelist [kind] [--all]` | List the targets a vote could use right now |
-| `campaign-vote [info\|cancel]` | Show or cancel the running vote |
-| `campaign-destination [sector\|clear]` | Show or set the launch pad target (same planet only) |
-| `campaign-redirect` | Point every exporting sector at the current one (the vanilla ↓ button) |
-| `campaign-why <sector>` | Explain whether a sector can be entered and why not |
-| `campaign-joininfo` | Preview the message players see on join |
-| `campaign-logic [on\|off\|probe]` | World processor state, keep-running toggle, accumulator probe |
-| `campaign-pause [on\|off]` | Pause the simulation while nobody is online |
-| `campaign-planets` | List participating planets and capture progress |
-| `campaign-planet [name]` | Show or switch planet |
-| `campaign-uncapture <sector>` | Clear the captured flag of a sector |
-| `campaign-config` | Print the current config and its path |
-| `campaign-reload` | Re-read `config.json` |
-| `campaign-diag` | Diagnostics (save manager, map availability, API state, snapshot round trip) |
-
-Sector syntax: preset name `groundZero`, ID `170`, `id:170`, cross-planet `erekir:onset`.
+---
 
 ## 3. In-game commands
 
-Prefix `/`, visible in `/help`.
+Prefix `/`; `/campaignhelp` lists everything.
 
 | Command | Permission | Description |
 | --- | --- | --- |
-| `/sector <name\|id>` | per config | Switch sector (online players reload the world) |
-| `/sectors [page]` | everyone | Sector list and state |
-| `/campaign` | everyone | Current sector, wave, research left |
-| `/research <name\|all>` | per config | Unlock research, synced to online players |
-| `/campaignsave` | admin | Save the current sector |
-| `/capture` | admin | Force capture |
-| `/ca menu` | admin | Admin panel (research / sector / planet / pause / wave / difficulty / rules / abandon) |
-| `/cadmin menu` | admin | Alias of `/ca` |
-| `/ca research <name>` | admin | Unlock research directly |
-| `/ca sector <name>` | admin | Switch sector directly |
-| `/ca planet <name>` | admin | Switch planet directly |
-| `/ca rule <name> [on\|off]` | admin | Toggle a campaign rule |
-| `/cj [count]` `/cjump [count]` | admin | Skip waves (default 1, max 50, limited by `skipWaveCooldown`) |
-| `/cv menu` `/cvote menu` | everyone | Vote panel |
-| `/cvote sector <name>` | everyone | Start a sector-switch vote |
-| `/cvote research <name>` | everyone | Start a research vote |
-| `/cvote planet <name>` | everyone | Start a planet-switch vote |
-| `/cvote destination <sector>` | everyone | Start a launch-pad target vote |
-| `/cvote redirect` | everyone | Start a planet-wide redirect vote |
-| `/cvote pause` | everyone | Start a pause/resume vote |
-| `/cvote wave` | everyone | Start a wave-skip vote |
-| `/cvote abandon` | everyone | Start an abandon vote (surrender) |
-| `/cvote yes` / `/cvote no` | everyone | Cast a vote |
-| `/cvote cancel` | admin | Cancel the running vote |
+| `/c` `/campaign` | everyone | Campaign hub (votes / admin / sector browser) |
+| `/cv` `/cvote` | everyone | Vote menu; `menu` opens the dialog |
+| `/cvote <kind> [target]` | everyone | Start a vote: `sector` `planet` `research` `destination` `redirect` `pause` `wave [count]` `abandon` |
+| `/cvote list <kind> [query]` | everyone | List vote targets; `--all` includes locked research |
+| `/cvote yes` `/cvote no` `/cvote cancel` | everyone | Vote, withdraw |
 | `/cvote info` | everyone | Current vote state |
-| `/cvote help` | everyone | List every vote command |
-| `/destination <name\|clear>` | admin | Set this sector's launch pad target |
-| `/redirect` | admin | Redirect every export to this sector |
-| `/planets` | everyone | List participating planets and progress |
-| `/planet <name>` | per config | Switch planet |
+| `/cvote help` | everyone | Vote command help |
+| `/ca` `/cadmin` | admin | Admin panel and direct actions |
+| `/ca menu` | admin | Open the dialog |
+| `/ca research <name\|all>` | admin | Unlock research |
+| `/ca sector <sector>` | admin | Switch sector |
+| `/ca planet <planet>` | admin | Switch planet |
+| `/ca rule <name> [on\|off]` | admin | Toggle a campaign rule of the current planet |
+| `/ca difficulty [name]` | admin | Show or set the current planet's difficulty |
+| `/ca sim [pause\|resume]` | admin | Pause or resume the simulation |
+| `/ca save` `/ca capture` | admin | Save the sector / force-capture it |
+| `/cj [count]` `/cjump [count]` | admin | Skip waves (default 1, max 50, cooldown applies) |
+| `/sector <name\|id>` | see config | Switch sector |
+| `/sectors [planet\|page]` | everyone | Sector list with states |
+| `/planet <planet>` | see config | Switch planet (its last or start sector) |
+| `/planets` | everyone | Planets and capture progress |
+| `/research <name\|all>` | see config | Unlock research |
+| `/campaign-status` | everyone | Current sector, wave, remaining research |
+| `/campaignsave` | admin | Save the current sector |
+| `/capture` | admin | Force-capture |
+| `/destination <sector\|clear>` | admin | Set this sector's launch destination |
+| `/redirect` | admin | Point every exporting sector at this one |
+| `/resources [planet]` | everyone | Planet-wide resources |
+| `/sectorinfo <sector>` | everyone | Storage, production and transport of a sector |
+| `/sim [pause\|resume\|toggle]` | admin | Pause or resume |
+| `/difficulty [name]` | admin | Show or set the current planet's difficulty |
+| `/rule [name] [on\|off]` | admin | Show or toggle a rule of the current planet |
 
-"per config" means `sectorSwitchAdminOnly` / `researchAdminOnly` / `planetSwitchAdminOnly`:
-when `true`, only admins may use the command directly.
+`see config` means `sectorSwitchAdminOnly` / `researchAdminOnly`: when `true`, only admins may use it; votes are unaffected.
 
-## 4. Voting
+Chat shortcuts: `y` / `1` (yes), `n` / `0` (no), `a` / `2` (abstain).
 
-Eight kinds: `sector`, `planet`, `research`, `destination`, `redirect`, `pause`, `wave`, `abandon`.
+---
 
-- Every vote has a **confirmation page**: pick a target from the list → confirm → the vote starts.
-  If the target sector has no base yet, the launch setup opens after confirming and only "Launch" starts the vote.
-- Lists hold 6 rows per page (research is two columns, so 12 entries), with search and a "show all" toggle.
-  Locked sectors carry their missing prerequisite in the list; clicking them only prints the reason.
-  An empty list shows a placeholder page instead of closing the menu.
-- The decision mode comes from `voteDecision`, **`majority` by default**:
-  - `majority`: decided as soon as everyone voted, or on timeout with the current tally — yes > no passes,
-    a tie fails. A minority cannot veto.
-  - `threshold`: passes at yes ≥ `ceil(online × votePercent)`; fails when no reaches the same number.
-  - `veto`: one no kills it immediately; yes still has to reach the threshold.
-- Three timers, constrained to `timeout < lead < window`:
-  - `voteDuration`: total window, the hard limit
-  - `votePushSeconds`: how many seconds before the end the ballot pops up
-  - `voteTimeout`: seconds of silence after the popup before it settles, `0` disables
-- **AFK players** (no movement for `afkSeconds`) do not count towards the quorum and cannot start a vote;
-  becoming AFK and coming back are both announced in chat. A paused simulation does not accumulate idle time.
-- Admins can cancel at any time; starting twice in a row waits `voteCooldown` seconds.
-- Fewer than `voteMinPlayers` online means no vote. Set it to `1` to allow single-player votes —
-  the starter's ballot is then the whole tally.
-- Results apply immediately (a sector vote reloads the world) and are broadcast to chat.
+## 4. Console commands
 
-## 4.1 Launch setup and the core blueprint library
+`campaign-help` lists everything. Grouped by purpose:
 
-Entering a sector that has no base opens the launch setup (the `/ca` direct entry goes through it too):
+**Running the campaign**
 
-- **Blueprint library**: `.msch` files in `config/mods/Campaign Server Side/blueprints/` plus generated
-  single-core presets for the current planet
-- **Upload**: paste the base64 the game exports; validated for decoding, non-empty, exactly one core,
-  every block unlocked, and a footprint of at most `core size + 10`
-  (vanilla `maxLoadoutSchematicPad = 5`, so five tiles per side)
-- **Rename / delete**: only uploaded blueprints; the built-in core presets are read-only.
-  File names are ASCII slugs, the readable name lives in a sidecar `.name` file
-- **Cargo**: ±50 per item, max, max-all; per item the limit is `min(origin stock − blueprint demand, capacity)`
-  with `capacity = launchCapacityMultiplier × core.itemCapacity`; launching is refused when the origin cannot pay
-- Cancelling clears this launch's cargo; a completed launch deducts it from the origin sector
+| Command | Description |
+| --- | --- |
+| `campaign-host [sector]` | Host the campaign (last sector or the planet start) |
+| `campaign-goto <sector>` | Switch sector (saves the current one first) |
+| `campaign-save` | Save the current sector now |
+| `campaign-stop` | Save and stop hosting |
+| `campaign-status` | Current sector, wave, cores, save file |
+| `campaign-config` | Print the configuration and its path |
+| `campaign-reload` | Reload `config.json` |
 
-## 5. Configuration
+**Sector data**
 
-Path: `<server>/config/mods/Campaign Server Side/config.json` (created on first start, **every key is written out**,
-so edit it directly). At runtime the plugin only touches `planet`/`sector` and merges your other values back;
-run `campaign-reload` afterwards.
+| Command | Description |
+| --- | --- |
+| `campaign-sectors [planet\|page]` | List sector presets and states |
+| `campaign-reset <sector>` | Delete the save and generate again |
+| `campaign-reset-sector <sector>` | Wipe save, sector info and preset unlock |
+| `campaign-uncapture <sector>` | Clear the captured flag (replay) |
+| `campaign-capture` | Force-capture the current sector |
+| `campaign-why <sector>` | Explain whether it can be entered, and why not |
+| `campaign-sectorinfo <sector>` | Storage, production and transport details |
+| `campaign-resources [planet]` | Planet-wide resources |
+| `campaign-destination [sector\|clear]` | Show or set the current sector's destination |
+| `campaign-redirect` | Point every exporter at the current sector |
+| `campaign-pads` | Trace the pad chain: destination, export means, import rates, cooldowns, per-pad state |
+| `campaign-exports` | List destinations and export statistics |
+| `campaign-fix-spawn [x] [y]` | Repair a polluted spawn position |
+| `campaign-respawn [sector\|all]` | Clear the spawn position so generation rerolls it |
 
-| Key | Default | Description |
+**Planets and research**
+
+| Command | Description |
+| --- | --- |
+| `campaign-planets` | Planets and capture progress |
+| `campaign-planet [planet]` | Show or switch planet |
+| `campaign-research <name...>` | Unlock research including parents |
+| `campaign-research-all` | Unlock everything |
+| `campaign-relock <name...>` / `campaign-relock-all` | Lock research again |
+| `campaign-unlocked` | List everything currently unlocked |
+| `campaign-difficulty [name]` | Show or set the current planet's difficulty |
+| `campaign-rule [name] [on\|off]` | Show or toggle a rule (`invasion` `fog` `hidespawns` `randomwaveai` `rtsai` `pausedisabled` `clearonlose` `reactorexplosions`) |
+
+**Votes and simulation**
+
+| Command | Description |
+| --- | --- |
+| `campaign-votelist [kind] [query]` | List the targets a vote could use right now |
+| `campaign-vote [info\|cancel]` | Show or cancel the running vote |
+| `campaign-sim [pause\|resume\|toggle]` | Pause or resume the simulation |
+| `campaign-skipwave [count]` | Skip waves (default 1, max 50, cooldown applies) |
+| `campaign-autopause [on\|off]` | Show or set vanilla "pause while nobody is online" |
+
+**Environment and diagnostics**
+
+| Command | Description |
+| --- | --- |
+| `campaign-weather [list\|floors\|refill\|<name> <seconds>]` | Weather schedule, terrain statistics, rebuild, force an event |
+| `campaign-daynight` | Current light level and mapped ambient darkness |
+| `campaign-logic [on\|off\|probe]` | World processor state, keep-alive switch, execution probe |
+| `campaign-fixphysics` | Rebuild the physics world from the live units |
+| `campaign-refresh-buildings` | Rebuild building proximity caches (fixes stalled logistics/logic) |
+| `campaign-cores` | Core blocks, sizes and allowed blueprint footprint |
+| `campaign-joininfo` | Preview the join notice |
+| `campaign-diag` | Save manager, map availability, API state, snapshot round trip |
+| `campaign-dumprules` | Dump the rules JSON clients receive (debug) |
+
+Sector syntax: preset name `groundZero`, ID `170`, `id:170`, cross-planet `erekir:onset`.
+
+---
+
+## 5. Voting
+
+### Starting a vote
+
+- The `voting` master switch and the switch of that kind are on
+- Online **non-AFK** players ≥ `voteMinPlayers`
+- The starter is not on cooldown (`voteCooldown`)
+- The target is usable (sector enterable, research unlockable, destination legal)
+
+### Timing
+
+| Setting | Default | Meaning |
 | --- | --- | --- |
-| `planet` | `"serpulo"` | Campaign planet, updated on sector switch |
-| `sector` | `-1` | Last sector ID, `-1` picks automatically |
-| `language` | `"auto"` | Console/bundle language: `auto` (JVM locale) / `en` / `zh_CN` |
-| `autoStart` | `false` | Enter the last sector on boot |
-| `autosave` | `true` | Periodic autosave |
-| `autosaveSeconds` | `0` | Autosave interval; `0` follows vanilla `saveinterval` (60 s), a positive value overrides it |
+| `voteDuration` | `15` | Total window in seconds; settles when it ends |
+| `votePushSeconds` | `5` | How long before the end the ballot is pushed (must be shorter than the window) |
+| `voteTimeout` | `10` | Idle time after the ballot before settling; `0` disables |
+
+### Decision
+
+**The yes quorum always applies**: yes votes must reach `ceil(participants × votePercent)` (`votePercent` defaults to `0.6`, minimum 1 vote). Above that quorum, `voteDecision` decides:
+
+| Mode | Passes when | Fails when |
+| --- | --- | --- |
+| `majority` (default) | quorum met and yes > no | yes ≤ no, or quorum unreachable |
+| `threshold` | quorum met | no votes reach the quorum |
+| `veto` | quorum met and no no-votes | any no vote |
+
+### Silence and abstaining
+
+- `unvoted`: how players who never answered count — `abstain` (default) / `yes` / `no`
+- At settlement the quorum is recomputed over **participants**: abstainers, and (in `abstain` mode) silent players, leave the denominator, so an AFK player cannot inflate it
+- While the vote runs the quorum stays frozen at its start value
+
+### AFK
+
+Players who have not moved for `afkSeconds` (default 60) are excluded from the denominator, cannot start a vote and are not pushed a ballot; entering and leaving AFK is announced in chat. Paused time does not count.
+
+Several votes may run in parallel, each on its own clock.
+
+---
+
+## 6. Campaign rules
+
+Rules live in the **planet's own `campaignRules`** (the vanilla mechanism, persisted with the server settings), so the two planets can use different difficulties and switches. `reactorExplosions` has no `CampaignRules` field, so it is stored per planet in the plugin config under `planetReactorExplosions`.
+
+- The first planet to be initialized inherits the old global settings; later planets start from their own vanilla defaults (Erekir ships fog and RTS AI on)
+- Change them with `/ca rule`, `/ca difficulty`, `/rule`, `/difficulty`, `campaign-rule`, `campaign-difficulty`, or the matching votes
+- Changes apply to the current sector immediately and are written to that planet's rule record
+
+---
+
+## 7. Launch setup and blueprints
+
+Entering a sector without a base (or an admin cutting straight in) opens the launch setup:
+
+- **Blueprint library**: per planet, at `config/campaign/blueprints/<planet>/`; each blueprint is a `.msch` plus a sidecar `.name`; single-core presets are generated from the cores unlocked on that planet
+- **Upload**: paste the base64 text the game exports; validated for decoding, non-empty content, exactly one core, all blocks unlocked, and a footprint no larger than core size + 10 (vanilla `maxLoadoutSchematicPad = 5`)
+- **Rename / delete**: only uploaded blueprints; generated presets are read-only
+- **Cargo**: ±50 / maximize / maximize all per item; each item is capped at `min(origin stock, core capacity)` with `launchCapacityMultiplier × itemCapacity`, and is deducted from the origin sector
+- Planets that do not allow a launch blueprint/loadout (Erekir) get neither option and are never charged
+
+The cargo list is stored in `config/campaign/cargo.txt`.
+
+---
+
+## 8. Configuration
+
+Path: `<server>/config/mods/Campaign Server Side/config.json`, created on first start; run `campaign-reload` after editing.
+
+### Campaign
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `planet` | `"serpulo"` | Current campaign planet |
+| `sector` | `-1` | Last sector ID; `-1` means automatic |
+| `language` | `"auto"` | Message language: `auto` / `en` / `zh_CN` |
+| `autoStart` | `false` | Resume the last sector on startup |
+
+### Saving and loss
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `autosave` | `true` | Periodic saving |
+| `autosaveSeconds` | `0` | `0` follows vanilla `saveinterval` |
 | `saveOnExit` | `true` | Save on shutdown |
-| `paused` | `false` | Whether the game was deliberately paused; restored after a restart |
-| `clearSectorOnLose` | `false` | Clear-on-loss: `true` = not saved on loss and regenerated next time; `false` = ruined state saved and rebuilt vanilla-style |
-| `blueprintOnRebuild` | `true` | Apply the selected core blueprint after a lost-sector rebuild (vanilla only places the default core) |
-| `afkEnabled` | `true` | Enable AFK detection |
-| `afkSeconds` | `60` | Seconds without movement before a player counts as AFK |
-| `skipWaveCooldown` | `30` | `/cj` cooldown in seconds |
+| `paused` | `false` | Whether the game was paused on purpose (restored on restart) |
+| `clearSectorOnLose` | `false` | Discard the save on loss (`true`) or keep ruins (`false`) |
+| `regenerateLostSector` | `false` | Force a rebuild when a save has no core left |
+| `blueprintOnRebuild` | `true` | Apply the selected blueprint when a lost sector is rebuilt |
+
+### Permissions
+
+| Key | Default | Meaning |
+| --- | --- | --- |
 | `allowSectorSwitch` | `true` | Master switch for sector switching |
 | `allowResearch` | `true` | Master switch for research |
-| `sectorSwitchAdminOnly` | `true` | Only admins may use `/sector` (votes unaffected) |
-| `researchAdminOnly` | `true` | Only admins may use `/research` (votes unaffected) |
-| `voting` | `true` | Master switch for voting |
-| `voteSector` | `true` | Allow sector votes |
-| `voteResearch` | `true` | Allow research votes |
-| `voteDestination` | `true` | Allow launch-pad target votes |
-| `voteRedirect` | `true` | Allow redirect votes |
-| `votePercent` | `0.6` | Passing ratio in `threshold` mode |
-| `voteMinPlayers` | `2` | Minimum online players to start a vote (`1` allows solo votes) |
-| `voteDuration` | `60` | Total vote window in seconds, the hard limit |
-| `votePushSeconds` | `15` | Seconds before the end when the ballot pops up |
-| `voteDecision` | `"majority"` | Decision mode: `majority` / `threshold` / `veto` |
-| `voteTimeout` | `10` | Seconds of silence after the popup before settling, `0` disables |
+| `sectorSwitchAdminOnly` | `true` | Only admins may switch sectors directly |
+| `researchAdminOnly` | `true` | Only admins may unlock research directly |
 | `allowPlanetSwitch` | `true` | Master switch for planet switching |
-| `planetSwitchAdminOnly` | `true` | Only admins may use `/planet` (votes unaffected) |
-| `votePlanet` | `true` | Allow planet votes |
-| `voteCooldown` | `30` | Cooldown between two votes of the same player, seconds |
-| `announce` | `true` | Announce captures and losses |
-| `resyncClients` | `true` | Resend world data after a sector switch (otherwise clients get kicked) |
-| `enforceSectorUnlock` | `true` | Restrict entry to unlocked sectors like vanilla |
-| `adminBypassLock` | `true` | Admins ignore the unlock restriction (the console always can) |
-| `launchPadLinking` | `true` | Point a new sector's pads at its origin |
-| `joinInfo` | `true` | Send a short help message on join |
-| `worldProcessors` | `true` | Keep world processors running until the sector is captured |
-| `pauseWhenEmpty` | `true` | Pause while nobody is online |
+| `planetSwitchAdminOnly` | `true` | Only admins may switch planets directly |
+| `enforceSectorUnlock` | `true` | Restrict entry to unlocked sectors (vanilla rules) |
+| `adminBypassLock` | `true` | Admins ignore that restriction |
 
-Saves: `config/saves/sector-<planet>-<id>.msav`; per-sector economy lives in `config/settings.bin`
-(key `<planet>-s-<id>-info`). To wipe a sector completely use `campaign-reset <sector>`.
+### Voting
 
-## 6. Network API (client mods)
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `voting` | `true` | Master switch |
+| `voteSector` `voteResearch` `votePlanet` | `true` | Per-kind switches |
+| `voteDestination` `voteRedirect` `votePause` `voteWave` `voteAbandon` | `true` | Per-kind switches |
+| `votePercent` | `0.6` | Yes quorum ratio |
+| `voteMinPlayers` | `2` | Minimum online players to start |
+| `voteDuration` | `15` | Total window in seconds |
+| `votePushSeconds` | `5` | Ballot lead time in seconds |
+| `voteTimeout` | `10` | Idle settle time in seconds; `0` disables |
+| `voteCooldown` | `2` | Start cooldown in seconds |
+| `voteDecision` | `"majority"` | `majority` / `threshold` / `veto` |
+| `unvoted` | `"abstain"` | Silent players: `abstain` / `yes` / `no` |
 
-The server advertises the protocol version through `state.rules.tags["campaign-api"]`, so a client mod can
-check availability; after the handshake it can switch sectors, unlock research, save, vote and read sector info.
-Packet layout, JSON fields and a Java example are in [`PROTOCOL.md`](PROTOCOL.md).
+### Rules and environment
 
-## 7. How close this is to vanilla
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `difficulty` | `"normal"` | Seed used when the first planet is initialized |
+| `ruleSectorInvasion` `ruleFog` `ruleHideSpawns` | `false` | Seed values |
+| `ruleRandomWaveAI` `ruleRtsAI` `rulePauseDisabled` | `false` | Seed values |
+| `ruleReactorExplosions` | `true` | Seed value |
+| `weatherSystem` | `true` | Enable weather |
+| `dayNightCycle` | `true` | Enable the day/night cycle |
+| `dayNightSyncSeconds` | `5` | Light broadcast interval in seconds |
 
-**Sector unlocking** (`enforceSectorUnlock`, on by default) mirrors `PlanetDialog#canSelect`:
+### Other
 
-1. shielded sectors cannot be entered (`Sector#isShielded`);
-2. sectors with a base and the planet's starting sector are always available;
-3. preset sectors follow the tech tree: `preset.unlocked()`, or the parent unlocked and (if the parent is a
-   sector) that sector has a base;
-4. numbered sectors follow `PlanetGenerator#allowLanding` (Serpulo: a neighbour has a base and the core is level 4+).
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `afkEnabled` | `true` | AFK detection |
+| `afkSeconds` | `60` | Idle threshold in seconds |
+| `skipWaveCooldown` | `30` | Wave skip cooldown in seconds |
+| `worldProcessors` | `true` | Keep world processors running |
+| `joinInfo` | `true` | Join notice |
+| `announce` | `true` | Capture/loss announcements |
+| `announceUnlocks` | `true` | Research unlock announcements |
+| `launchPadLinking` | `true` | Link a new sector to its origin |
+| `promptLaunch` | `true` | Show the launch setup for a sector without a base |
+| `resyncClients` | `true` | Resend world data after switching |
 
-Console commands always force a switch (with a warning); in-game admins bypass the check when `adminBypassLock`
-is on; votes may never target a locked sector. `campaign-why <sector>` explains any decision.
+Saves live in `config/saves/sector-<planet>-<id>.msav`; sector economy data is part of the server settings.
 
-**Automatic research**: vanilla `Control#checkAutoUnlocks` only runs on clients. The plugin runs the same check
-after a capture, after entering a sector and after a manual unlock: content whose parent is unlocked, needs no
-items and has all objectives completed gets unlocked. That is the "capture a sector → unlock the next ones" chain.
+---
 
-**Launch pads / receivers**: the vanilla target is set from a client UI (`LaunchPad#buildConfiguration` is
-disabled in multiplayer), so the plugin takes over: a new sector points `origin`/`destination` at its source
-(`launchPadLinking`, the same meaning as launching into a new sector), `campaign-destination` / `/destination`
-set it manually, `campaign-redirect` / `/redirect` redirect everything at once, and targets must be on the same
-planet (as in vanilla). Serpulo pads settle transport through `Universe#runTurn` every turn, Erekir receivers pull
-by import rate; both rely on `destination` and the `export` counters set up here.
+## 9. Differences from vanilla
 
-**World processors**: vanilla `Logic#sectorCapture()` sets `state.rules.disableWorldProcessors = true`, and
-`LogicBlock#updateTile` returns immediately once that flag is set. `Rules` are written into the sector save via
-`JsonIO`, so **once a sector has been captured its world processors never run again** — vanilla does not care
-because captured sectors are not revisited, but a dedicated server keeps re-entering them. The plugin clears the
-flag on `WorldLoadEvent` / `RulesLoadEvent` and after every capture (`worldProcessors`), and **never touches**
-`allowEditWorldProcessors`, which only controls building/editing.
+- **No client campaign UI**: the planet view, sector picking and pad configuration are replaced by server dialogs and commands; the client cannot see the planet map
+- **Pad destinations are server-side**: vanilla disables `LaunchPad#buildConfiguration` in multiplayer; the plugin owns `destination` and the transport settlement
+- **Blueprint library is server-side**: vanilla reads client blueprint files; here they are uploaded, and kept **per planet**
+- **Loss keeps ruins by default**: with `clearSectorOnLose = false` the ruins are saved and rebuilt; vanilla decides this through a client rule
+- **Several client-only steps are patched in**: core item unlock, auto-unlock polling, world processor reset and the physics rebuild reproduce steps vanilla only performs on a client, or never performs at all
+- **The server owns the save**: generation writes to disk immediately, which vanilla leaves to the client
 
-**Clear on loss (`clearSectorOnLose`)** follows `Control#playSector`:
+## 10. Known limitations
 
-- **on**: not saved on loss, the sector save is deleted, the next entry regenerates it (no leftovers)
-- **off**: the ruined state is saved; the next entry rebuilds it the vanilla way — load the old save →
-  place a core at `spawnPosition` → `SectorDamage.apply(1f)` along enemy paths → record surviving buildings /
-  derelicts / plans → `logic.reset()` → regenerate → restore the survivors as `derelict` inside
-  `playNewSector`'s `beforePlay` → `logic.play()` → finally apply the core blueprint if `blueprintOnRebuild`
+- Pre-release; **save compatibility is not guaranteed**
+- Production/export statistics of a sector that is not loaded stay at the values from when it was last left (vanilla behaviour)
+- World processors only run in the loaded sector (vanilla behaviour)
+- The client HUD shows `TPS 1` permanently: vanilla puts `Core.graphics.getFramesPerSecond()` into the state snapshot and that value is fixed at 1 on a headless server; unrelated to this plugin
+- Blueprints and cargo are server-wide settings; two players preparing a launch overwrite each other
+- A rebuilt lost sector uses the currently selected blueprint, not the one it was launched with
+- The server does not verify that a player has unlocked a block (vanilla multiplayer does not either)
 
-Rotated backups (`*.msav-backup.msav`) are only used when a save **fails to load**; they never replace the
-lost-sector flow.
+---
 
-**Launch loadout**: vanilla `LaunchLoadoutDialog` is client-only; the launch setup UI replaces it and places
-blocks with vanilla `Schematics#placeLoadout`, with the same capacity and item deduction rules.
+## 11. Client API
 
-**Not reproduced**: the cross-sector launch animation and sounds (client-only polish); blueprints and cargo are
-global state rather than per-launch.
+The plugin broadcasts its protocol version through `state.rules.tags["campaign-api"]`; after a handshake a client mod can switch sectors/planets, unlock research, save, start votes and read sector information.
 
-## 8. Why vanilla cannot do this
+Packet layout, fields and examples live in [`PROTOCOL.md`](PROTOCOL.md).
 
-1. `Vars.control` is `null` on a headless server, and sector save management (`Saves#saveSector`,
-   `Saves$SaveSlot`) hangs off it → the plugin builds its own `Saves`; `Core.assets` is empty in headless mode,
-   so it temporarily supplies an `AssetManager` while constructing and restores it afterwards.
-2. The save call in `Logic#sectorCapture()` is guarded by `if(!headless && !net.client())` → the plugin listens
-   to `SectorCaptureEvent` and saves itself.
-3. `ServerControl.gameOverListener` switches to the next map, which destroys the campaign → the listener is
-   replaced via reflection (the `server` module is not available at mod compile time); a campaign game over
-   becomes a pause plus an announcement, waiting for an admin.
-4. Entering a sector copies the server-compatible subset of `Control#playSector`: load with
-   `SaveIO.load(world.makeSectorContext(sector))` when a save exists, otherwise `world.loadSector` +
-   `logic.play()`, then `SaveIO.save`; a sector whose cores are gone is rebuilt at the old position.
-5. Switching the world for online players reuses the vanilla `/sync` path: `Call.worldDataBegin(con)` +
-   `NetServer#sendWorldData`.
-6. Research uses the vanilla path: `unlock()` → `UnlockEvent` → `Logic` sends `Call.researched`; joining players
-   get `rules.researched` through `NetworkIO#writeWorld`.
+---
 
-## 9. Code layout
+## 12. Feedback
 
-```
-src/main/java/top/colorgarden/
-├── CampaignServerMod.java     entry point (Plugin), shared by client and server
-├── command/                   CampaignCommands / AdminPanel / LaunchPanel
-├── config/                    CampaignConfig
-├── core/                      SectorService / CoreBlueprints / LaunchCargo / ResearchService /
-│                              CampaignHooks / ActivityTracker / ServerControlHook
-├── net/                       CampaignNetwork / CampaignClientApi / CampaignInfo / CampaignProtocol
-│   └── packet/                Hello / HelloAck / Request / Reply
-├── vote/                      CampaignVote / VoteMenu
-└── util/                      I18n / CampaignException
-bundles/                       bundle.properties (English fallback) + bundle_zh_CN.properties
-```
-
-## 10. Building
-
-**Gradle** (needs network access for JitPack)
-
-```bash
-gradle jar                 # build/libs/CampaignServerSide.jar
-gradle installToServer -PserverDir=/path/to/server
-```
-
-**JDK only (no Gradle)**
-
-```powershell
-./build.ps1 -MindustryJar /path/to/server-release.jar
-./build.ps1 -Dev      # appends -devbuild-<yyyyMMdd-HHmm> to the version, jar copy only
-```
-
-`build.ps1` compiles with `javac --release 17` and packs `mod.hjson` plus `bundles/` into the jar root.
-`mod.hjson` must not start with a UTF-8 BOM, otherwise the game silently skips the mod (the script guards this).
-
-## 11. Known limitations
-
-- There is no planet map on the client: move between sectors with `/cv menu`, `/ca menu` or the commands.
-- The client's `LaunchPad`/`Accelerator` launch flow depends on single-player saves; do not rely on it.
-- **Blueprints and cargo are global state**, not carried per launch; two players preparing a launch overwrite
-  each other.
-- A lost-sector rebuild applies the *currently selected* blueprint, not the one used to launch that sector.
-- Sector economy (`Universe#runTurn`, every 2 minutes) runs on the server and only links sectors that have bases.
-- After a loss the server pauses and announces; an admin decides what happens next
-  (`/ca sector`, `/ca rule clearonlose`, …).
-- The server does not verify that a player has unlocked a block (vanilla multiplayer does not either); combine it
-  with a whitelist-style plugin if you need that.
-- Logs are UTF-8 by default; if the machine has an empty `LANG`, start with `-Dfile.encoding=UTF-8`
-  `-Dstdout.encoding=UTF-8`.
-- Blueprint file names go through `sun.jnu.encoding`, so non-UTF-8 locales turn Chinese into `?`; hence the ASCII
-  slug plus sidecar name.
+- Issues / PRs: welcome, vibe-coded ones included
+- QQ group: `1135085472`
+- Test server: `colorgarden.top:6567`
