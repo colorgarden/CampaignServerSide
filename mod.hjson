@@ -2,7 +2,7 @@ name: Campaign Server Side
 displayName: Campaign Server Side
 author: CampaignServerSide
 description: "Runs the Mindustry campaign on a dedicated server: sector loading/saving, admin sector switching and admin research commands."
-version: "0.0.5.1-beta"
+version: "0.0.5.2-beta"
 minGameVersion: "160"
 java: true
 hidden: true
