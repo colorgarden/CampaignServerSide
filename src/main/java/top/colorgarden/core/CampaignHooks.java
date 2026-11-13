@@ -488,13 +488,14 @@ public class CampaignHooks{
         }
 
         //Mindustry never removes the physics body of a unit that despawns, so mass spawns (wave skipping,
-        //big attacks) leave thousands of bodies in the collision quadtree. The server then spends seconds
-        //per frame intersecting them: 0.5 tps with an idle CPU. Rebuilding the physics world from the live
-        //units costs O(units) and is the only safe way to drop the leaked bodies
+        //big attacks) leave thousands of bodies in the collision quadtree and the server drops to a
+        //fraction of its tick rate. Rebuilding is only safe when the bodies are stale, so this poll only
+        //reports the leak: dropping the bodies of live units restarts their collision state and lets them
+        //overlap, which is why the rebuild happens on sector load or on campaign-fixphysics instead
         physicsTimer += Time.delta;
         if(physicsTimer >= 300f){
             physicsTimer = 0f;
-            SectorService.resetPhysics();
+            SectorService.reportPhysicsLeak();
         }
 
         campaignUnlockTimer += Time.delta;

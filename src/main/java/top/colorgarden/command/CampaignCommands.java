@@ -560,13 +560,23 @@ public class CampaignCommands{
             info("campaign.log.buildings-refreshed", touched);
         });
 
-        handler.register("campaign-fixphysics", "Rebuild the physics world from the live units (fixes the slowdown left behind by mass unit spawns).", args -> {
+        handler.register("campaign-fixphysics", "Rebuild the physics world from the live units (last resort; collision is dropped for one frame).", args -> {
             if(!state.isGame()){
                 err("campaign.msg.not-playing");
                 return;
             }
             int rebuilt = SectorService.resetPhysics();
             info("campaign.log.physics-reset", rebuilt, mindustry.gen.Groups.unit.size());
+        });
+
+        handler.register("campaign-purgephysics", "Remove physics bodies that no live unit references (safe: live units keep their collision).", args -> {
+            if(!state.isGame()){
+                err("campaign.msg.not-playing");
+                return;
+            }
+            int removed = SectorService.purgeStalePhysicsBodies();
+            info("campaign.log.physics-purged", removed, SectorService.physicsBodyCount(),
+                mindustry.gen.Groups.unit.size());
         });
 
         handler.register("campaign-exports", "List every sector of the planet with its destination, export statistics and whether a redirect would touch it.", args -> {

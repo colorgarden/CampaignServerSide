@@ -1031,14 +1031,177 @@ public class SectorService{
         CampaignNetwork.pushInfoToAll();
     }
 
+    /** Cached reflective handles for the physics body count; null until first use. */
+    private static java.lang.reflect.Field physicsArrayField, physicsBodiesField;
+
+    /**
+     * @return how many bodies the physics world currently holds, or -1 when it cannot be read.
+     *
+     * <p>The process keeps its worlds in a private array, and each world its bodies in a private Seq;
+     * there is no public accessor, so this reads them reflectively and caches the handles.</p>
+     */
+    public static int physicsBodyCount(){
+        try{
+            if(mindustry.Vars.asyncCore == null || mindustry.Vars.asyncCore.processes == null) return -1;
+
+            for(mindustry.async.AsyncProcess process : mindustry.Vars.asyncCore.processes){
+                if(!(process instanceof mindustry.async.PhysicsProcess)) continue;
+
+                if(physicsArrayField == null){
+                    physicsArrayField = mindustry.async.PhysicsProcess.class.getDeclaredField("physics");
+                    physicsArrayField.setAccessible(true);
+                }
+
+                Object[] worlds = (Object[])physicsArrayField.get(process);
+                if(worlds == null) return 0;
+
+                int total = 0;
+                for(Object world : worlds){
+                    if(world == null) continue;
+                    if(physicsBodiesField == null){
+                        physicsBodiesField = world.getClass().getDeclaredField("bodies");
+                        physicsBodiesField.setAccessible(true);
+                    }
+                    Object bodies = physicsBodiesField.get(world);
+                    if(bodies instanceof arc.struct.Seq<?> seq) total += seq.size;
+                }
+
+                return total;
+            }
+        }catch(Throwable ignored){
+            //an unreadable field only costs the diagnostics
+        }
+
+        return -1;
+    }
+
+    /** Cached handles for the targeted purge. */
+    private static java.lang.reflect.Field refsField, refBodyField;
+    private static java.lang.reflect.Method bodyRemoveMethod;
+
+    /**
+     * Removes physics bodies that no live unit references, without touching the bodies of live units.
+     *
+     * <p>This is the safe cleanup: a full {@link #resetPhysics()} drops the collision state of every
+     * unit (which lets them overlap), while removing only unreferenced bodies leaves the live ones
+     * untouched.</p>
+     *
+     * @return how many stale bodies were removed, or -1 when the internals could not be read
+     */
+    public static int purgeStalePhysicsBodies(){
+        try{
+            if(mindustry.Vars.asyncCore == null || mindustry.Vars.asyncCore.processes == null) return -1;
+
+            mindustry.async.PhysicsProcess process = null;
+            for(mindustry.async.AsyncProcess candidate : mindustry.Vars.asyncCore.processes){
+                if(candidate instanceof mindustry.async.PhysicsProcess physics){
+                    process = physics;
+                    break;
+                }
+            }
+            if(process == null) return -1;
+
+            if(refsField == null){
+                refsField = mindustry.async.PhysicsProcess.class.getDeclaredField("refs");
+                refsField.setAccessible(true);
+            }
+            if(physicsArrayField == null){
+                physicsArrayField = mindustry.async.PhysicsProcess.class.getDeclaredField("physics");
+                physicsArrayField.setAccessible(true);
+            }
+
+            Object refsObject = refsField.get(process);
+            if(!(refsObject instanceof arc.struct.Seq<?> refs)) return -1;
+
+            //identity set of the bodies that live units still own
+            arc.struct.ObjectSet<Object> live = new arc.struct.ObjectSet<>();
+            for(Object ref : refs){
+                if(ref == null) continue;
+                if(refBodyField == null){
+                    refBodyField = ref.getClass().getDeclaredField("body");
+                    refBodyField.setAccessible(true);
+                }
+                Object body = refBodyField.get(ref);
+                if(body != null) live.add(body);
+            }
+
+            Object[] worlds = (Object[])physicsArrayField.get(process);
+            if(worlds == null) return 0;
+
+            int removed = 0;
+            for(Object world : worlds){
+                if(world == null) continue;
+                if(physicsBodiesField == null){
+                    physicsBodiesField = world.getClass().getDeclaredField("bodies");
+                    physicsBodiesField.setAccessible(true);
+                }
+                Object bodiesObject = physicsBodiesField.get(world);
+                if(!(bodiesObject instanceof arc.struct.Seq<?> bodies)) continue;
+
+                //copy first: removing while iterating the same Seq skips entries
+                arc.struct.Seq<Object> snapshot = new arc.struct.Seq<>();
+                for(Object body : bodies) snapshot.add(body);
+
+                for(Object body : snapshot){
+                    if(body == null || live.contains(body)) continue;
+
+                    if(bodyRemoveMethod == null){
+                        for(java.lang.reflect.Method method : world.getClass().getDeclaredMethods()){
+                            if(method.getName().equals("remove") && method.getParameterCount() == 1){
+                                bodyRemoveMethod = method;
+                                bodyRemoveMethod.setAccessible(true);
+                                break;
+                            }
+                        }
+                    }
+                    if(bodyRemoveMethod == null) return removed;
+
+                    bodyRemoveMethod.invoke(world, body);
+                    removed ++;
+                }
+            }
+
+            return removed;
+        }catch(Throwable t){
+            Log.err("[CampaignServer] " + I18n.get("campaign.log.physics-purge-failed",
+                Strings.getSimpleMessage(t)));
+            return -1;
+        }
+    }
+
+    /**
+     * Logs a warning when the physics world holds far more bodies than there are units, and removes
+     * those stale bodies.
+     *
+     * <p>Only unreferenced bodies are dropped, so live units keep their collision state.</p>
+     */
+    public static void reportPhysicsLeak(){
+        int bodies = physicsBodyCount();
+        if(bodies < 0 || mindustry.gen.Groups.unit == null) return;
+
+        int units = mindustry.gen.Groups.unit.size();
+        if(bodies <= Math.max(50, units * 4 + 20)) return;
+
+        Log.warn("[CampaignServer] " + I18n.get("campaign.log.physics-leak", bodies, units));
+
+        int removed = purgeStalePhysicsBodies();
+        if(removed > 0){
+            Log.info("[CampaignServer] " + I18n.get("campaign.log.physics-purged",
+                removed, physicsBodyCount(), units));
+        }
+    }
+
     /**
      * Rebuilds the physics world from the live units.
      *
      * <p>Mindustry creates a physics body per unit but only removes it when the unit changes collision
-     * layer; a unit that simply despawns leaves its body in the collision quadtree. Mass spawns (the
+     * layer; a unit that simply despawns can leave its body in the collision quadtree. Mass spawns (the
      * wave skip, a big attack) therefore leave tens of thousands of stale bodies, and the server spends
-     * seconds per frame intersecting them: it drops to 0.5 tps with an otherwise idle CPU. Rebuilding
-     * the process and clearing the per-unit flag makes the next frame re-register the survivors.</p>
+     * seconds per frame intersecting them: it drops to 0.5 tps with an otherwise idle CPU.</p>
+     *
+     * <p>This is deliberately <b>not</b> run on a timer: dropping the bodies of live units restarts
+     * their collision state, which lets them overlap. It runs on sector load, where the previous
+     * world's bodies are stale anyway, and on demand through {@code campaign-fixphysics}.</p>
      *
      * @return how many physics processes were rebuilt
      */
