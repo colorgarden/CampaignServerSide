@@ -1187,25 +1187,21 @@ public class SectorService{
     /**
      * Logs a warning when the physics world holds far more bodies than there are units.
      *
-     * <p>The cleanup itself is only attempted while the simulation is paused, see
-     * {@link #purgeStalePhysicsBodies()}; while it runs, the warning alone tells the admin what to do.</p>
+     * <p>Report only: nothing is removed here. Touching the body list on a timer risks racing the
+     * physics thread, and the admin decides when to run {@code campaign-purgephysics} (which itself
+     * requires a paused simulation) or {@code campaign-fixphysics}.</p>
+     *
+     * @return the reported body count, or -1 when it could not be read or the level is fine
      */
-    public static void reportPhysicsLeak(){
+    public static int reportPhysicsLeak(){
         int bodies = physicsBodyCount();
-        if(bodies < 0 || mindustry.gen.Groups.unit == null) return;
+        if(bodies < 0 || mindustry.gen.Groups.unit == null) return -1;
 
         int units = mindustry.gen.Groups.unit.size();
-        if(bodies <= Math.max(50, units * 4 + 20)) return;
+        if(bodies <= Math.max(50, units * 4 + 20)) return -1;
 
         Log.warn("[CampaignServer] " + I18n.get("campaign.log.physics-leak", bodies, units));
-
-        int removed = purgeStalePhysicsBodies();
-        if(removed > 0){
-            Log.info("[CampaignServer] " + I18n.get("campaign.log.physics-purged",
-                removed, physicsBodyCount(), units));
-        }else if(removed == -2){
-            Log.info("[CampaignServer] " + I18n.get("campaign.log.physics-purge-skipped"));
-        }
+        return bodies;
     }
 
     /**
