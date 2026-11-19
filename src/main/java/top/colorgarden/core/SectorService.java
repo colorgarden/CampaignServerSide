@@ -1086,9 +1086,24 @@ public class SectorService{
      * unit (which lets them overlap), while removing only unreferenced bodies leaves the live ones
      * untouched.</p>
      *
-     * @return how many stale bodies were removed, or -1 when the internals could not be read
+     * <p><b>The physics step runs on {@code Vars.mainExecutor}, not on the main thread.</b>
+     * {@code PhysicsProcess#begin} submits {@code PhysicsWorld#update} to the executor as soon as
+     * {@code state.isPlaying()}, and {@code Trigger.update} runs after that submission. Mutating
+     * {@code bodies} from here while that task iterates them is a data race: the worker reads a slot
+     * that was just compacted away, gets {@code null} and throws, which takes down the whole main loop
+     * and makes systemd restart the server. The purge therefore refuses to run while the simulation is
+     * playing — pause first (an admin pause or {@code campaign-sim pause}), or let the sector change
+     * rebuild the world instead.</p>
+     *
+     * @return how many stale bodies were removed, -1 when the internals could not be read, -2 when the
+     *         simulation is running (nothing was touched)
      */
     public static int purgeStalePhysicsBodies(){
+        //a running simulation has physics tasks in flight on the executor; only touch the lists when idle
+        if(mindustry.Vars.state != null && mindustry.Vars.state.isPlaying()){
+            return -2;
+        }
+
         try{
             if(mindustry.Vars.asyncCore == null || mindustry.Vars.asyncCore.processes == null) return -1;
 
@@ -1170,10 +1185,10 @@ public class SectorService{
     }
 
     /**
-     * Logs a warning when the physics world holds far more bodies than there are units, and removes
-     * those stale bodies.
+     * Logs a warning when the physics world holds far more bodies than there are units.
      *
-     * <p>Only unreferenced bodies are dropped, so live units keep their collision state.</p>
+     * <p>The cleanup itself is only attempted while the simulation is paused, see
+     * {@link #purgeStalePhysicsBodies()}; while it runs, the warning alone tells the admin what to do.</p>
      */
     public static void reportPhysicsLeak(){
         int bodies = physicsBodyCount();
@@ -1188,6 +1203,8 @@ public class SectorService{
         if(removed > 0){
             Log.info("[CampaignServer] " + I18n.get("campaign.log.physics-purged",
                 removed, physicsBodyCount(), units));
+        }else if(removed == -2){
+            Log.info("[CampaignServer] " + I18n.get("campaign.log.physics-purge-skipped"));
         }
     }
 

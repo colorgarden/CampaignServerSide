@@ -569,12 +569,17 @@ public class CampaignCommands{
             info("campaign.log.physics-reset", rebuilt, mindustry.gen.Groups.unit.size());
         });
 
-        handler.register("campaign-purgephysics", "Remove physics bodies that no live unit references (safe: live units keep their collision).", args -> {
+        handler.register("campaign-purgephysics", "Remove physics bodies that no live unit references (only while paused; live units keep their collision).", args -> {
             if(!state.isGame()){
                 err("campaign.msg.not-playing");
                 return;
             }
             int removed = SectorService.purgeStalePhysicsBodies();
+            if(removed == -2){
+                //mutating the physics lists while the executor runs them crashes the main loop
+                err("campaign.log.physics-purge-skipped");
+                return;
+            }
             info("campaign.log.physics-purged", removed, SectorService.physicsBodyCount(),
                 mindustry.gen.Groups.unit.size());
         });
